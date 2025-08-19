@@ -26,7 +26,7 @@ pub struct HTTP {
     router: Router,
 }
 
-pub fn serve(host: String, port: i32) -> Result<HTTP> {
+pub fn server(host: String, port: i32) -> Result<HTTP> {
     let http = HTTP {
         listener: TcpListener::bind(format!("{0}:{1}", host, port))?,
         request_max_size: 1024,
@@ -37,7 +37,7 @@ pub fn serve(host: String, port: i32) -> Result<HTTP> {
     return Ok(http);
 }
 
-pub fn serve_tls(host: String, port: i32, key: String, certs: String) -> Result<HTTP> {
+pub fn server_tls(host: String, port: i32, key: String, certs: String) -> Result<HTTP> {
     let mut acceptor: SslAcceptorBuilder = SslAcceptor::mozilla_intermediate(SslMethod::tls())?;
 
     acceptor.set_private_key_file(key, SslFiletype::PEM)?;

@@ -25,11 +25,9 @@ pub struct Route<R> {
     pub(crate) middlewares: Vec<Middleware>,
 }
 
-
 use regex::Regex;
 use std::collections::HashMap;
 use once_cell::sync::Lazy;
-
 
 static PARAM_REGEX: Lazy<Regex> = Lazy::new(|| {
     Regex::new(r"\{[a-zA-Z_]+\}").expect("Invalid parameter regex")
@@ -69,15 +67,12 @@ fn parameters_route_match(route_path: Vec<String>, request_path: Vec<String>) ->
 use std::net::IpAddr;
 
 fn get_subdomain(host: &str) -> String {
-    // strip port if present
     let host = host.split(':').next().unwrap_or("");
 
-    // if it's an IP, return ""
     if host.parse::<IpAddr>().is_ok() {
         return String::new();
     }
 
-    // split on "."
     let parts: Vec<&str> = host.split('.').collect();
 
     if parts.len() < 3 {
@@ -86,7 +81,6 @@ fn get_subdomain(host: &str) -> String {
 
     parts[..parts.len() - 2].join(".")
 }
-
 
 fn route_match<'a, T>(routes: Vec<&'a Route<T>>, req: &'a mut Request) -> Option<&'a Route<T>> {
     let mut request_path: Vec<String> = req.path.split("/").map(|x| x.to_string()).collect();
