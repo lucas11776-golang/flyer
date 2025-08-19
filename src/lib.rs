@@ -7,6 +7,7 @@ use std::net::{SocketAddr, TcpListener};
 use std::io::{Read, Result, Write};
 use std::sync::Arc;
 use std::thread::{scope};
+
 use openssl::ssl::{
     SslAcceptor,
     SslAcceptorBuilder,
@@ -21,7 +22,6 @@ pub struct HTTP {
     acceptor: Option<Arc<SslAcceptor>>,
     listener: TcpListener,
     request_max_size: i64,
-    is_secure: bool,
     router: Router,
 }
 
@@ -30,7 +30,6 @@ pub fn server(host: String, port: i32) -> Result<HTTP> {
         listener: TcpListener::bind(format!("{0}:{1}", host, port))?,
         request_max_size: 1024,
         acceptor: None,
-        is_secure: false,
         router: new_router(),
     };
     return Ok(http);
@@ -47,7 +46,6 @@ pub fn server_tls(host: String, port: i32, key: String, certs: String) -> Result
         acceptor: Some(Arc::new(acceptor.build())),
         listener: TcpListener::bind(format!("{0}:{1}", host, port))?,
         request_max_size: 1024,
-        is_secure: true,
         router: new_router(),
     };
 
@@ -87,37 +85,18 @@ impl HTTP {
     }
 
     pub fn listen(&mut self) {
-        match self.is_secure {
-            true => self.listen_secure(),
-            false => self.listen_none_secure(),
-        }
-    }
-
-    fn listen_secure(&mut self) {
         loop {
             match self.listener.accept() {
                 Ok((socket, addr)) => {
-                    let _ = scope(|_s| {
-                        match self.acceptor.clone().unwrap().accept(socket) {
-                            Ok(socket) => self.new_connection(socket, addr),
-                            Err(_error) => Ok(()),
-                        }
-                    }).unwrap();
+                    match &self.acceptor {
+                        Some(acceptor) => match acceptor.accept(socket) {
+                            Ok(socket) => scope(|_| self.new_connection(socket, addr)).unwrap(),
+                            Err(err) => println!("{}", err),
+                        },
+                        None => scope(|_| self.new_connection(socket, addr)).unwrap(),
+                    };
                 },
-                Err(err) => println!("Error: {0}", err),
-            }
-        }
-    }
-
-    fn listen_none_secure(&mut self) {
-        loop {
-            match self.listener.accept() {
-                Ok((socket, addr)) => {
-                    let _ = scope(|_s| {
-                        self.new_connection(socket, addr)
-                    });
-                },
-                Err(err) => println!("Error: {0}", err),
+                Err(err) => println!("{}", err),
             }
         }
     }

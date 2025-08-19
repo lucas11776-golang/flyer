@@ -118,24 +118,28 @@ impl Router {
         // TODO: group depends on -> add_web_route
     }
 
-    pub fn get(&mut self , path: String, callback: WebRoute) {
+    pub fn get(&mut self, path: String, callback: WebRoute) {
         self.add_web_route("GET".to_owned(), path, vec![], callback);
     }
 
-    pub fn post(&mut self , path: String, callback: WebRoute) {
+    pub fn post(&mut self, path: String, callback: WebRoute) {
         self.add_web_route("POST".to_owned(), path, vec![], callback);
     }
 
-    pub fn patch(&mut self , path: String, callback: WebRoute) {
+    pub fn patch(&mut self, path: String, callback: WebRoute) {
         self.add_web_route("PATCH".to_owned(), path, vec![], callback);
     }
 
-    pub fn put(&mut self , path: String, callback: WebRoute) {
+    pub fn put(&mut self, path: String, callback: WebRoute) {
         self.add_web_route("PUT".to_owned(), path, vec![], callback);
     }
 
-    pub fn delete(&mut self , path: String, callback: WebRoute) {
+    pub fn delete(&mut self, path: String, callback: WebRoute) {
         self.add_web_route("DELETE".to_owned(), path, vec![], callback);
+    }
+
+    pub fn route(&mut self, method: String, path: String, callback: WebRoute) {
+        self.add_web_route(method, path, vec![], callback);
     }
 
     pub fn not_found(&mut self, callback: WebRoute) {
