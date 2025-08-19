@@ -1,7 +1,7 @@
 use std::io::Result;
 use serde::{Deserialize, Serialize};
 
-mod zero;
+mod flyer;
 
 #[derive(Serialize, Deserialize)]
 pub struct User {
@@ -11,7 +11,7 @@ pub struct User {
 }
 
 fn main() -> Result<()> {
-    let mut serve = zero::server("127.0.0.1".to_string(), 9999)?;
+    let mut serve = flyer::server("127.0.0.1".to_string(), 9999)?;
 
     serve.router().get("/".to_owned(), |req, res| {
         return res.body("<h1>Hello World!!!</h1>".as_bytes());
