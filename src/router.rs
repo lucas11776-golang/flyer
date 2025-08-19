@@ -5,14 +5,19 @@ pub type Next = fn () -> Response;
 pub type Middleware = fn (req: Request, res: Response, next: Next) -> Response;
 
 pub struct Router {
+    path: Vec<String>,
     pub(crate) web_routes: Vec<Route<WebRoute>>,
     pub(crate) not_found_callback: Option<WebRoute>,
+    router: Option<&'static Router>
+    
 }
 
 pub fn new_router() -> Router {
     return Router {
+        path: [].into(),
         web_routes: vec![],
-        not_found_callback: None
+        not_found_callback: None,
+        router: None
     }
 }
 
@@ -110,66 +115,31 @@ fn route_match<'a, T>(routes: Vec<&'a Route<T>>, req: &'a mut Request) -> Option
 
 impl Router {
     pub fn group(&mut self , path: String, group: Group) {
-
+        // TODO: group depends on -> add_web_route
     }
 
     pub fn get(&mut self , path: String, callback: WebRoute) {
-        let route = Route {
-            path: path,
-            method: "GET".to_owned(),
-            route: callback, 
-            middlewares: vec![]
-        };
-
-        self.web_routes.push(route)
+        self.add_web_route("GET".to_owned(), path, vec![], callback);
     }
 
-    pub fn post(&mut self , path: String, route: WebRoute) {
-        let route = Route {
-            path: path,
-            method: "POST".to_owned(),
-            route: route, 
-            middlewares: vec![]
-        };
-
-        self.web_routes.push(route);
+    pub fn post(&mut self , path: String, callback: WebRoute) {
+        self.add_web_route("POST".to_owned(), path, vec![], callback);
     }
 
-    pub fn patch(&mut self , path: String, route: WebRoute) {
-        let route = Route {
-            path: path,
-            method: "PATCH".to_owned(),
-            route, 
-            middlewares: vec![]
-        };
-
-        self.web_routes.push(route);
+    pub fn patch(&mut self , path: String, callback: WebRoute) {
+        self.add_web_route("PATCH".to_owned(), path, vec![], callback);
     }
 
-    pub fn put(&mut self , path: String, route: WebRoute) {
-        let route = Route {
-            path: path,
-            method: "PUT".to_owned(),
-            route, 
-            middlewares: vec![]
-        };
-
-        self.web_routes.push(route);
+    pub fn put(&mut self , path: String, callback: WebRoute) {
+        self.add_web_route("PUT".to_owned(), path, vec![], callback);
     }
 
-    pub fn delete(&mut self , path: String, route: WebRoute) {
-        let route = Route {
-            path: path,
-            method: "DELETE".to_owned(),
-            route, 
-            middlewares: vec![]
-        };
-
-        self.web_routes.push(route);
+    pub fn delete(&mut self , path: String, callback: WebRoute) {
+        self.add_web_route("DELETE".to_owned(), path, vec![], callback);
     }
 
-    pub fn not_found(&mut self, route: WebRoute) {
-        self.not_found_callback = Some(route);
+    pub fn not_found(&mut self, callback: WebRoute) {
+        self.not_found_callback = Some(callback);
     }
 
     pub fn match_web_routes(&mut self, req: &mut Request) -> Option<&Route<WebRoute>> {
@@ -180,5 +150,22 @@ impl Router {
         }
 
         return None;
+    }
+
+    fn add_web_route(&mut self, method: String, path: String, middleware: Vec<Middleware>, callback: WebRoute) {
+        // TODO: find better way...
+        match self.router {
+            Some(_router) => {
+                // Will fail because is ref -> &...
+            },
+            None => {
+                self.web_routes.push(Route {
+                    path: path,
+                    method: method,
+                    route: callback,
+                    middlewares: middleware,
+                });
+            },
+        };
     }
 }
