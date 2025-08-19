@@ -93,7 +93,10 @@ impl HTTP {
                             Ok(socket) => scope(|_| self.new_connection(socket, addr)).unwrap(),
                             Err(err) => println!("{}", err),
                         },
-                        None => scope(|_| self.new_connection(socket, addr)).unwrap(),
+                        None => match scope(|_| self.new_connection(socket, addr)) {
+                            Ok(_) => (),
+                            Err(err) => println!("{}", err),
+                        },
                     };
                 },
                 Err(err) => println!("{}", err),
