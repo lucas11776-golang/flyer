@@ -1,4 +1,4 @@
-# HTTP
+# Flyer - Web Framework
 
 ## Getting Started
 
@@ -14,26 +14,44 @@
 - Session
 
 
-## Getting with HTTP
+## Getting with Flyer
+
+First create a new project using command:
+
+```bash
+cargo new example
+```
+
+After running the command add `flyer` to you project using command:
+
+```bash
+cargo add flyer
+```
 
 ### Running HTTP server
 
-Create a file called `main.rs` in you project and paste the below code.
+In order to run a basic server `copy` and `paste` below `code snippet`.
 
 ```rs
 use std::io::Result;
 
-mod flyer;
-
 fn main() -> Result<()> {
-    let mut serve = flyer::server("127.0.0.1".to_string(), 9999)?;
+    let mut server = flyer::server("127.0.0.1".to_string(), 9999)?;
 
-    serve.router().get("/".to_owned(), |req, res| {
-        return res.body("<h1>Hello World!!!</h1>".as_bytes());
+    server.router().get("/".to_owned(), |_req, res| {
+        return res.html("<h1>Hello World!!!</h1>".to_owned());
     });
 
-    serve.listen();
+    print!("\r\n\r\nRunning server: {}\r\n\r\n", server.address());
+
+    server.listen();
 
     Ok(())
 }
+```
+
+Now we are ready to run the server using command.
+
+```bash
+cargo run
 ```
