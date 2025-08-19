@@ -32,7 +32,7 @@ pub struct Request {
     // pub(crate) conn: Option<&'static dyn Connection>,
 }
 
-fn parse_url_parameters(parameters: String) -> Headers {
+fn parse_parameters(parameters: String) -> Headers {
     let mut params: Values = Values::new();
 
     parameters.trim()
@@ -53,7 +53,7 @@ fn parse_url_parameters(parameters: String) -> Headers {
 }
 
 fn parse_urlencoded_form(body: String) -> Values {
-    return parse_url_parameters(body);
+    return parse_parameters(body);
 }
 
 struct MultipartField {
@@ -89,12 +89,13 @@ fn parse_multipart_field(field: String) -> Result<MultipartField> {
     return Ok(multipart_field);
 }
 
+// TODO: Parse multipart base on (https://www.rfc-editor.org/rfc/rfc7578)
 fn parse_multipart_form(mut boundary: String, body: String) -> Result<MultipartForm> {
     // TODO: current parse does not validate multipart structure
     let mut values: Values = Values::new();
     let mut files: Files = Files::new();
 
-    boundary = parse_url_parameters(boundary).get("boundary")
+    boundary = parse_parameters(boundary).get("boundary")
         .get_or_insert(&"".to_owned())
         .to_string();
 
@@ -122,7 +123,7 @@ fn parse_multipart_form(mut boundary: String, body: String) -> Result<MultipartF
     });
 }
 
-
+// TODO - parse http base on (https://www.rfc-editor.org/rfc/rfc2616)
 pub fn parse(http: String) -> Result<Request> {
     let parts: Vec<String> = http.split("\r\n\r\n").map(|x| x.to_string()).collect();
 

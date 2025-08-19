@@ -1,3 +1,8 @@
+pub(crate) mod handler;
+pub(crate) mod response;
+pub(crate) mod request;
+pub(crate) mod router;
+
 use std::net::{SocketAddr, TcpListener};
 use std::io::{Read, Result, Write};
 use std::sync::Arc;
@@ -9,14 +14,8 @@ use openssl::ssl::{
     SslMethod
 };
 
-mod handler;
-
 use crate::handler::http1x;
-use crate::router::{NewRouter, Router};
-
-pub(crate) mod response;
-pub(crate) mod request;
-pub(crate) mod router;
+use crate::router::{new_router, Router};
 
 pub struct HTTP {
     acceptor: Option<Arc<SslAcceptor>>,
@@ -32,7 +31,7 @@ pub fn server(host: String, port: i32) -> Result<HTTP> {
         request_max_size: 1024,
         acceptor: None,
         is_secure: false,
-        router: NewRouter(),
+        router: new_router(),
     };
     return Ok(http);
 }
@@ -49,7 +48,7 @@ pub fn server_tls(host: String, port: i32, key: String, certs: String) -> Result
         listener: TcpListener::bind(format!("{0}:{1}", host, port))?,
         request_max_size: 1024,
         is_secure: true,
-        router: NewRouter(),
+        router: new_router(),
     };
 
     return Ok(http);
@@ -72,10 +71,6 @@ impl HTTP {
         self.request_max_size = size;    
     }
 
-    fn handle_request_http_2_x(&mut self, req: &mut request::Request) {
-        
-    }
-
     fn new_connection<'a, T: Write + Read>(&mut self, mut socket: T, mut _addr: SocketAddr) -> Result<()> {
         let mut buffer: [u8; 1024] = [0; 1024];
         let size = socket.read( &mut buffer)?;
@@ -92,10 +87,9 @@ impl HTTP {
     }
 
     pub fn listen(&mut self) {
-        if self.is_secure {
-            self.listen_secure()
-        } else {
-            self.listen_none_secure()
+        match self.is_secure {
+            true => self.listen_secure(),
+            false => self.listen_none_secure(),
         }
     }
 

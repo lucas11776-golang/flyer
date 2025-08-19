@@ -9,7 +9,7 @@ pub struct Router {
     pub(crate) not_found_callback: Option<WebRoute>,
 }
 
-pub fn NewRouter() -> Router {
+pub fn new_router() -> Router {
     return Router {
         web_routes: vec![],
         not_found_callback: None

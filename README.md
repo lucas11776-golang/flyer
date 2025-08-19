@@ -18,13 +18,13 @@
 
 First create a new project using command:
 
-```bash
+```sh
 cargo new example
 ```
 
 After running the command add `flyer` to you project using command:
 
-```bash
+```sh
 cargo add flyer
 ```
 
@@ -52,6 +52,6 @@ fn main() -> Result<()> {
 
 Now we are ready to run the server using command.
 
-```bash
+```sh
 cargo run
 ```
