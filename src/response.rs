@@ -2,7 +2,7 @@ use std::io::Result;
 
 use serde::Serialize;
 
-use crate::flyer::request::{Headers};
+use crate::request::{Headers};
 
 pub struct Response {
     status_code: i32,

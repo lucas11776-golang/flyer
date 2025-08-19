@@ -1,11 +1,8 @@
 use std::io::{Read, Result, Write};
 
-use crate::flyer::{
-    request::Request,
-    response::Response,
-    response::{new_response, parse},
-    HTTP
-};
+use crate::{HTTP};
+use crate::request::Request;
+use crate::response::{Response, new_response, parse};
 
 // Try function ->
 pub fn handle<'a, T: Write + Read>(server: &'a mut HTTP, mut socket: T, req: &mut Request) -> Result<()> {
