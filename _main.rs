@@ -10,7 +10,7 @@ pub struct User {
     email: String,
 }
 
-fn _main() -> Result<()> {
+fn main() -> Result<()> {
     let mut serve = flyer::server("127.0.0.1".to_string(), 9999)?;
 
     serve.router().get("/".to_owned(), |req, res| {

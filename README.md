@@ -23,13 +23,13 @@ Create a file called `main.rs` in you project and paste the below code.
 ```rs
 use std::io::Result;
 
-mod http;
+mod flyer;
 
 fn main() -> Result<()> {
-    let mut serve = http::server("127.0.0.1".to_string(), 9999)?;
+    let mut serve = flyer::server("127.0.0.1".to_string(), 9999)?;
 
     serve.router().get("/".to_owned(), |req, res| {
-        return res.html("<h1>Hello World!!!</h1>".to_owned());
+        return res.body("<h1>Hello World!!!</h1>".as_bytes());
     });
 
     serve.listen();
