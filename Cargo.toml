@@ -1,5 +1,5 @@
 [package]
-name = "http"
+name = "zero"
 version = "0.0.1"
 authors = ["Themba Lucas Ngubeni <thembangubeni04@email.com>"]
 license = "MIT"
