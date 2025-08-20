@@ -1,18 +1,32 @@
-use std::io::{Read, Result, Write};
+use std::io::{ErrorKind, Read, Result, Write};
+use bytes::Bytes;
+use h2::server;
+use http::{HeaderMap, Method, Request as H2Request, Response as H2Response, StatusCode};
+use std::collections::HashMap;
+use std::io::{Error as IoError};
+use std::net::SocketAddr;
+use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader};
+use tokio::net::{TcpListener, TcpStream};
+use tokio::task::JoinHandle;
 
+
+use crate::utils::url::parse_query_params;
 use crate::{HTTP};
-use crate::request::Request;
+use crate::request::{Files, Headers, Request, Values};
 use crate::response::{Response, new_response, parse};
 
 // Try function ->
-pub fn handle<'a, T: Write + Read>(server: &'a mut HTTP, mut socket: T, req: &mut Request) -> Result<()> {
+pub async fn handle_web_request<'a, RW>(server: &'a mut HTTP, buffer: &mut BufReader<RW>, req: &mut Request) -> Result<()>
+where
+    RW: AsyncRead + AsyncWrite + Unpin
+{
     match server.router.match_web_routes(req) {
         Some(route) => {
             let res = &mut new_response();
 
             (route.route)(req, res);
             
-            let _ = socket.write( parse(res)?.as_bytes())?;
+            let _ = buffer.write( parse(res)?.as_bytes()).await?;
             
             Ok(())
         },
@@ -23,7 +37,7 @@ pub fn handle<'a, T: Write + Read>(server: &'a mut HTTP, mut socket: T, req: &mu
 
                     route(req, &mut res);
 
-                    let _ = socket.write_all(parse(&mut res)?.as_bytes());
+                    let _ = buffer.write(parse(&mut res)?.as_bytes()).await;
 
                     Ok(())
                 },
@@ -32,11 +46,138 @@ pub fn handle<'a, T: Write + Read>(server: &'a mut HTTP, mut socket: T, req: &mu
 
                     res.status_code(404);
 
-                    let _ = socket.write_all(parse(&mut res)?.as_bytes());
+                    let _ = buffer.write(parse(&mut res)?.as_bytes()).await;
 
                     Ok(())
                 },
             }
         },
+    }
+}
+
+
+
+
+// ===== HTTP/1.1 parsing (robust enough for most uses) =====
+
+pub async fn handle<'a, RW>(server: &'a mut HTTP, mut buffer: BufReader<RW>, addr: SocketAddr) -> std::io::Result<()>
+where
+    RW: AsyncRead + AsyncWrite + Unpin
+{
+    loop {
+        // Parse request line
+        let mut request_line = String::new();
+        let n = buffer.read_line(&mut request_line).await?;
+
+        if n == 0 {
+            return Ok(());
+        }
+
+        if request_line.trim().is_empty() {
+            continue;
+        }
+
+        let parts: Vec<&str> = request_line.trim_end().split_whitespace().collect();
+
+        if parts.len() != 3 {
+            return Err(IoError::new(ErrorKind::InvalidData, "bad request line"));
+        }
+
+        let method = parts[0].to_string();
+        let target = parts[1].to_string();
+        let protocol = parts[2].to_string();
+
+        let mut headers = Headers::new();
+        loop {
+            let mut line = String::new();
+            let n = buffer.read_line(&mut line).await?;
+            
+            if n == 0 {
+                return Err(IoError::new(ErrorKind::UnexpectedEof, "eof in headers"));
+            }
+            
+            let line_trim = line.trim_end();
+            
+            if line_trim.is_empty() {
+                break;
+            }
+
+            if let Some((k, v)) = line_trim.split_once(':') {
+                headers.insert(k.trim().to_string(), v.trim().to_string());
+            }
+        }
+
+        let mut body = Vec::new();
+
+        if let Some(te) = headers.get("Transfer-Encoding") {
+            if te.eq_ignore_ascii_case("chunked") {
+                loop {
+                    let mut size_line = String::new();
+                    buffer.read_line(&mut size_line).await?;
+                    let size_str = size_line.trim_end();
+                    let size = usize::from_str_radix(size_str, 16)
+                        .map_err(|_| IoError::new(ErrorKind::InvalidData, "bad chunk size"))?;
+                    if size == 0 {
+                        // read trailing CRLF and optional trailers
+                        let mut crlf = String::new();
+                        buffer.read_line(&mut crlf).await?;
+                        break;
+                    }
+                    let mut chunk = vec![0u8; size];
+                    tokio::io::AsyncReadExt::read_exact(&mut buffer, &mut chunk).await?;
+                    body.extend_from_slice(&chunk);
+                    // consume CRLF
+                    let mut crlf = [0u8; 2];
+                    tokio::io::AsyncReadExt::read_exact(&mut buffer, &mut crlf).await?;
+                }
+            }
+        } else if let Some(cl) = headers.get("Content-Length") {
+            let size = cl.parse::<usize>().map_err(|_| IoError::new(ErrorKind::InvalidData, "bad content-length"))?;
+            let mut buf = vec![0u8; size];
+            tokio::io::AsyncReadExt::read_exact(&mut buffer, &mut buf).await?;
+            body = buf;
+        }
+
+        let (path, query) = if let Some(i) = target.find('?') {
+            (target[..i].to_string(), target[i + 1..].to_string())
+        } else {
+            (target.clone(), String::new())
+        };
+
+        let parameters = parse_query_params(&query);
+
+        let host = headers
+            .get("Host")
+            .cloned()
+            .or_else(|| headers.get("host").cloned())
+            .unwrap_or_default();
+
+        let mut req = Request {
+            host: host,
+            method: method,
+            path: path,
+            parameters: parameters,
+            protocol: protocol,
+            headers: headers,
+            body: body,
+            values: Values::new(),
+            files: Files::new(),
+        };
+
+        // handler(&mut req);
+
+        // Simple OK response (replace with your response logic)
+        // Keep-alive by default for HTTP/1.1
+        let resp = b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: keep-alive\r\n\r\nOK";
+
+
+        // handle_web_request(server, buffer, req);
+
+        // buffer.write(src)
+
+        handle_web_request(server, &mut buffer, &mut req).await;
+
+        
+        // tokio::io::AsyncWriteExt::write_all(buffer.get_mut(), resp).await?;
     }
 }

@@ -6,6 +6,8 @@ pub type Headers = HashMap<String, String>;
 pub type Values = HashMap<String, String>;
 pub type Files = HashMap<String, File>;
 
+
+// #[derive(Debug)]
 pub struct File {
     name: String,
     content_type: String,
@@ -17,19 +19,17 @@ struct MultipartForm {
     files: Files,
 }
 
+// #[derive(Debug)]
 pub struct Request {
-    pub(crate) host: String,
-    pub(crate) method: String,
-    pub(crate) path: String,
-    pub(crate) parameters: Values,
-    pub(crate) protocol: String,
-    pub(crate) headers: Headers,
-    pub(crate) body: Vec<u8>,
-    pub(crate) values: Values,
-    pub(crate) files: Files,
-    // pub(crate) server: Option<&HTTP>, // :) -> How long do should we keep ref to HTTP
-    // TODO: remove conn till learn more about life times and understand them will..
-    // pub(crate) conn: Option<&'static dyn Connection>,
+    pub host: String,
+    pub method: String,
+    pub path: String,
+    pub parameters: Values,
+    pub protocol: String,
+    pub headers: Headers,
+    pub body: Vec<u8>,
+    pub values: Values,
+    pub files: Files,
 }
 
 fn parse_parameters(parameters: String) -> Headers {
@@ -216,6 +216,10 @@ fn parse_request_body(mut req: Request, body: String) -> Result<Request> {
 impl Request {
     pub fn header(&self, key: String) -> String {
         return self.headers.get(&key).get_or_insert(&"".to_string()).to_string()
+    }
+
+    pub fn parameter(&self, key: String) -> String {
+        return self.parameters.get(&key).get_or_insert(&"".to_string()).to_string()
     }
 
     pub fn value(&self, key: String) -> Option<String> {

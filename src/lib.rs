@@ -1,12 +1,18 @@
-pub(crate) mod handler;
-pub(crate) mod response;
-pub(crate) mod request;
-pub(crate) mod router;
+pub mod request;
+pub mod handler;
+pub mod response;
+pub mod router;
+pub mod utils;
 
-use std::net::{SocketAddr, TcpListener};
-use std::io::{Read, Result, Write};
+use tokio::net::{TcpListener, TcpStream};
+
+use std::io::{Result};
+use std::net::SocketAddr;
 use std::sync::Arc;
 use std::thread::{scope};
+
+
+use tokio::io::{AsyncBufReadExt, BufReader};
 
 use openssl::ssl::{
     SslAcceptor,
@@ -16,6 +22,7 @@ use openssl::ssl::{
 };
 
 use crate::handler::http1x;
+use crate::handler::http2x::H2_PREFACE;
 use crate::router::{new_router, Router};
 
 pub struct HTTP {
@@ -25,9 +32,9 @@ pub struct HTTP {
     router: Router,
 }
 
-pub fn server(host: String, port: i32) -> Result<HTTP> {
+pub async fn server(host: String, port: i32) -> Result<HTTP> {
     let http = HTTP {
-        listener: TcpListener::bind(format!("{0}:{1}", host, port))?,
+        listener: TcpListener::bind(format!("{0}:{1}", host, port)).await?,
         request_max_size: 1024,
         acceptor: None,
         router: new_router(),
@@ -35,16 +42,16 @@ pub fn server(host: String, port: i32) -> Result<HTTP> {
     return Ok(http);
 }
 
-pub fn server_tls(host: String, port: i32, key: String, certs: String) -> Result<HTTP> {
+pub async fn server_tls(host: String, port: i32, key: String, certs: String) -> Result<HTTP> {
     let mut acceptor: SslAcceptorBuilder = SslAcceptor::mozilla_intermediate(SslMethod::tls())?;
-
+    
     acceptor.set_private_key_file(key, SslFiletype::PEM)?;
     acceptor.set_certificate_chain_file(certs)?;
     acceptor.check_private_key()?;
 
     let http = HTTP {
         acceptor: Some(Arc::new(acceptor.build())),
-        listener: TcpListener::bind(format!("{0}:{1}", host, port))?,
+        listener: TcpListener::bind(format!("{0}:{1}", host, port)).await?,
         request_max_size: 1024,
         router: new_router(),
     };
@@ -69,35 +76,42 @@ impl HTTP {
         self.request_max_size = size;    
     }
 
-    fn new_connection<'a, T: Write + Read>(&mut self, mut socket: T, mut _addr: SocketAddr) -> Result<()> {
-        let mut buffer: [u8; 1024] = [0; 1024];
-        let size = socket.read( &mut buffer)?;
-        // TODO: Net to check here if request if HTTP/1.x or HTTP/2.0
-        let mut req = request::parse(String::from_utf8_lossy(&buffer[0..size]).to_string())?;
-    
-        let _ = match req.protocol.to_uppercase() {
-            protocol if protocol == "HTTP/1.1" => http1x::handle(self, socket, &mut req),
-            // protocol if protocol == "HTTP/2.1" => self.handle_request_http_2_x(&mut req)?,
-            _default => panic!("Protocol {} not support", req.protocol)
-        };
+    async fn handle_stream(&mut self, stream: TcpStream, addr:  SocketAddr) -> Result<()> {
+        let mut reader = BufReader::new(stream);
+        let buf = reader.fill_buf().await?;
 
-        return Ok(());
+
+        match buf.len() >= H2_PREFACE.len() && &buf[..H2_PREFACE.len()] == H2_PREFACE {
+            true => {
+
+            },
+            false => http1x::handle(self,reader, addr).await?,
+        }
+
+        Ok(())
     }
 
-    pub fn listen(&mut self) {
+    pub async fn listen(&mut self) {
         loop {
-            match self.listener.accept() {
-                Ok((socket, addr)) => {
-                    match &self.acceptor {
-                        Some(acceptor) => match acceptor.accept(socket) {
-                            Ok(socket) => scope(|_| self.new_connection(socket, addr)).unwrap(),
-                            Err(err) => println!("{}", err),
-                        },
-                        None => match scope(|_| self.new_connection(socket, addr)) {
-                            Ok(_) => (),
-                            Err(err) => println!("{}", err),
-                        },
-                    };
+            match self.listener.accept().await {
+                Ok((stream, addr)) => {
+                    scope(|_| {
+                        match &self.acceptor {
+                            Some(acceptor) => {
+                                // Must add tokio openssl does not support direct openssl...
+                            },
+                            None => {
+                                tokio_scoped::scope(|scope| {
+                                    scope.spawn(async {
+                                        match self.handle_stream(stream, addr).await {
+                                            Ok(_) => {},
+                                            Err(err) => println!("{}", err),
+                                        }
+                                    });
+                                });
+                            },
+                        }
+                    });
                 },
                 Err(err) => println!("{}", err),
             }
