@@ -1,72 +1,24 @@
-use std::io::{ErrorKind, Read, Result, Write};
-use bytes::Bytes;
-use h2::server;
-use http::{HeaderMap, Method, Request as H2Request, Response as H2Response, StatusCode};
-use std::collections::HashMap;
+use std::io::{ErrorKind};
 use std::io::{Error as IoError};
 use std::net::SocketAddr;
-use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader};
-use tokio::net::{TcpListener, TcpStream};
-use tokio::task::JoinHandle;
+use std::pin::Pin;
+use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, BufReader};
 
-
+use crate::handler::handle_web_request;
 use crate::utils::url::parse_query_params;
 use crate::{HTTP};
 use crate::request::{Files, Headers, Request, Values};
-use crate::response::{Response, new_response, parse};
 
-// Try function ->
-pub async fn handle_web_request<'a, RW>(server: &'a mut HTTP, buffer: &mut BufReader<RW>, req: &mut Request) -> Result<()>
-where
-    RW: AsyncRead + AsyncWrite + Unpin
-{
-    match server.router.match_web_routes(req) {
-        Some(route) => {
-            let res = &mut new_response();
+// Pin<&mut tokio::io::BufReader<R>>
 
-            (route.route)(req, res);
-            
-            let _ = buffer.write( parse(res)?.as_bytes()).await?;
-            
-            Ok(())
-        },
-        None => {
-            match server.router.not_found_callback {
-                Some(route) => {
-                    let mut res: Response = new_response();
-
-                    route(req, &mut res);
-
-                    let _ = buffer.write(parse(&mut res)?.as_bytes()).await;
-
-                    Ok(())
-                },
-                None => {
-                    let mut res: Response = new_response();
-
-                    res.status_code(404);
-
-                    let _ = buffer.write(parse(&mut res)?.as_bytes()).await;
-
-                    Ok(())
-                },
-            }
-        },
-    }
-}
-
-
-
-
-// ===== HTTP/1.1 parsing (robust enough for most uses) =====
-
-pub async fn handle<'a, RW>(server: &'a mut HTTP, mut buffer: BufReader<RW>, addr: SocketAddr) -> std::io::Result<()>
+pub async fn handle<'a, RW>(server: &'a mut HTTP, mut buffer: Pin<&mut BufReader<RW>>, _addr: SocketAddr) -> std::io::Result<()>
 where
     RW: AsyncRead + AsyncWrite + Unpin
 {
     loop {
         // Parse request line
         let mut request_line = String::new();
+
         let n = buffer.read_line(&mut request_line).await?;
 
         if n == 0 {
@@ -80,14 +32,14 @@ where
         let parts: Vec<&str> = request_line.trim_end().split_whitespace().collect();
 
         if parts.len() != 3 {
-            return Err(IoError::new(ErrorKind::InvalidData, "bad request line"));
+            return Err(IoError::new(ErrorKind::InvalidData, "bad request"));
         }
 
         let method = parts[0].to_string();
         let target = parts[1].to_string();
         let protocol = parts[2].to_string();
-
         let mut headers = Headers::new();
+
         loop {
             let mut line = String::new();
             let n = buffer.read_line(&mut line).await?;
@@ -164,20 +116,8 @@ where
             files: Files::new(),
         };
 
-        // handler(&mut req);
+        req.headers.insert("Connection".to_owned(), "keep-alive".to_owned());
 
-        // Simple OK response (replace with your response logic)
-        // Keep-alive by default for HTTP/1.1
-        let resp = b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: keep-alive\r\n\r\nOK";
-
-
-        // handle_web_request(server, buffer, req);
-
-        // buffer.write(src)
-
-        handle_web_request(server, &mut buffer, &mut req).await;
-
-        
-        // tokio::io::AsyncWriteExt::write_all(buffer.get_mut(), resp).await?;
+        let _ = handle_web_request(server, &mut buffer, &mut req).await;
     }
 }
