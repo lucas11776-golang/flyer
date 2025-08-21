@@ -4,18 +4,20 @@ use std::net::SocketAddr;
 use std::pin::Pin;
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, BufReader};
 
-use crate::handler::handle_web_request;
+use crate::handler::{HTTP};
 use crate::utils::url::parse_query_params;
-use crate::{HTTP};
+use crate::{HTTP as Server};
 use crate::request::{Files, Headers, Request, Values};
 
-// Pin<&mut tokio::io::BufReader<R>>
 
-pub async fn handle<'a, RW>(server: &'a mut HTTP, mut buffer: Pin<&mut BufReader<RW>>, _addr: SocketAddr) -> std::io::Result<()>
-where
-    RW: AsyncRead + AsyncWrite + Unpin
-{
-    loop {
+pub struct Handler { }
+
+impl Handler {
+    pub async fn handle<'a, RW>(server: &'a mut Server, mut buffer: Pin<&mut BufReader<RW>>, _addr: SocketAddr) -> std::io::Result<()>
+    where
+        RW: AsyncRead + AsyncWrite + Unpin
+    {
+            loop {
         // Parse request line
         let mut request_line = String::new();
 
@@ -118,6 +120,8 @@ where
 
         req.headers.insert("Connection".to_owned(), "keep-alive".to_owned());
 
-        let _ = handle_web_request(server, &mut buffer, &mut req).await;
+
+        let _ = HTTP::web(server, &mut buffer, &mut req).await;
+    }
     }
 }

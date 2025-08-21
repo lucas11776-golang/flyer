@@ -8,8 +8,6 @@ use std::io::{Result as IOResult};
 use std::net::SocketAddr;
 use std::pin::{pin};
 use std::sync::Arc;
-use std::thread::{scope};
-
 use rustls::{
     ServerConfig,
     pki_types::{
@@ -22,8 +20,8 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio_rustls::{rustls, TlsAcceptor};
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, BufReader};
 
-use crate::handler::http1x;
-use crate::handler::http2x::H2_PREFACE;
+use crate::handler::http1;
+use crate::handler::http2::H2_PREFACE;
 use crate::router::{new_router, Router};
 
 pub struct HTTP {
@@ -46,9 +44,6 @@ fn get_tls_config(key: String, certs: String) -> IOResult<ServerConfig> {
     // Retrieve the default cryptographic provider from the rustls library, which is based on the ring library.
     rustls::crypto::ring::default_provider()
         // Install the default cryptographic provider for use in rustls.
-        .install_default()
-        .unwrap();
-    rustls::crypto::ring::default_provider()
         .install_default()
         .unwrap();
     let certs = CertificateDer::pem_file_iter(certs)
@@ -101,7 +96,7 @@ impl HTTP {
             true => {
 
             },
-            false => http1x::handle(self,reader, addr).await?,
+            false => http1::Handler::handle(self,reader, addr).await?,
         }
 
         Ok(())

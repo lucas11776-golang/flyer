@@ -1,50 +1,60 @@
-pub mod http1x;
-pub mod http2x;
-pub mod http3x;
+pub mod http1;
+pub mod http2;
+pub mod http3;
 
 use std::io::Result;
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt, BufReader};
 
-use crate::{HTTP};
+use crate::{HTTP as Server};
 use crate::request::Request;
 use crate::response::{Response, new_response, parse};
 
-// Try function ->
-pub async fn handle_web_request<'a, RW>(server: &'a mut HTTP, buffer: &mut BufReader<RW>, req: &mut Request) -> Result<()>
-where
-    RW: AsyncRead + AsyncWrite + Unpin
-{
-    match server.router.match_web_routes(req) {
-        Some(route) => {
-            let res = &mut new_response();
+pub struct HTTP { }
 
-            (route.route)(req, res);
-            
-            let _ = buffer.write( parse(res)?.as_bytes()).await?;
-            
-            Ok(())
-        },
-        None => {
-            match server.router.not_found_callback {
-                Some(route) => {
-                    let mut res: Response = new_response();
+impl HTTP {
+    pub async fn web<'a, RW>(server: &'a mut Server, buffer: &mut BufReader<RW>, req: &mut Request) -> Result<()>
+    where
+        RW: AsyncRead + AsyncWrite + Unpin
+    {
+        match server.router.match_web_routes(req) {
+            Some(route) => {
+                let res = &mut new_response();
 
-                    route(req, &mut res);
+                (route.route)(req, res);
+                
+                let _ = buffer.write( parse(res)?.as_bytes()).await?;
+                
+                Ok(())
+            },
+            None => {
+                match server.router.not_found_callback {
+                    Some(route) => {
+                        let mut res: Response = new_response();
 
-                    let _ = buffer.write(parse(&mut res)?.as_bytes()).await;
+                        route(req, &mut res);
 
-                    Ok(())
-                },
-                None => {
-                    let mut res: Response = new_response();
+                        let _ = buffer.write(parse(&mut res)?.as_bytes()).await;
 
-                    res.status_code(404);
+                        Ok(())
+                    },
+                    None => {
+                        let mut res: Response = new_response();
 
-                    let _ = buffer.write(parse(&mut res)?.as_bytes()).await;
+                        res.status_code(404);
 
-                    Ok(())
-                },
-            }
-        },
+                        let _ = buffer.write(parse(&mut res)?.as_bytes()).await;
+
+                        Ok(())
+                    },
+                }
+            },
+        }
+    }
+
+    pub async fn socket<'a, RW>(server: &'a mut HTTP, buffer: &mut BufReader<RW>, req: &mut Request) -> Result<()>
+    where
+        RW: AsyncRead + AsyncWrite + Unpin
+    {
+        return Ok(());
     }
 }
