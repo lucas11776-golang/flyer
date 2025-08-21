@@ -11,6 +11,7 @@ use crate::response::{Response, new_response, parse};
 
 pub struct HTTP { }
 
+// TODO: HTTP2 write response not the same HTTP1 must find a better way.
 impl HTTP {
     pub async fn web<'a, RW>(server: &'a mut Server, buffer: &mut BufReader<RW>, req: &mut Request) -> Result<()>
     where

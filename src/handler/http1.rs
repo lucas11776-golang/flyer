@@ -13,7 +13,7 @@ use crate::request::{Files, Headers, Request, Values};
 pub struct Handler { }
 
 impl Handler {
-    pub async fn handle<'a, RW>(server: &'a mut Server, mut buffer: Pin<&mut BufReader<RW>>, _addr: SocketAddr) -> std::io::Result<()>
+    pub async fn handle<'a, RW>(server: &'a mut Server, mut rw: Pin<&mut BufReader<RW>>, _addr: SocketAddr) -> std::io::Result<()>
     where
         RW: AsyncRead + AsyncWrite + Unpin
     {
@@ -21,7 +21,7 @@ impl Handler {
         // Parse request line
         let mut request_line = String::new();
 
-        let n = buffer.read_line(&mut request_line).await?;
+        let n = rw.read_line(&mut request_line).await?;
 
         if n == 0 {
             return Ok(());
@@ -44,7 +44,7 @@ impl Handler {
 
         loop {
             let mut line = String::new();
-            let n = buffer.read_line(&mut line).await?;
+            let n = rw.read_line(&mut line).await?;
             
             if n == 0 {
                 return Err(IoError::new(ErrorKind::UnexpectedEof, "eof in headers"));
@@ -67,28 +67,28 @@ impl Handler {
             if te.eq_ignore_ascii_case("chunked") {
                 loop {
                     let mut size_line = String::new();
-                    buffer.read_line(&mut size_line).await?;
+                    rw.read_line(&mut size_line).await?;
                     let size_str = size_line.trim_end();
                     let size = usize::from_str_radix(size_str, 16)
                         .map_err(|_| IoError::new(ErrorKind::InvalidData, "bad chunk size"))?;
                     if size == 0 {
                         // read trailing CRLF and optional trailers
                         let mut crlf = String::new();
-                        buffer.read_line(&mut crlf).await?;
+                        rw.read_line(&mut crlf).await?;
                         break;
                     }
                     let mut chunk = vec![0u8; size];
-                    tokio::io::AsyncReadExt::read_exact(&mut buffer, &mut chunk).await?;
+                    tokio::io::AsyncReadExt::read_exact(&mut rw, &mut chunk).await?;
                     body.extend_from_slice(&chunk);
                     // consume CRLF
                     let mut crlf = [0u8; 2];
-                    tokio::io::AsyncReadExt::read_exact(&mut buffer, &mut crlf).await?;
+                    tokio::io::AsyncReadExt::read_exact(&mut rw, &mut crlf).await?;
                 }
             }
         } else if let Some(cl) = headers.get("Content-Length") {
             let size = cl.parse::<usize>().map_err(|_| IoError::new(ErrorKind::InvalidData, "bad content-length"))?;
             let mut buf = vec![0u8; size];
-            tokio::io::AsyncReadExt::read_exact(&mut buffer, &mut buf).await?;
+            tokio::io::AsyncReadExt::read_exact(&mut rw, &mut buf).await?;
             body = buf;
         }
 
@@ -121,7 +121,7 @@ impl Handler {
         req.headers.insert("Connection".to_owned(), "keep-alive".to_owned());
 
 
-        let _ = HTTP::web(server, &mut buffer, &mut req).await;
+        let _ = HTTP::web(server, &mut rw, &mut req).await;
     }
     }
 }

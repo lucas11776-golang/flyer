@@ -20,7 +20,7 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio_rustls::{rustls, TlsAcceptor};
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, BufReader};
 
-use crate::handler::http1;
+use crate::handler::{http1, http2};
 use crate::handler::http2::H2_PREFACE;
 use crate::router::{new_router, Router};
 
@@ -87,15 +87,13 @@ impl HTTP {
 
     async fn handle_stream<RW>(&mut self, stream: RW, addr:  SocketAddr) -> IOResult<()>
     where
-        RW: AsyncRead + AsyncWrite + Unpin
+        RW: AsyncRead + AsyncWrite + Unpin + std::marker::Send
     {
         let mut reader = pin!(BufReader::new(stream));
         let buf = reader.fill_buf().await?;
 
         match buf.len() >= H2_PREFACE.len() && &buf[..H2_PREFACE.len()] == H2_PREFACE {
-            true => {
-
-            },
+            true => http2::Handler::handle(self,reader, addr).await?,
             false => http1::Handler::handle(self,reader, addr).await?,
         }
 
@@ -104,7 +102,7 @@ impl HTTP {
 
     async fn handle_connection<RW>(&mut self, stream: RW, addr: SocketAddr)
     where
-        RW: AsyncRead + AsyncWrite + Unpin
+        RW: AsyncRead + AsyncWrite + Unpin + Send
     {
         match self.handle_stream(stream, addr).await {
             Ok(_) => {},
