@@ -18,7 +18,7 @@ use rustls::{
         PrivateKeyDer
     }
 };
-use tokio::net::{TcpListener};
+use tokio::net::{TcpListener, TcpStream};
 use tokio_rustls::{rustls, TlsAcceptor};
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, BufReader};
 
@@ -43,6 +43,14 @@ pub async fn server(host: String, port: i32) -> IOResult<HTTP> {
 }
 
 fn get_tls_config(key: String, certs: String) -> IOResult<ServerConfig> {
+    // Retrieve the default cryptographic provider from the rustls library, which is based on the ring library.
+    rustls::crypto::ring::default_provider()
+        // Install the default cryptographic provider for use in rustls.
+        .install_default()
+        .unwrap();
+    rustls::crypto::ring::default_provider()
+        .install_default()
+        .unwrap();
     let certs = CertificateDer::pem_file_iter(certs)
         .unwrap()
         .collect::<Result<Vec<_>, _>>()
@@ -51,7 +59,8 @@ fn get_tls_config(key: String, certs: String) -> IOResult<ServerConfig> {
         .unwrap();
     let config: rustls::ServerConfig = rustls::ServerConfig::builder()
         .with_no_client_auth()
-        .with_single_cert(certs, key).unwrap();
+        .with_single_cert(certs, key)
+        .unwrap();
     return Ok(config);
 }
 
@@ -98,41 +107,34 @@ impl HTTP {
         Ok(())
     }
 
+    async fn handle_connection<RW>(&mut self, stream: RW, addr: SocketAddr)
+    where
+        RW: AsyncRead + AsyncWrite + Unpin
+    {
+        match self.handle_stream(stream, addr).await {
+            Ok(_) => {},
+            Err(err) => println!("error: {}", err),
+        }
+    }
+
+    async fn new_connection(&mut self, stream: TcpStream, addr: SocketAddr) {
+        match &self.acceptor {
+            Some(acceptor) => {
+                let _ = match acceptor.accept(stream).await {
+                    Ok(stream) => self.handle_connection(stream, addr).await,
+                    Err(err) => println!("error: {}", err),
+                };
+            },
+            None => self.handle_connection(stream, addr).await,
+        };
+    } 
+
     pub async fn listen(&mut self) {
         loop {
             match self.listener.accept().await {
                 Ok((stream, addr)) => {
-                    scope(|_| {
-                        match &self.acceptor {
-                            Some(acceptor) => {
-                                // TODO: temp - find a better way... (failed borrowed twice...) - try function ->
-                                tokio_scoped::scope(|scope| {
-                                    // TODO: check point...
-                                    scope.spawn(async {
-                                        match acceptor.accept(stream).await {
-                                            Ok(a) => {
-                                                // match self.handle_stream(a, addr).await {
-                                                //     Ok(_) => todo!(),
-                                                //     Err(_) => todo!(),
-                                                // }
-                                            },
-                                            Err(_) => todo!(),
-                                        }
-                                    });
-                                });
-                            },
-                            None => {
-                                // TODO: temp - find a better way...
-                                tokio_scoped::scope(|scope| {
-                                    scope.spawn(async {
-                                        match self.handle_stream(stream, addr).await {
-                                            Ok(_) => {},
-                                            Err(err) => println!("{}", err),
-                                        }
-                                    });
-                                });
-                            },
-                        }
+                    tokio_scoped::scope(|scope| {
+                        scope.spawn(self.new_connection(stream, addr));
                     });
                 },
                 Err(err) => println!("{}", err),
