@@ -31,7 +31,7 @@ pub struct HTTP {
     router: Router,
 }
 
-pub async fn server(host: String, port: i32) -> IOResult<HTTP> {
+pub async fn server(host: &str, port: i32) -> IOResult<HTTP> {
     return Ok( HTTP {
         listener: TcpListener::bind(format!("{0}:{1}", host, port)).await?,
         request_max_size: 1024,
@@ -40,7 +40,7 @@ pub async fn server(host: String, port: i32) -> IOResult<HTTP> {
     });
 }
 
-fn get_tls_config(key: String, certs: String) -> IOResult<ServerConfig> {
+fn get_tls_config(key: &str, certs: &str) -> IOResult<ServerConfig> {
     // Retrieve the default cryptographic provider from the rustls library, which is based on the ring library.
     rustls::crypto::ring::default_provider()
         // Install the default cryptographic provider for use in rustls.
@@ -59,7 +59,7 @@ fn get_tls_config(key: String, certs: String) -> IOResult<ServerConfig> {
     return Ok(config);
 }
 
-pub async fn server_tls(host: String, port: i32, key: String, certs: String) -> IOResult<HTTP> {
+pub async fn server_tls(host: &str, port: i32, key: &str, certs: &str) -> IOResult<HTTP> {
     return Ok(HTTP {
         acceptor: Some(TlsAcceptor::from(Arc::new(get_tls_config(key, certs)?))),
         listener: TcpListener::bind(format!("{0}:{1}", host, port)).await?,
@@ -87,7 +87,7 @@ impl HTTP {
 
     async fn handle_stream<RW>(&mut self, stream: RW, addr:  SocketAddr) -> IOResult<()>
     where
-        RW: AsyncRead + AsyncWrite + Unpin + std::marker::Send
+        RW: AsyncRead + AsyncWrite + Unpin + Send
     {
         let mut reader = pin!(BufReader::new(stream));
         let buf = reader.fill_buf().await?;
