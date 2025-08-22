@@ -186,7 +186,7 @@ pub fn parse(http: String) -> Result<Request> {
 }
 
 fn parse_request_body(mut req: Request, body: String) -> Result<Request> {
-    let content_type_value: Vec<String> =  req.header("Content-Type".to_owned())
+    let content_type_value: Vec<String> =  req.header("Content-Type")
         .split(";")
         .map(|x| x.trim().to_string())
         .collect();
@@ -214,19 +214,19 @@ fn parse_request_body(mut req: Request, body: String) -> Result<Request> {
 }
 
 impl Request {
-    pub fn header(&self, key: String) -> String {
-        return self.headers.get(&key).get_or_insert(&"".to_string()).to_string()
+    pub fn header(&self, key: &str) -> String {
+        return self.headers.get(key).get_or_insert(&"".to_string()).to_string()
     }
 
-    pub fn parameter(&self, key: String) -> String {
-        return self.parameters.get(&key).get_or_insert(&"".to_string()).to_string()
+    pub fn parameter(&self, key: &str) -> String {
+        return self.parameters.get(key).get_or_insert(&"".to_string()).to_string()
     }
 
-    pub fn value(&self, key: String) -> Option<String> {
-        return Some(self.values.get(&key).get_or_insert(&"".to_owned()).to_string());
+    pub fn value(&self, key: &str) -> Option<String> {
+        return Some(self.values.get(key).get_or_insert(&"".to_owned()).to_string());
     }
 
-    pub fn file(&self, key: String) -> Option<&File> {
-        return self.files.get(&key);
+    pub fn file(&self, key: &str) -> Option<&File> {
+        return self.files.get(key);
     }
 }

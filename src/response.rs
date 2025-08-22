@@ -5,9 +5,9 @@ use serde::Serialize;
 use crate::request::{Headers};
 
 pub struct Response {
-    status_code: i32,
-    headers: Headers,
-    body: Vec<u8>,
+    pub(crate) status_code: u16,
+    pub(crate) headers: Headers,
+    pub(crate) body: Vec<u8>,
 }
 
 pub fn new_response() -> Response {
@@ -32,7 +32,7 @@ pub fn parse(response: &mut Response) -> Result<String> {
 }
 
 impl Response {
-    pub fn status_code(&mut self, code: i32) -> &mut Response {
+    pub fn status_code(&mut self, code: u16) -> &mut Response {
         self.status_code = code;
         
         return self;
@@ -64,7 +64,7 @@ impl Response {
             .body(serde_json::to_string(json).unwrap().as_bytes());
     }
 
-    pub fn html(&mut self, html: String) -> &mut Response {
+    pub fn html(&mut self, html: &str) -> &mut Response {
         return self.header("Content-Type".to_string(), "text/html".to_owned())
             .body(html.as_bytes());
     }

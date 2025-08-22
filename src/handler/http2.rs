@@ -1,14 +1,13 @@
 use bytes::Bytes;
 use h2::{server, server::{SendResponse}};
-use http::{HeaderMap, Request as H2Request, Response as H2Response, StatusCode};
+use http::{HeaderMap, Request as H2Request, Response as H2Response};
 use reqwest::Url;
 use std::{collections::HashMap, io::Result};
-use std::io::{Error as IoError, ErrorKind};
 use std::net::SocketAddr;
 use std::pin::Pin;
 use tokio::io::{AsyncRead, AsyncWrite, BufReader};
 
-use crate::{response::{self, Response}, HTTP as Server};
+use crate::{response::{self, new_response, Response}, HTTP as Server};
 use crate::request::{Headers, Request};
 use crate::utils::url::parse_query_params;
 
@@ -64,20 +63,26 @@ impl <'a> Handler<'a> {
         return headers;
     }
 
+    fn response_to_h2_response(&mut self, response: &mut Response) -> Result<H2Response<()>> {
+        let mut builder = H2Response::builder()
+            .status(response.status_code)
+            .header("Content-Length", format!("{}", response.body.len()));
+
+        for (k, v) in &mut response.headers {
+            builder = builder.header(k.clone(), v.clone());
+        }
+
+        return Ok(builder.body(()).unwrap());
+    }
+
     // TODO: when make request from https and change http the request hangs mush check if it has change
     // if it has change must close the connection.
     fn write_response(&mut self, response: &mut Response, mut send: SendResponse<Bytes>) -> Result<()> {
-        let body = b"<h1 color=\"color: green;\">Hello World</h1>";
-
-        let res = H2Response::builder()
-            .status(StatusCode::OK)
-            .header("content-length", format!("{}", body.len()))
-            .body(())
-            .unwrap();
+        let res = self.response_to_h2_response(response).unwrap();
         
         send.send_response(res, false)
             .unwrap()
-            .send_data(Bytes::from_static(body), true)
+            .send_data(Bytes::from(response.body.clone()), true)
             .unwrap();
 
         return Ok(());
@@ -86,8 +91,6 @@ impl <'a> Handler<'a> {
     fn handle_request(&mut self, mut req: Request, send: SendResponse<Bytes>) -> Result<()> {
         match self.server.router.match_web_routes(&mut req) {
             Some(route) => {
-
-
                 let mut res = response::new_response();
 
                 (route.route)(&mut req, &mut res);
@@ -95,7 +98,18 @@ impl <'a> Handler<'a> {
                 self.write_response(&mut res, send)?;
             },
             None => {
-                println!("\r\n\r\nRoute Not Found\r\n\r\n");
+                match self.server.router.not_found_callback {
+                    Some(callback) => {
+                        let mut res = new_response();
+
+                        callback(&mut req, &mut res);
+
+                        self.write_response(&mut res, send)?;
+                    },
+                    None => {
+                        self.write_response(new_response().status_code(404), send)?;
+                    },
+                }
             },
         }
 
