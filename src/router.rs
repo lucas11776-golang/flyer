@@ -109,14 +109,14 @@ impl Router {
         let mut params: Values = HashMap::new();
 
         for (i, seg) in request_path.iter().enumerate() {
-            if i >= route_path.len() {
-                return (false, params);
+            if i > route_path.len() - 1 {
+                return (false, Values::new());
             }
 
             let route_seg = route_path[i].clone();
 
             if route_seg == "*" {
-                return (true, params);
+                return (true, Values::new());
             }
 
             if seg == &route_seg {
@@ -125,12 +125,13 @@ impl Router {
 
             if PARAM_REGEX.is_match(&route_seg.to_string()) {
                 let key = route_seg.trim_start_matches('{').trim_end_matches('}');
+
                 params.insert(key.to_string(), (*seg).to_string());
 
                 continue;
             }
 
-            return (false, params);
+            return (false, Values::new());
         }
 
         return (true, params)

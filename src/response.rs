@@ -21,8 +21,8 @@ pub fn new_response() -> Response {
 pub fn parse(response: &mut Response) -> Result<String> {
     let mut res: Vec<String> = vec![format!("HTTP/1.0 {} {}", response.status_code, "OK")];
 
-    for ele in response.headers.clone() {
-        res.push(format!("{}: {}", ele.0, ele.1));
+    for (k, v) in response.headers.clone() {
+        res.push(format!("{}: {}", k, v));
     }
 
     res.push(format!("Content-Length: {}", response.body.len()));
