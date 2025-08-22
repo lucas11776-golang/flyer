@@ -1,11 +1,13 @@
-use crate::{request::{Request, Values}, response::{self, Response}, utils::url::{self, clean_url}};
+use crate::{
+    request::{Request, Values},
+    response::{Response},
+    utils::url::{self, clean_url}
+};
 
 pub type WebRoute = for<'a> fn (req: &'a mut Request, res: &'a mut Response) -> &'a mut Response;
 pub type Next<'a> = fn () -> &'a mut Response;
 pub type Middleware<'a> = &'a mut fn (req: Request, res: Response, next: Next<'a>) -> &'a mut Response;
-
-// TODO: find better way...
-pub type Middlewares<'a> = Vec<Middleware<'a>>;
+pub type Middlewares<'a> = Vec<Middleware<'a>>; // TODO: find better way...
 
 pub struct GroupRouter {
     web: Vec<Route<WebRoute>>,
@@ -35,12 +37,6 @@ impl GroupRouter {
 pub struct Router<'a> {
     pub(crate) router: &'a mut GroupRouter,
     pub(crate) path: Vec<String>,
-
-
-    // pub(crate) web_routes: Vec<Route<'a, WebRoute>>,
-    // pub(crate) not_found_callback: Option<WebRoute>,
-    // router: Option<&'a Router<'a>>,
-    // router: Option<&'static mut Pin<&'a mut Router<'a>>>
     
 }
 
@@ -48,10 +44,6 @@ pub fn new_group_router<'a>() -> GroupRouter {
     return GroupRouter {
         web: vec![],
         not_found_callback: None
-        // path: [].into(),
-        // web_routes: vec![],
-        // not_found_callback: None,
-        // router: None,
     }
 }
 
@@ -65,7 +57,7 @@ pub struct Route<R> {
 }
 
 use regex::Regex;
-use std::{collections::HashMap, io::Result, pin::Pin};
+use std::{collections::HashMap, io::Result};
 use once_cell::sync::Lazy;
 
 static PARAM_REGEX: Lazy<Regex> = Lazy::new(|| {
@@ -103,18 +95,9 @@ pub fn merge<T>(items: Vec<Vec<T>>) -> Vec<T> {
 
 impl <'a>Router<'a> {
     pub fn group(&mut self , path: &str, group: Group) {
-
-        println!(
-            "\r\n\r\n\r\nUes...: {:?}\r\n\r\n",
-            self.path.clone().iter().map(|x| clean_url(x.to_string())),
-        );
-
         group(&mut Router{
-            path: merge(vec![
-                self.path.clone().iter().map(|x| clean_url(x.to_string())).filter(|x| x != "").collect(),
-                vec!["/".to_owned()],
-                vec![path.to_owned()]
-            ]),
+            // TODO: fix
+            path: Router::get_path(self.path.clone(), vec![path.to_string()]),
             router: self.router
         });
     }
@@ -123,29 +106,29 @@ impl <'a>Router<'a> {
         self.route("GET", path, callback, middleware);
     }
 
-    // pub fn post(&mut self, path: &str, callback: WebRoute, middleware: Option<&'static mut Vec<Middleware>>) {
-    //     self.route("POST", path, callback, middleware);
-    // }
+    pub fn post(&mut self, path: &str, callback: WebRoute, middleware: Option<&'static mut Vec<Middleware>>) {
+        self.route("POST", path, callback, middleware);
+    }
 
-    // pub fn patch(&mut self, path: &str, callback: WebRoute, middleware: Option<&'static mut Vec<Middleware>>) {
-    //     self.route("PATCH", path, callback, middleware);
-    // }
+    pub fn patch(&mut self, path: &str, callback: WebRoute, middleware: Option<&'static mut Vec<Middleware>>) {
+        self.route("PATCH", path, callback, middleware);
+    }
 
-    // pub fn put(&mut self, path: &str, callback: WebRoute, middleware: Option<&'static mut Vec<Middleware>>) {
-    //     self.route("PUT", path, callback, middleware);
-    // }
+    pub fn put(&mut self, path: &str, callback: WebRoute, middleware: Option<&'static mut Vec<Middleware>>) {
+        self.route("PUT", path, callback, middleware);
+    }
 
-    // pub fn delete(&mut self, path: &str, callback: WebRoute, middleware: Option<&'static mut Vec<Middleware>>) {
-    //     self.route("DELETE", path, callback, middleware);
-    // }
+    pub fn delete(&mut self, path: &str, callback: WebRoute, middleware: Option<&'static mut Vec<Middleware>>) {
+        self.route("DELETE", path, callback, middleware);
+    }
 
-    // pub fn head(&mut self, path: &str, callback: WebRoute, middleware: Option<&'static mut Vec<Middleware>>) {
-    //     self.route("CONNECT", path, callback, middleware);
-    // }
+    pub fn head(&mut self, path: &str, callback: WebRoute, middleware: Option<&'static mut Vec<Middleware>>) {
+        self.route("CONNECT", path, callback, middleware);
+    }
 
-    // pub fn options(&mut self, path: &str, callback: WebRoute, middleware: Option<&'static mut Vec<Middleware>>) {
-    //     self.route("OPTIONS", path, callback, middleware);
-    // }
+    pub fn options(&mut self, path: &str, callback: WebRoute, middleware: Option<&'static mut Vec<Middleware>>) {
+        self.route("OPTIONS", path, callback, middleware);
+    }
 
     pub fn route(&mut self, method: &str, path: &str, callback: WebRoute, middleware: Option<&'a mut Vec<Middleware>>) {
         self.add_web_route(method, path, callback, middleware).unwrap();
@@ -187,6 +170,12 @@ impl <'a>Router<'a> {
         return (true, params)
     }
 
+    fn get_path(old: Vec<String>, new: Vec<String>) -> Vec<String> {
+        return merge(vec![old,new]).iter()
+            .map(|x| clean_url(x.to_owned())).filter(|x| x != "")
+            .collect();
+    }
+
     fn add_web_route(&mut self, method: &str, path: &str, callback: WebRoute, middleware: Option<&'a mut Vec<Middleware>>) -> Result<()> {
         match middleware {
 
@@ -201,18 +190,9 @@ impl <'a>Router<'a> {
                 });
             },
             None => {
-
-            //     println!("PATH: {:?}", 
-            
-            //  merge(vec![
-            //     self.path.clone().iter().map(|x| clean_url(x.to_string())).collect(),
-            //     vec!["/".to_owned()],
-            //     vec![path.to_owned()]
-            // ]).iter().map(|x| clean_url(x)) .filter(|x| )
-            // );
-
                 self.router.web.push(Route{
-                    path: self.path.clone().iter().map(|x| clean_url(x.to_string())).collect(),
+                    // TODO: fix
+                    path: Router::get_path(self.path.clone(), vec![path.to_string()]).join("/"),
                     method: method.to_string(),
                     route: callback,
                     middlewares: vec![],

@@ -13,7 +13,7 @@ use crate::request::{Files, Headers, Request, Values};
 pub struct Handler { }
 
 impl Handler {
-    pub async fn handle<'a, RW>(server: &'a mut Server, mut rw: Pin<&mut BufReader<RW>>, _addr: SocketAddr) -> std::io::Result<()>
+    pub async fn handle<'a, RW>(server: &'a mut Server, mut rw: Pin<&mut BufReader<RW>>, addr: SocketAddr) -> std::io::Result<()>
     where
         RW: AsyncRead + AsyncWrite + Unpin
     {
@@ -107,6 +107,7 @@ impl Handler {
             .unwrap_or_default();
 
         let mut req = Request {
+            ip: addr.ip().to_string(),
             host: host,
             method: method,
             path: path,

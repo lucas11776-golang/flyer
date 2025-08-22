@@ -21,6 +21,7 @@ struct MultipartForm {
 
 // #[derive(Debug)]
 pub struct Request {
+    pub(crate) ip: String,
     pub host: String,
     pub method: String,
     pub path: String,
@@ -123,68 +124,6 @@ fn parse_multipart_form(mut boundary: String, body: String) -> Result<MultipartF
     });
 }
 
-// TODO - parse http base on (https://www.rfc-editor.org/rfc/rfc2616)
-pub fn parse(http: String) -> Result<Request> {
-    let parts: Vec<String> = http.split("\r\n\r\n").map(|x| x.to_string()).collect();
-
-    if parts.len() < 2 {
-        return Err(Error::new(std::io::ErrorKind::InvalidData, "invalid request".to_string()));
-    }
-
-    let raw: &mut Vec<String> = &mut parts.get(0)
-        .unwrap()
-        .split("\r\n").map(|x| x.to_string())
-        .collect();
-    let top: Vec<String> = raw.get(0).unwrap()
-        .split(" ")
-        .map(|x| x.to_string())
-        .collect();
-
-    if top.len() != 3 {
-        return Err(Error::new(std::io::ErrorKind::InvalidData, "invalid request".to_string()));
-    }
-
-    let mut host: String = "".to_string();
-    let mut headers: Headers  = Headers::new();
-    let body: String = parts[1..].join("\r\n\r\n").to_string();
-
-    for header in raw[1..].to_vec() {
-        let segment: Vec<String> = header.split(":")
-            .map(|x| x.to_string().trim().to_string())
-            .collect();
-
-        if top.len() < 2 {
-            return Err(Error::new(std::io::ErrorKind::InvalidData, "invalid request".to_string()));
-        }
-
-        let key: String = segment.get(0).unwrap().to_owned();
-        let value: String = segment[1..].join(":").to_owned();
-
-        if key == "Host" {
-            host = value;
-
-            continue;
-        }
-
-        headers.insert(key, value);
-    }
-
-    let req: Request = Request{
-        host: host,
-        method: top.get(0).unwrap().to_string(),
-        path: top.get(1).unwrap().to_string(),
-        parameters: Values::new(),
-        protocol: top.get(2).unwrap().to_string(),
-        headers: headers,
-        body: "".into(),
-        values: HashMap::new(),
-        files: HashMap::new(),
-        // server: None,
-    };
-
-    return parse_request_body(req,  body);
-}
-
 fn parse_request_body(mut req: Request, body: String) -> Result<Request> {
     let content_type_value: Vec<String> =  req.header("Content-Type")
         .split(";")
@@ -228,5 +167,9 @@ impl Request {
 
     pub fn file(&self, key: &str) -> Option<&File> {
         return self.files.get(key);
+    }
+
+    pub fn ip(&self) -> String {
+        return self.ip.to_owned();
     }
 }

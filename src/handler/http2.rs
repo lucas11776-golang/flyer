@@ -130,9 +130,8 @@ impl <'a> Handler<'a> {
             .or_else(|| headers.get(":authority").cloned())
             .unwrap_or_default();
 
-        println!("\r\n\r\nStream ID: {}\r\n\r\n", send.stream_id().as_u32());
-
         self.handle_request(Request {
+            ip: self.addr.ip().to_string(),
             host: host,
             method: method,
             path: path,
