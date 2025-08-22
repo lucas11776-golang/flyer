@@ -89,13 +89,9 @@ impl <'a> Handler<'a> {
     }
 
     fn handle_request(&mut self, mut req: Request, send: SendResponse<Bytes>) -> Result<()> {
-        match self.server.router.match_web_routes(&mut req) {
-            Some(route) => {
-                let mut res = response::new_response();
-
-                (route.route)(&mut req, &mut res);
-
-                self.write_response(&mut res, send)?;
+        match self.server.router.match_web_routes(&mut req, &mut response::new_response()) {
+            Some(res) => {
+                self.write_response(res, send)?;
             },
             None => {
                 match self.server.router.not_found_callback {

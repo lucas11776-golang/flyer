@@ -20,16 +20,16 @@ fn view<'a>(req: &'a mut Request, res: &'a mut Response) -> &'a mut Response {
     });
 }
 
-fn user_exist<'a>(req: &'a mut Request, res: &'a mut Response, next: Next) -> &'a mut Response {
-    return next();
-}
+// fn user_exist<'a>(req: &'a mut Request, res: &'a mut Response, next: Next) -> &'a mut Response {
+//     return next();
+// }
 
 #[tokio::main]
 async fn main() -> Result<()> {
     // let mut server = flyer::server("127.0.0.1".to_string(), 9999).await?;
     let mut server = flyer::server_tls("127.0.0.1", 9999, "host.key", "host.cert").await?;
 
-    server.router().get("/api/users/{user}", view, vec![user_exist]);
+    server.router().get("/api/users/{user}", view, None);
 
     print!("\r\n\r\nRunning server: {}\r\n\r\n", server.address());
 

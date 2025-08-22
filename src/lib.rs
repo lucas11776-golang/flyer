@@ -16,27 +16,27 @@ use rustls::{
         PrivateKeyDer
     }
 };
-use tokio::net::{TcpListener, TcpStream};
+use tokio::net::{TcpListener};
 use tokio_rustls::{rustls, TlsAcceptor};
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, BufReader};
 
 use crate::handler::{http1, http2};
 use crate::handler::http2::H2_PREFACE;
-use crate::router::{new_router, Router};
+use crate::router::{new_group_router, GroupRouter, Router};
 
 pub struct HTTP {
     acceptor: Option<TlsAcceptor>,
     listener: TcpListener,
     request_max_size: i64,
-    router: Router,
+    router: GroupRouter,
 }
 
-pub async fn server(host: &str, port: i32) -> IOResult<HTTP> {
+pub async fn server<'a>(host: &str, port: i32) -> IOResult<HTTP> {
     return Ok( HTTP {
         listener: TcpListener::bind(format!("{0}:{1}", host, port)).await?,
         request_max_size: 1024,
         acceptor: None,
-        router: new_router(),
+        router: new_group_router(),
     });
 }
 
@@ -59,16 +59,16 @@ fn get_tls_config(key: &str, certs: &str) -> IOResult<ServerConfig> {
     return Ok(config);
 }
 
-pub async fn server_tls(host: &str, port: i32, key: &str, certs: &str) -> IOResult<HTTP> {
+pub async fn server_tls<'a>(host: &str, port: i32, key: &str, certs: &str) -> IOResult<HTTP> {
     return Ok(HTTP {
         acceptor: Some(TlsAcceptor::from(Arc::new(get_tls_config(key, certs)?))),
         listener: TcpListener::bind(format!("{0}:{1}", host, port)).await?,
         request_max_size: 1024,
-        router: new_router(),
+        router: new_group_router(),
     });
 }
 
-impl HTTP {
+impl <'a>HTTP {
     pub fn host(&self) -> String {
         return self.listener.local_addr().unwrap().ip().to_string();
     }
@@ -110,7 +110,9 @@ impl HTTP {
         }
     }
 
-    async fn new_connection(&mut self, stream: TcpStream, addr: SocketAddr) {
+    async fn new_connection<RW>(&mut self, stream: RW, addr: SocketAddr)
+    where
+        RW: AsyncRead + AsyncWrite + Unpin + Send {
         match &self.acceptor {
             Some(acceptor) => {
                 let _ = match acceptor.accept(stream).await {
@@ -120,13 +122,18 @@ impl HTTP {
             },
             None => self.handle_connection(stream, addr).await,
         };
-    } 
+    }
 
     pub async fn listen(&mut self) {
         loop {
             match self.listener.accept().await {
                 Ok((stream, addr)) => {
                     tokio_scoped::scope(|scope| {
+
+                        // let m = Mutex::new(...);
+
+                        // let v = m.lock().unwrap();
+
                         scope.spawn(self.new_connection(stream, addr));
                     });
                 },
@@ -135,7 +142,9 @@ impl HTTP {
         }
     }
 
-    pub fn router(&mut self) -> &mut Router {
-        return &mut self.router;
+    pub fn router(&mut self) -> Router {
+        return Router{
+            router: &mut self.router,
+        };
     }
 }

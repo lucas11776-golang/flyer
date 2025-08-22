@@ -17,12 +17,8 @@ impl HTTP {
     where
         RW: AsyncRead + AsyncWrite + Unpin
     {
-        match server.router.match_web_routes(req) {
-            Some(route) => {
-                let res = &mut new_response();
-
-                (route.route)(req, res);
-                
+        match server.router.match_web_routes(req, &mut new_response()) {
+            Some(res) => {
                 let _ = buffer.write( parse(res)?.as_bytes()).await?;
                 
                 Ok(())

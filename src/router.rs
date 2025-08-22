@@ -1,24 +1,56 @@
-use crate::{request::{Request, Values}, response::Response, utils::url};
+use crate::{request::{Request, Values}, response::{self, Response}, utils::url};
 
 pub type WebRoute = for<'a> fn (req: &'a mut Request, res: &'a mut Response) -> &'a mut Response;
-pub type Next = fn () -> Response;
-pub type Middleware<'a> = fn (req: Request, res: Response, next: Next) -> &'a mut Response;
+pub type Next<'a> = fn () -> &'a mut Response;
+pub type Middleware<'a> = fn (req: Request, res: Response, next: Next<'a>) -> &'a mut Response;
+
+
+
+
+pub struct GroupRouter {
+    web: Vec<Route<'static, WebRoute>>,
+    pub(crate) not_found_callback: Option<WebRoute>,
+}
+
+impl GroupRouter {
+    pub fn match_web_routes<'a>(&mut self, req: &mut Request, res: &'a mut Response) -> Option<&'a mut Response> {
+        for route in &mut self.web {
+            let (matches, parameters) = Router::match_route(route, req);
+
+            if !matches {
+                continue;
+            }
+            
+            req.parameters = parameters;
+
+            (route.route)(req, res);
+
+            return Some(res);
+        }
+
+        return None;
+    }
+}
 
 pub struct Router<'a> {
-    path: Vec<String>,
-    pub(crate) web_routes: Vec<Route<'a, WebRoute>>,
-    pub(crate) not_found_callback: Option<WebRoute>,
-    router: Option<&'a Router<'a>>,
+    pub(crate) router: &'a mut GroupRouter,
+
+    // path: Vec<String>,
+    // pub(crate) web_routes: Vec<Route<'a, WebRoute>>,
+    // pub(crate) not_found_callback: Option<WebRoute>,
+    // router: Option<&'a Router<'a>>,
     // router: Option<&'static mut Pin<&'a mut Router<'a>>>
     
 }
 
-pub fn new_router<'a>() -> Router<'a> {
-    return Router {
-        path: [].into(),
-        web_routes: vec![],
-        not_found_callback: None,
-        router: None,
+pub fn new_group_router<'a>() -> GroupRouter {
+    return GroupRouter {
+        web: vec![],
+        not_found_callback: None
+        // path: [].into(),
+        // web_routes: vec![],
+        // not_found_callback: None,
+        // router: None,
     }
 }
 
@@ -28,11 +60,11 @@ pub struct Route<'a, R> {
     pub(crate) path: String,
     pub(crate) method: String,
     pub(crate) route: R,
-    pub(crate) middlewares: *const Vec<Middleware<'a>>,
+    pub(crate) middlewares: Vec<Middleware<'a>>,
 }
 
 use regex::Regex;
-use std::{any::Any, collections::HashMap, io::Result, pin::{self, pin, Pin}};
+use std::{collections::HashMap, io::Result};
 use once_cell::sync::Lazy;
 
 static PARAM_REGEX: Lazy<Regex> = Lazy::new(|| {
@@ -68,14 +100,14 @@ pub fn merge<T>(items: Vec<Vec<T>>) -> Vec<T> {
     return merged
 }
 
-impl <'a>Router<'static> {
+impl <'a>Router<'a> {
     pub fn group(&mut self , path: &str, group: Group) {
-        let g = Router{
-            path: merge(vec![self.path.clone(), vec![path.to_owned()]]),
-            web_routes: vec![],
-            not_found_callback: None,
-            router: None
-        };
+        // let g = Router{
+        //     path: merge(vec![self.path.clone(), vec![path.to_owned()]]),
+        //     web_routes: vec![],
+        //     not_found_callback: None,
+        //     router: None
+        // };
     }
 
     pub fn get(&mut self, path: &str, callback: WebRoute, middleware: Option<&'static mut Vec<Middleware>>) {
@@ -111,7 +143,7 @@ impl <'a>Router<'static> {
     }
 
     pub fn not_found(&mut self, callback: WebRoute) {
-        self.not_found_callback = Some(callback);
+        self.router.not_found_callback = Some(callback);
     }
 
     fn parameters_route_match(route_path: Vec<String>, request_path: Vec<String>) -> (bool, Values) {
@@ -147,33 +179,24 @@ impl <'a>Router<'static> {
     }
 
     fn add_web_route(&mut self, method: &str, path: &str, callback: WebRoute, middleware: Option<&'static mut Vec<Middleware>>) -> Result<()> {
-        // TODO: find better way...
-        match &self.router {
-            Some(_router) => {
-                // Will fail because is ref -> &...
+        match middleware {
+            Some(middleware) => {
+                self.router.web.push(Route{
+                    path: url::clean_url(path.to_string()),
+                    method: method.to_string(),
+                    route: callback,
+                    middlewares: middleware.to_vec(),
+                });
             },
             None => {
-                // TODO: Fix
-                match middleware {
-                    Some(middleware) => {
-                        self.web_routes.push(Route {
-                            path: url::clean_url(path.to_string()),
-                            method: method.to_string(),
-                            route: callback,
-                            middlewares: middleware,
-                        });
-                    },
-                    None => {
-                        self.web_routes.push(Route {
-                            path: url::clean_url(path.to_string()),
-                            method: method.to_string(),
-                            route: callback,
-                            middlewares: &mut vec![],
-                        });
-                    },
-                };
+                self.router.web.push(Route{
+                    path: url::clean_url(path.to_string()),
+                    method: method.to_string(),
+                    route: callback,
+                    middlewares: vec![],
+                });
             },
-        };
+        }
 
         Ok(())
     }
@@ -195,19 +218,4 @@ impl <'a>Router<'static> {
         return (true, parameters);
     }
 
-    pub fn match_web_routes(&mut self, req: &mut Request) -> Option<&Route<WebRoute>> {
-        for route in &mut self.web_routes {
-            let (matches, parameters) = Router::match_route(route, req);
-
-            if !matches {
-                continue;
-            }
-            
-            req.parameters = parameters;
-
-            return Some(route);
-        }
-
-        return None;
-    }
 }
