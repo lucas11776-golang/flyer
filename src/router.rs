@@ -2,36 +2,37 @@ use crate::{request::{Request, Values}, response::Response, utils::url};
 
 pub type WebRoute = for<'a> fn (req: &'a mut Request, res: &'a mut Response) -> &'a mut Response;
 pub type Next = fn () -> Response;
-pub type Middleware = fn (req: Request, res: Response, next: Next) -> Response;
+pub type Middleware<'a> = fn (req: Request, res: Response, next: Next) -> &'a mut Response;
 
-pub struct Router {
+pub struct Router<'a> {
     path: Vec<String>,
-    pub(crate) web_routes: Vec<Route<WebRoute>>,
+    pub(crate) web_routes: Vec<Route<'a, WebRoute>>,
     pub(crate) not_found_callback: Option<WebRoute>,
-    router: Option<&'static mut Pin<&'static mut Router>>
+    router: Option<&'a Router<'a>>,
+    // router: Option<&'static mut Pin<&'a mut Router<'a>>>
     
 }
 
-pub fn new_router() -> Router {
+pub fn new_router<'a>() -> Router<'a> {
     return Router {
         path: [].into(),
         web_routes: vec![],
         not_found_callback: None,
-        router: None
+        router: None,
     }
 }
 
 type Group = fn (router: &mut Router);
 
-pub struct Route<R> {
+pub struct Route<'a, R> {
     pub(crate) path: String,
     pub(crate) method: String,
     pub(crate) route: R,
-    pub(crate) middlewares: Vec<Middleware>,
+    pub(crate) middlewares: *const Vec<Middleware<'a>>,
 }
 
 use regex::Regex;
-use std::{any::Any, collections::HashMap, pin::{self, pin, Pin}};
+use std::{any::Any, collections::HashMap, io::Result, pin::{self, pin, Pin}};
 use once_cell::sync::Lazy;
 
 static PARAM_REGEX: Lazy<Regex> = Lazy::new(|| {
@@ -67,7 +68,7 @@ pub fn merge<T>(items: Vec<Vec<T>>) -> Vec<T> {
     return merged
 }
 
-impl Router {
+impl <'a>Router<'static> {
     pub fn group(&mut self , path: &str, group: Group) {
         let g = Router{
             path: merge(vec![self.path.clone(), vec![path.to_owned()]]),
@@ -77,28 +78,36 @@ impl Router {
         };
     }
 
-    pub fn get(&mut self, path: &str, callback: WebRoute) {
-        self.add_web_route("GET".to_owned(), path, vec![], callback);
+    pub fn get(&mut self, path: &str, callback: WebRoute, middleware: Option<&'static mut Vec<Middleware>>) {
+        self.route("GET", path, callback, middleware);
     }
 
-    pub fn post(&mut self, path: &str, callback: WebRoute) {
-        self.add_web_route("POST".to_owned(), path, vec![], callback);
+    pub fn post(&mut self, path: &str, callback: WebRoute, middleware: Option<&'static mut Vec<Middleware>>) {
+        self.route("POST", path, callback, middleware);
     }
 
-    pub fn patch(&mut self, path: &str, callback: WebRoute) {
-        self.add_web_route("PATCH".to_owned(), path, vec![], callback);
+    pub fn patch(&mut self, path: &str, callback: WebRoute, middleware: Option<&'static mut Vec<Middleware>>) {
+        self.route("PATCH", path, callback, middleware);
     }
 
-    pub fn put(&mut self, path: &str, callback: WebRoute) {
-        self.add_web_route("PUT".to_owned(), path, vec![], callback);
+    pub fn put(&mut self, path: &str, callback: WebRoute, middleware: Option<&'static mut Vec<Middleware>>) {
+        self.route("PUT", path, callback, middleware);
     }
 
-    pub fn delete(&mut self, path: &str, callback: WebRoute) {
-        self.add_web_route("DELETE".to_owned(), path, vec![], callback);
+    pub fn delete(&mut self, path: &str, callback: WebRoute, middleware: Option<&'static mut Vec<Middleware>>) {
+        self.route("DELETE", path, callback, middleware);
     }
 
-    pub fn route(&mut self, method: String, path: &str, callback: WebRoute) {
-        self.add_web_route(method, path, vec![], callback);
+    pub fn head(&mut self, path: &str, callback: WebRoute, middleware: Option<&'static mut Vec<Middleware>>) {
+        self.route("CONNECT", path, callback, middleware);
+    }
+
+    pub fn options(&mut self, path: &str, callback: WebRoute, middleware: Option<&'static mut Vec<Middleware>>) {
+        self.route("OPTIONS", path, callback, middleware);
+    }
+
+    pub fn route(&mut self, method: &str, path: &str, callback: WebRoute, middleware: Option<&'static mut Vec<Middleware>>) {
+        self.add_web_route(method, path, callback, middleware).unwrap();
     }
 
     pub fn not_found(&mut self, callback: WebRoute) {
@@ -137,24 +146,36 @@ impl Router {
         return (true, params)
     }
 
-    fn add_web_route(&mut self, method: String, path: &str, middleware: Vec<Middleware>, callback: WebRoute) {
+    fn add_web_route(&mut self, method: &str, path: &str, callback: WebRoute, middleware: Option<&'static mut Vec<Middleware>>) -> Result<()> {
         // TODO: find better way...
         match &self.router {
             Some(_router) => {
                 // Will fail because is ref -> &...
-
-
-                
             },
             None => {
-                self.web_routes.push(Route {
-                    path: url::clean_url(path.to_string()),
-                    method: method,
-                    route: callback,
-                    middlewares: middleware,
-                });
+                // TODO: Fix
+                match middleware {
+                    Some(middleware) => {
+                        self.web_routes.push(Route {
+                            path: url::clean_url(path.to_string()),
+                            method: method.to_string(),
+                            route: callback,
+                            middlewares: middleware,
+                        });
+                    },
+                    None => {
+                        self.web_routes.push(Route {
+                            path: url::clean_url(path.to_string()),
+                            method: method.to_string(),
+                            route: callback,
+                            middlewares: &mut vec![],
+                        });
+                    },
+                };
             },
         };
+
+        Ok(())
     }
 
     fn match_route<T>(route: &mut Route<T>, req: &mut Request) -> (bool, Values) {
