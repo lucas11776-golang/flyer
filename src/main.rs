@@ -1,4 +1,4 @@
-use std::io::Result;
+use std::{io::Result, pin::pin};
 
 use flyer::{request::Request, response::Response, router::Next};
 use serde::{Deserialize, Serialize};
@@ -20,16 +20,28 @@ fn view<'a>(req: &'a mut Request, res: &'a mut Response) -> &'a mut Response {
     });
 }
 
-// fn user_exist<'a>(req: &'a mut Request, res: &'a mut Response, next: Next) -> &'a mut Response {
-//     return next();
-// }
+fn user_exist<'a>(req: &'a mut Request, res: &'a mut Response, next: Next<'a>) -> &'a mut Response {
+    return next();
+}
 
 #[tokio::main]
 async fn main() -> Result<()> {
     // let mut server = flyer::server("127.0.0.1".to_string(), 9999).await?;
     let mut server = flyer::server_tls("127.0.0.1", 9999, "host.key", "host.cert").await?;
 
-    server.router().get("/api/users/{user}", view, None);
+    // let m = ;
+
+    // server.router().get("/api/users/{user}", view, None);
+
+    server.router().group("api", |router| {
+
+        router.group("users", |router| {
+            router.group("{user}", |router| {
+                router.get("/", view,  None);
+            });
+        });
+
+    });
 
     print!("\r\n\r\nRunning server: {}\r\n\r\n", server.address());
 

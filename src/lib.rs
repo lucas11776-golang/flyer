@@ -145,6 +145,7 @@ impl <'a>HTTP {
     pub fn router(&mut self) -> Router {
         return Router{
             router: &mut self.router,
+            path: vec!["/".to_string()],
         };
     }
 }

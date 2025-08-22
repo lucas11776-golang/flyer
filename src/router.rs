@@ -1,14 +1,14 @@
-use crate::{request::{Request, Values}, response::{self, Response}, utils::url};
+use crate::{request::{Request, Values}, response::{self, Response}, utils::url::{self, clean_url}};
 
 pub type WebRoute = for<'a> fn (req: &'a mut Request, res: &'a mut Response) -> &'a mut Response;
 pub type Next<'a> = fn () -> &'a mut Response;
-pub type Middleware<'a> = fn (req: Request, res: Response, next: Next<'a>) -> &'a mut Response;
+pub type Middleware<'a> = &'a mut fn (req: Request, res: Response, next: Next<'a>) -> &'a mut Response;
 
-
-
+// TODO: find better way...
+pub type Middlewares<'a> = Vec<Middleware<'a>>;
 
 pub struct GroupRouter {
-    web: Vec<Route<'static, WebRoute>>,
+    web: Vec<Route<WebRoute>>,
     pub(crate) not_found_callback: Option<WebRoute>,
 }
 
@@ -34,8 +34,9 @@ impl GroupRouter {
 
 pub struct Router<'a> {
     pub(crate) router: &'a mut GroupRouter,
+    pub(crate) path: Vec<String>,
 
-    // path: Vec<String>,
+
     // pub(crate) web_routes: Vec<Route<'a, WebRoute>>,
     // pub(crate) not_found_callback: Option<WebRoute>,
     // router: Option<&'a Router<'a>>,
@@ -56,15 +57,15 @@ pub fn new_group_router<'a>() -> GroupRouter {
 
 type Group = fn (router: &mut Router);
 
-pub struct Route<'a, R> {
+pub struct Route<R> {
     pub(crate) path: String,
     pub(crate) method: String,
     pub(crate) route: R,
-    pub(crate) middlewares: Vec<Middleware<'a>>,
+    pub(crate) middlewares: Vec<Middleware<'static>>,
 }
 
 use regex::Regex;
-use std::{collections::HashMap, io::Result};
+use std::{collections::HashMap, io::Result, pin::Pin};
 use once_cell::sync::Lazy;
 
 static PARAM_REGEX: Lazy<Regex> = Lazy::new(|| {
@@ -102,43 +103,51 @@ pub fn merge<T>(items: Vec<Vec<T>>) -> Vec<T> {
 
 impl <'a>Router<'a> {
     pub fn group(&mut self , path: &str, group: Group) {
-        // let g = Router{
-        //     path: merge(vec![self.path.clone(), vec![path.to_owned()]]),
-        //     web_routes: vec![],
-        //     not_found_callback: None,
-        //     router: None
-        // };
+
+        println!(
+            "\r\n\r\n\r\nUes...: {:?}\r\n\r\n",
+            self.path.clone().iter().map(|x| clean_url(x.to_string())),
+        );
+
+        group(&mut Router{
+            path: merge(vec![
+                self.path.clone().iter().map(|x| clean_url(x.to_string())).filter(|x| x != "").collect(),
+                vec!["/".to_owned()],
+                vec![path.to_owned()]
+            ]),
+            router: self.router
+        });
     }
 
-    pub fn get(&mut self, path: &str, callback: WebRoute, middleware: Option<&'static mut Vec<Middleware>>) {
+    pub fn get(&mut self, path: &str, callback: WebRoute, middleware: Option<&'a mut Vec<Middleware>>) {
         self.route("GET", path, callback, middleware);
     }
 
-    pub fn post(&mut self, path: &str, callback: WebRoute, middleware: Option<&'static mut Vec<Middleware>>) {
-        self.route("POST", path, callback, middleware);
-    }
+    // pub fn post(&mut self, path: &str, callback: WebRoute, middleware: Option<&'static mut Vec<Middleware>>) {
+    //     self.route("POST", path, callback, middleware);
+    // }
 
-    pub fn patch(&mut self, path: &str, callback: WebRoute, middleware: Option<&'static mut Vec<Middleware>>) {
-        self.route("PATCH", path, callback, middleware);
-    }
+    // pub fn patch(&mut self, path: &str, callback: WebRoute, middleware: Option<&'static mut Vec<Middleware>>) {
+    //     self.route("PATCH", path, callback, middleware);
+    // }
 
-    pub fn put(&mut self, path: &str, callback: WebRoute, middleware: Option<&'static mut Vec<Middleware>>) {
-        self.route("PUT", path, callback, middleware);
-    }
+    // pub fn put(&mut self, path: &str, callback: WebRoute, middleware: Option<&'static mut Vec<Middleware>>) {
+    //     self.route("PUT", path, callback, middleware);
+    // }
 
-    pub fn delete(&mut self, path: &str, callback: WebRoute, middleware: Option<&'static mut Vec<Middleware>>) {
-        self.route("DELETE", path, callback, middleware);
-    }
+    // pub fn delete(&mut self, path: &str, callback: WebRoute, middleware: Option<&'static mut Vec<Middleware>>) {
+    //     self.route("DELETE", path, callback, middleware);
+    // }
 
-    pub fn head(&mut self, path: &str, callback: WebRoute, middleware: Option<&'static mut Vec<Middleware>>) {
-        self.route("CONNECT", path, callback, middleware);
-    }
+    // pub fn head(&mut self, path: &str, callback: WebRoute, middleware: Option<&'static mut Vec<Middleware>>) {
+    //     self.route("CONNECT", path, callback, middleware);
+    // }
 
-    pub fn options(&mut self, path: &str, callback: WebRoute, middleware: Option<&'static mut Vec<Middleware>>) {
-        self.route("OPTIONS", path, callback, middleware);
-    }
+    // pub fn options(&mut self, path: &str, callback: WebRoute, middleware: Option<&'static mut Vec<Middleware>>) {
+    //     self.route("OPTIONS", path, callback, middleware);
+    // }
 
-    pub fn route(&mut self, method: &str, path: &str, callback: WebRoute, middleware: Option<&'static mut Vec<Middleware>>) {
+    pub fn route(&mut self, method: &str, path: &str, callback: WebRoute, middleware: Option<&'a mut Vec<Middleware>>) {
         self.add_web_route(method, path, callback, middleware).unwrap();
     }
 
@@ -178,19 +187,32 @@ impl <'a>Router<'a> {
         return (true, params)
     }
 
-    fn add_web_route(&mut self, method: &str, path: &str, callback: WebRoute, middleware: Option<&'static mut Vec<Middleware>>) -> Result<()> {
+    fn add_web_route(&mut self, method: &str, path: &str, callback: WebRoute, middleware: Option<&'a mut Vec<Middleware>>) -> Result<()> {
         match middleware {
+
+            
             Some(middleware) => {
                 self.router.web.push(Route{
                     path: url::clean_url(path.to_string()),
                     method: method.to_string(),
                     route: callback,
-                    middlewares: middleware.to_vec(),
+                    // middlewares: middleware,
+                    middlewares: vec![],
                 });
             },
             None => {
+
+            //     println!("PATH: {:?}", 
+            
+            //  merge(vec![
+            //     self.path.clone().iter().map(|x| clean_url(x.to_string())).collect(),
+            //     vec!["/".to_owned()],
+            //     vec![path.to_owned()]
+            // ]).iter().map(|x| clean_url(x)) .filter(|x| )
+            // );
+
                 self.router.web.push(Route{
-                    path: url::clean_url(path.to_string()),
+                    path: self.path.clone().iter().map(|x| clean_url(x.to_string())).collect(),
                     method: method.to_string(),
                     route: callback,
                     middlewares: vec![],

@@ -1,6 +1,10 @@
 use crate::request::Values;
 
 pub fn clean_url(uri: String) -> String {
+    if uri == "/" {
+        return "".to_string();
+    }
+
     return uri.trim_start_matches("/")
         .trim_end_matches("/")
         .to_string();
