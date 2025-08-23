@@ -11,6 +11,11 @@ struct User {
     email: String
 }
 
+#[derive(Serialize, Deserialize)]
+struct JsonMessage {
+    message: String
+}
+
 fn view<'a>(req: &'a mut Request, res: &'a mut Response) -> &'a mut Response {
     return res.json(&User{
         id: req.parameter("user").parse().unwrap(),
@@ -20,8 +25,10 @@ fn view<'a>(req: &'a mut Request, res: &'a mut Response) -> &'a mut Response {
     });
 }
 
-fn user_exist<'a>(req: &'static mut Request, res: &'static mut Response, next: &'a mut Next<'a>) -> &'a mut Response {
-    return next.next();
+fn auth<'a>(req: &'a mut Request, res: &'a mut Response, next: &'a mut Next<'a>) -> &'a mut Response {
+    return res.status_code(401).json(&JsonMessage{
+        message: "unauthorized access".to_string()
+    });
 }
 
 #[tokio::main]
@@ -32,11 +39,10 @@ async fn main() -> Result<()> {
     server.router().group("api", |router| {
         router.group("users", |router| {
             router.group("{user}", |router| {
-                router.get("/", view,  Some(vec![]));
-            });
-        });
-
-    });
+                router.get("/", view,  None);
+            }, None);
+        }, None);
+    }, Some(vec![auth]));
 
     print!("\r\n\r\nRunning server: {}\r\n\r\n", server.address());
 

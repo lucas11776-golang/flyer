@@ -139,10 +139,11 @@ impl <'a>HTTP {
         }
     }
 
-    pub fn router(&'a mut self) -> Router {
+    pub fn router(&'a mut self) -> Router<'a> {
         return Router{
             router: &mut self.router,
             path: vec!["/".to_string()],
+            middleware: vec![],
         };
     }
 }

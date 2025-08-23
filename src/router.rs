@@ -10,8 +10,8 @@ use regex::Regex;
 use once_cell::sync::Lazy;
 
 pub type WebRoute = for<'a> fn (req: &'a mut Request, res: &'a mut Response) -> &'a mut Response;
-pub type Middleware = for<'a> fn (req: &'a mut Request, res: &'a mut Response, next: Next) -> &'a mut Response;
-pub type Middlewares= Vec<Middleware>; // TODO: find better way...
+pub type Middleware = for<'a> fn (req: &'a mut Request, res: &'a mut Response, next: &'a mut Next<'a>) -> &'a mut Response;
+pub type Middlewares = Vec<Middleware>;
 
 static PARAM_REGEX: Lazy<Regex> = Lazy::new(|| {
     Regex::new(r"\{[a-zA-Z_]+\}").expect("Invalid parameter regex")
@@ -31,7 +31,7 @@ pub struct Next<'a> {
 pub struct Router<'a> {
     pub(crate) router: &'a mut GroupRouter,
     pub(crate) path: Vec<String>,
-    
+    pub(crate) middleware: Middlewares,
 }
 
 pub fn new_group_router<'a>() -> GroupRouter {
@@ -47,23 +47,7 @@ pub struct Route<R> {
     pub(crate) path: String,
     pub(crate) method: String,
     pub(crate) route: R,
-    pub(crate) middlewares: Vec<Middleware>,
-}
-
-fn get_subdomain(host: &str) -> String {
-    let host = host.split(':').next().unwrap_or("");
-
-    if host.parse::<IpAddr>().is_ok() {
-        return String::new();
-    }
-
-    let parts: Vec<&str> = host.split('.').collect();
-
-    if parts.len() < 3 {
-        return String::new();
-    }
-
-    parts[..parts.len() - 2].join(".")
+    pub(crate) middlewares: Middlewares,
 }
 
 pub fn merge<T>(items: Vec<Vec<T>>) -> Vec<T> {
@@ -98,12 +82,12 @@ impl GroupRouter {
             for middleware in  &mut route.middlewares {
                 let mut move_to_next: bool = false;
 
-                let next: Next = Next{
+                let mut next: Next = Next{
                     is_next: &mut move_to_next,
                     response: &mut res.clone(),
                 };
 
-                (middleware)(req, res, next);
+                (middleware)(req, res, &mut next);
 
                 if !move_to_next {
                     return Some(res);
@@ -120,12 +104,25 @@ impl GroupRouter {
 }
 
 impl <'a>Router<'a> {
-    pub fn group(&mut self , path: &str, group: Group) {
-        group(&mut Router{
-            // TODO: fix
-            path: Router::get_path(self.path.clone(), vec![path.to_string()]),
-            router: self.router
-        });
+    pub fn group(&mut self , path: &str, group: Group, middleware: Option<Middlewares>) {
+        match middleware {
+            Some(middleware) => {
+                group(&mut Router{
+                    // TODO: fix
+                    path: Router::get_path(self.path.clone(), vec![path.to_string()]),
+                    router: self.router,
+                    middleware: merge(vec![self.middleware.clone(), middleware])
+                });
+            },
+            None => {
+                group(&mut Router{
+                    // TODO: fix
+                    path: Router::get_path(self.path.clone(), vec![path.to_string()]),
+                    router: self.router,
+                    middleware: self.middleware.clone()
+                });
+            },
+        }
     }
 
     pub fn get(&mut self, path: &str, callback: WebRoute, middleware: Option<Middlewares>) {
@@ -210,7 +207,7 @@ impl <'a>Router<'a> {
                     path: Router::get_path(self.path.clone(), vec![path.to_string()]).join("/"),
                     method: method.to_string(),
                     route: callback,
-                    middlewares: middleware,
+                    middlewares: merge(vec![self.middleware.clone(), middleware],),
                 });
             },
             None => {
@@ -219,7 +216,7 @@ impl <'a>Router<'a> {
                     path: Router::get_path(self.path.clone(), vec![path.to_string()]).join("/"),
                     method: method.to_string(),
                     route: callback,
-                    middlewares: vec![],
+                    middlewares: self.middleware.clone(),
                 });
             },
         }
@@ -243,5 +240,4 @@ impl <'a>Router<'a> {
 
         return (true, parameters);
     }
-
 }
