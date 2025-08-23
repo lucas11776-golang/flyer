@@ -15,7 +15,7 @@ pub fn new_response() -> Response {
         status_code: 200,
         headers: Headers::new(),
         body: vec![],
-    }
+    };
 }
 
 pub fn parse(response: &mut Response) -> Result<String> {
@@ -67,5 +67,13 @@ impl Response {
     pub fn html(&mut self, html: &str) -> &mut Response {
         return self.header("Content-Type".to_string(), "text/html".to_owned())
             .body(html.as_bytes());
+    }
+
+    pub fn clone(&self) -> Response {
+        return Response {
+            status_code: self.status_code,
+            headers: self.headers.clone(),
+            body: self.body.clone()
+        };
     }
 }

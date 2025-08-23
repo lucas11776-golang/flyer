@@ -10,12 +10,16 @@ use crate::{HTTP as Server};
 use crate::request::{Files, Headers, Request, Values};
 
 
-pub struct Handler { }
+pub struct Handler {
+    server: &'static mut Server,
+    addr: SocketAddr,
+}
 
-impl Handler {
-    pub async fn handle<'a, RW>(server: &'a mut Server, mut rw: Pin<&mut BufReader<RW>>, addr: SocketAddr) -> std::io::Result<()>
+
+impl <'a>Handler {
+    pub async fn handle<RW>(server: &'a mut Server, mut rw: Pin<&mut BufReader<RW>>, addr: SocketAddr) -> std::io::Result<()>
     where
-        RW: AsyncRead + AsyncWrite + Unpin
+        RW: AsyncRead + AsyncWrite + Unpin + Send
     {
             loop {
         // Parse request line

@@ -21,7 +21,7 @@ use tokio_rustls::{rustls, TlsAcceptor};
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, BufReader};
 
 use crate::handler::{http1, http2};
-use crate::handler::http2::H2_PREFACE;
+use crate::handler::http2::{H2_PREFACE};
 use crate::router::{new_group_router, GroupRouter, Router};
 
 pub struct HTTP {
@@ -85,6 +85,8 @@ impl <'a>HTTP {
         self.request_max_size = size;    
     }
 
+
+
     async fn handle_stream<RW>(&mut self, stream: RW, addr:  SocketAddr) -> IOResult<()>
     where
         RW: AsyncRead + AsyncWrite + Unpin + Send
@@ -129,11 +131,6 @@ impl <'a>HTTP {
             match self.listener.accept().await {
                 Ok((stream, addr)) => {
                     tokio_scoped::scope(|scope| {
-
-                        // let m = Mutex::new(...);
-
-                        // let v = m.lock().unwrap();
-
                         scope.spawn(self.new_connection(stream, addr));
                     });
                 },
@@ -142,7 +139,7 @@ impl <'a>HTTP {
         }
     }
 
-    pub fn router(&mut self) -> Router {
+    pub fn router(&'a mut self) -> Router {
         return Router{
             router: &mut self.router,
             path: vec!["/".to_string()],

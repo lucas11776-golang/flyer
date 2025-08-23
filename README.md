@@ -40,8 +40,8 @@ async fn main() -> Result<()> {
     let mut server = flyer::server("127.0.0.1", 9999).await?;
 
     server.router().get("/", |_req, res| {
-        return res.html("<h1>Hello World!!!</h1>".to_owned());
-    });
+        return res.html("<h1>Hello World!!!</h1>");
+    }, None);
 
     print!("\r\n\r\nRunning server: {}\r\n\r\n", server.address());
 
