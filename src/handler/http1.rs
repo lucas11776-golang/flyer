@@ -4,7 +4,7 @@ use std::net::SocketAddr;
 use std::pin::Pin;
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, BufReader};
 
-use crate::handler::{HTTP};
+use crate::handler::{parse_request_body, HTTP};
 use crate::utils::url::parse_query_params;
 use crate::{HTTP as Server};
 use crate::request::{Files, Headers, Request, Values};
@@ -125,6 +125,7 @@ impl <'a>Handler {
 
         req.headers.insert("Connection".to_owned(), "keep-alive".to_owned());
 
+        parse_request_body(&mut req).await.unwrap();
 
         let _ = HTTP::web(server, &mut rw, &mut req).await;
     }
