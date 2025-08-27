@@ -32,10 +32,9 @@ fn view<'a>(req: &'a mut Request, res: &'a mut Response) -> &'a mut Response {
 }
 
 fn auth<'a>(req: &'a mut Request, res: &'a mut Response, next: &'a mut Next<'a>) -> &'a mut Response {
-    // return res.status_code(401).json(&JsonMessage{
-    //     message: "unauthorized access".to_string()
-    // });
-    return next.next();
+    return res.status_code(401).json(&JsonMessage{
+        message: "unauthorized access".to_string()
+    });
 }
 
 #[tokio::main]

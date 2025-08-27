@@ -1,4 +1,4 @@
-use crate::request::Values;
+use crate::Values;
 
 pub fn clean_url(uri: String) -> String {
 

@@ -2,12 +2,13 @@ use std::io::Result;
 
 use serde::Serialize;
 
-use crate::request::{Headers};
+use crate::{request::Headers, session::Session};
 
 pub struct Response {
     pub(crate) status_code: u16,
     pub(crate) headers: Headers,
     pub(crate) body: Vec<u8>,
+    pub session: Option<Session>,
 }
 
 pub fn new_response() -> Response {
@@ -15,6 +16,7 @@ pub fn new_response() -> Response {
         status_code: 200,
         headers: Headers::new(),
         body: vec![],
+        session: None
     };
 }
 
@@ -73,7 +75,8 @@ impl Response {
         return Response {
             status_code: self.status_code,
             headers: self.headers.clone(),
-            body: self.body.clone()
+            body: self.body.clone(),
+            session: self.session.clone(),
         };
     }
 }

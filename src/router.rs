@@ -1,7 +1,8 @@
 use std::net::IpAddr;
 use std::{collections::HashMap, io::Result};
+use crate::Values;
 use crate::{
-    request::{Request, Values},
+    request::{Request},
     response::{Response},
     utils::url::{self, clean_url}
 };

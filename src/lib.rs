@@ -3,7 +3,11 @@ pub mod handler;
 pub mod response;
 pub mod router;
 pub mod utils;
+pub mod session;
 
+pub type Values = HashMap<String, String>;
+
+use std::collections::HashMap;
 use std::io::{Result as IOResult};
 use std::net::SocketAddr;
 use std::pin::{pin};
@@ -23,20 +27,23 @@ use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, BufReader};
 use crate::handler::{http1, http2};
 use crate::handler::http2::{H2_PREFACE};
 use crate::router::{new_group_router, GroupRouter, Router};
+use crate::session::SessionManager;
 
 pub struct HTTP {
     acceptor: Option<TlsAcceptor>,
     listener: TcpListener,
     request_max_size: i64,
     router: GroupRouter,
+    pub(crate) session_manger: Option<SessionManager>,
 }
 
 pub async fn server<'a>(host: &str, port: i32) -> IOResult<HTTP> {
-    return Ok( HTTP {
+    return Ok(HTTP {
         listener: TcpListener::bind(format!("{0}:{1}", host, port)).await?,
         request_max_size: 1024,
         acceptor: None,
         router: new_group_router(),
+        session_manger: None
     });
 }
 
@@ -65,6 +72,7 @@ pub async fn server_tls<'a>(host: &str, port: i32, key: &str, certs: &str) -> IO
         listener: TcpListener::bind(format!("{0}:{1}", host, port)).await?,
         request_max_size: 1024,
         router: new_group_router(),
+        session_manger: None,
     });
 }
 
@@ -85,7 +93,10 @@ impl <'a>HTTP {
         self.request_max_size = size;    
     }
 
-
+    pub fn session(&mut self, token: &str) -> &mut HTTP {
+        // TODO: continue
+        return self;
+    }
 
     async fn handle_stream<RW>(&mut self, stream: RW, addr:  SocketAddr) -> IOResult<()>
     where

@@ -6,8 +6,8 @@ use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, BufReader};
 
 use crate::handler::{parse_request_body, HTTP};
 use crate::utils::url::parse_query_params;
-use crate::{HTTP as Server};
-use crate::request::{Files, Headers, Request, Values};
+use crate::{Values, HTTP as Server};
+use crate::request::{Files, Headers, Request};
 
 
 pub struct Handler {
@@ -121,6 +121,7 @@ impl <'a>Handler {
             body: body,
             values: Values::new(),
             files: Files::new(),
+            session: None,
         };
 
         req.headers.insert("Connection".to_owned(), "keep-alive".to_owned());

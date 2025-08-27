@@ -1,11 +1,9 @@
-use std::{collections::HashMap, io::{Error, Result}};
-use urlencoding::decode;
+use std::{collections::HashMap};
 
+use crate::{session::Session, Values};
 
 pub type Headers = HashMap<String, String>;
-pub type Values = HashMap<String, String>;
 pub type Files = HashMap<String, File>;
-
 
 #[derive(Debug)]
 pub struct File {
@@ -15,6 +13,7 @@ pub struct File {
     pub size: usize,
 }
 
+#[derive(Debug)]
 pub struct MultipartForm {
     pub values: Values,
     pub files: Files,
@@ -32,14 +31,7 @@ pub struct Request {
     pub body: Vec<u8>,
     pub values: Values,
     pub files: Files,
-}
-
-struct MultipartField {
-    content_disposition: String,
-    name: String,
-    filename: String,
-    content_type: String,
-    content: String,
+    pub session: Option<Session>,
 }
 
 impl Request {

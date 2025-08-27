@@ -6,8 +6,8 @@ use std::io::{Result as IOResult};
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt, BufReader};
 
 use crate::utils::url;
-use crate::{HTTP as Server};
-use crate::request::{File, Files, MultipartForm, Request, Values};
+use crate::{Values, HTTP as Server};
+use crate::request::{File, Files, MultipartForm, Request};
 use crate::response::{Response, new_response, parse};
 
 pub struct HTTP { }
