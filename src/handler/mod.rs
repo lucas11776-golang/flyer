@@ -127,6 +127,13 @@ impl HTTP {
     {
         match server.router.match_web_routes(req, &mut new_response()) {
             Some(res) => {
+                match &server.session_manger {
+                    Some(manager) => {
+                        manager.handle(req, res);
+                    },
+                    None => {},
+                };
+
                 let _ = buffer.write( parse(res)?.as_bytes()).await?;
                 
                 Ok(())

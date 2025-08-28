@@ -141,7 +141,6 @@ impl <'a> Handler<'a> {
             body: body,
             values: HashMap::new(),
             files: HashMap::new(),
-            session: None,
         }, send)?;
 
         Ok(())

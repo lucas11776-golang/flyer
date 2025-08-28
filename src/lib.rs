@@ -4,10 +4,12 @@ pub mod response;
 pub mod router;
 pub mod utils;
 pub mod session;
+pub mod view;
 
 pub type Values = HashMap<String, String>;
 
 use std::collections::HashMap;
+use std::fmt::Debug;
 use std::io::{Result as IOResult};
 use std::net::SocketAddr;
 use std::pin::{pin};
@@ -26,15 +28,29 @@ use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, BufReader};
 
 use crate::handler::{http1, http2};
 use crate::handler::http2::{H2_PREFACE};
+use crate::request::Request;
+use crate::response::Response;
 use crate::router::{new_group_router, GroupRouter, Router};
-use crate::session::SessionManager;
+
+pub type Configuration = HashMap<String, String>;
+
+
+pub trait Session: Send + Debug {
+    fn set(&self, key: &str, value: &str);
+    fn get(&self, key: &str) -> String; // Change to &self for object safety
+}
+
+pub trait SessionManager: Send {
+    fn handle<'a>(&self, req: &'a mut Request, res: &'a mut Response) -> Box<dyn Session + 'a>;
+}
 
 pub struct HTTP {
     acceptor: Option<TlsAcceptor>,
     listener: TcpListener,
     request_max_size: i64,
     router: GroupRouter,
-    pub(crate) session_manger: Option<SessionManager>,
+    pub(crate) session_manger: Option<Box<dyn SessionManager>>,
+    pub(crate) configuration: Configuration,
 }
 
 pub async fn server<'a>(host: &str, port: i32) -> IOResult<HTTP> {
@@ -43,7 +59,8 @@ pub async fn server<'a>(host: &str, port: i32) -> IOResult<HTTP> {
         request_max_size: 1024,
         acceptor: None,
         router: new_group_router(),
-        session_manger: None
+        session_manger: None,
+        configuration: Configuration::new()
     });
 }
 
@@ -73,6 +90,7 @@ pub async fn server_tls<'a>(host: &str, port: i32, key: &str, certs: &str) -> IO
         request_max_size: 1024,
         router: new_group_router(),
         session_manger: None,
+        configuration: Configuration::new(),
     });
 }
 
@@ -93,8 +111,13 @@ impl <'a>HTTP {
         self.request_max_size = size;    
     }
 
-    pub fn session(&mut self, token: &str) -> &mut HTTP {
-        // TODO: continue
+    pub fn view(&mut self, path: &str) -> &mut HTTP {
+        self.configuration.insert("view_path".to_owned(), path.to_owned());
+
+        return self;
+    }
+
+    pub fn session(&mut self, manager: impl SessionManager) -> &mut HTTP {
         return self;
     }
 

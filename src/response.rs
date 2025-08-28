@@ -1,14 +1,15 @@
-use std::io::Result;
+use std::{any::Any, collections::HashMap, io::Result};
 
 use serde::Serialize;
 
-use crate::{request::Headers, session::Session};
+use crate::{request::Headers, Session};
 
+#[derive(Debug)]
 pub struct Response {
     pub(crate) status_code: u16,
     pub(crate) headers: Headers,
     pub(crate) body: Vec<u8>,
-    pub session: Option<Session>,
+    pub session: Option<Box<dyn Session>>,
 }
 
 pub fn new_response() -> Response {
@@ -61,7 +62,9 @@ impl Response {
     }
 
     // where -> specify the type of data that is allowed in T.
-    pub fn json<T>(&mut self, json: &T) -> &mut Response where T: ?Sized + Serialize, {
+    pub fn json<T>(&mut self, json: &T) -> &mut Response
+    where T: ?Sized + Serialize
+    {
         return self.header("Content-Type".to_owned(), "application/json".to_owned())
             .body(serde_json::to_string(json).unwrap().as_bytes());
     }
@@ -71,12 +74,20 @@ impl Response {
             .body(html.as_bytes());
     }
 
+    pub fn view(&mut self, name: &str, data: ViewData) -> &mut Response
+    {
+        return self;
+    }
+
     pub fn clone(&self) -> Response {
         return Response {
             status_code: self.status_code,
             headers: self.headers.clone(),
             body: self.body.clone(),
-            session: self.session.clone(),
+            session: None,
         };
     }
 }
+
+
+pub type ViewData = HashMap<String, Box<dyn Any>>;

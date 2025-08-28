@@ -1,6 +1,6 @@
-use std::{fs, io::Result};
+use std::{collections::HashMap, fs, io::Result};
 
-use flyer::{request::Request, response::Response, router::Next};
+use flyer::{request::Request, response::{Response, ViewData}, router::Next, session::DefaultSessionManager};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
@@ -23,12 +23,17 @@ fn view<'a>(req: &'a mut Request, res: &'a mut Response) -> &'a mut Response {
 
     println!("{:?}", req.values.get("first_name").unwrap());
 
-    return res.json(&User{
-        id: req.parameter("user").parse().unwrap(),
-        first_name: "Jeo".to_owned(),
-        last_name: "Doe".to_owned(),
-        email: "jeo@doe.com".to_owned()
-    });
+
+    let mut data: ViewData = HashMap::new();
+
+    data.insert("first_name".to_string(), Box::new("Jeo Deo"));
+    data.insert("age".to_string(), Box::new(10));
+
+
+    res.session.as_ref().unwrap().set("user_id", "1");
+
+
+    return res.view("index", data);
 }
 
 fn auth<'a>(req: &'a mut Request, res: &'a mut Response, next: &'a mut Next<'a>) -> &'a mut Response {
@@ -41,6 +46,11 @@ fn auth<'a>(req: &'a mut Request, res: &'a mut Response, next: &'a mut Next<'a>)
 async fn main() -> Result<()> {
     // let mut server = flyer::server("127.0.0.1", 9999).await?;
     let mut server = flyer::server_tls("127.0.0.1", 9999, "host.key", "host.cert").await?;
+
+    // server.session("abc.session.key");
+
+    // server.session(DefaultSessionManager::new("abc.test.token"));
+    server.session(DefaultSessionManager{token: "abc.test.token".to_string()});
 
     server.router().group("api", |router| {
         router.group("users", |router| {

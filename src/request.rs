@@ -1,6 +1,6 @@
-use std::{collections::HashMap};
+use std::{collections::HashMap, sync::Arc};
 
-use crate::{session::Session, Values};
+use crate::{Values};
 
 pub type Headers = HashMap<String, String>;
 pub type Files = HashMap<String, File>;
@@ -31,7 +31,6 @@ pub struct Request {
     pub body: Vec<u8>,
     pub values: Values,
     pub files: Files,
-    pub session: Option<Session>,
 }
 
 impl Request {

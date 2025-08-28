@@ -1,8 +1,6 @@
 use crate::Values;
 
 pub fn clean_url(uri: String) -> String {
-
-
     if uri == "/" {
         return "".to_string();
     }

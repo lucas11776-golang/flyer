@@ -121,12 +121,13 @@ impl <'a>Handler {
             body: body,
             values: Values::new(),
             files: Files::new(),
-            session: None,
         };
 
         req.headers.insert("Connection".to_owned(), "keep-alive".to_owned());
 
         parse_request_body(&mut req).await.unwrap();
+
+    
 
         let _ = HTTP::web(server, &mut rw, &mut req).await;
     }
