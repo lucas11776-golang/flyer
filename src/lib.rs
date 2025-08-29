@@ -9,7 +9,6 @@ pub mod view;
 pub type Values = HashMap<String, String>;
 
 use std::collections::HashMap;
-use std::fmt::Debug;
 use std::io::{Result as IOResult};
 use std::net::SocketAddr;
 use std::pin::{pin};
@@ -28,21 +27,11 @@ use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, BufReader};
 
 use crate::handler::{http1, http2};
 use crate::handler::http2::{H2_PREFACE};
-use crate::request::Request;
-use crate::response::Response;
 use crate::router::{new_group_router, GroupRouter, Router};
+use crate::session::SessionManager;
 
 pub type Configuration = HashMap<String, String>;
 
-
-pub trait Session: Send + Debug {
-    fn set(&self, key: &str, value: &str);
-    fn get(&self, key: &str) -> String; // Change to &self for object safety
-}
-
-pub trait SessionManager: Send {
-    fn handle<'a>(&self, req: &'a mut Request, res: &'a mut Response) -> Box<dyn Session + 'a>;
-}
 
 pub struct HTTP {
     acceptor: Option<TlsAcceptor>,
@@ -94,7 +83,7 @@ pub async fn server_tls<'a>(host: &str, port: i32, key: &str, certs: &str) -> IO
     });
 }
 
-impl <'a>HTTP {
+impl HTTP {
     pub fn host(&self) -> String {
         return self.listener.local_addr().unwrap().ip().to_string();
     }
@@ -148,7 +137,8 @@ impl <'a>HTTP {
 
     async fn new_connection<RW>(&mut self, stream: RW, addr: SocketAddr)
     where
-        RW: AsyncRead + AsyncWrite + Unpin + Send {
+        RW: AsyncRead + AsyncWrite + Unpin + Send
+    {
         match &self.acceptor {
             Some(acceptor) => {
                 let _ = match acceptor.accept(stream).await {
@@ -173,7 +163,7 @@ impl <'a>HTTP {
         }
     }
 
-    pub fn router(&'a mut self) -> Router<'a> {
+    pub fn router(&mut self) -> Router {
         return Router{
             router: &mut self.router,
             path: vec!["/".to_string()],

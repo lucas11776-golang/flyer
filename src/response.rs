@@ -1,15 +1,22 @@
-use std::{any::Any, collections::HashMap, io::Result};
+use std::{
+    any::Any,
+    collections::HashMap,
+    io::Result
+};
 
 use serde::Serialize;
 
-use crate::{request::Headers, Session};
+use crate::{
+    request::Headers,
+    session::Session
+};
 
 #[derive(Debug)]
 pub struct Response {
     pub(crate) status_code: u16,
     pub(crate) headers: Headers,
     pub(crate) body: Vec<u8>,
-    pub session: Option<Box<dyn Session>>,
+    pub(crate) session: Option<Box<dyn Session>>,
 }
 
 pub fn new_response() -> Response {
@@ -74,9 +81,12 @@ impl Response {
             .body(html.as_bytes());
     }
 
-    pub fn view(&mut self, name: &str, data: ViewData) -> &mut Response
-    {
+    pub fn view(&mut self, name: &str, data: ViewData) -> &mut Response {
         return self;
+    }
+
+    pub fn session<'a>(&self) -> Option<&Box<dyn Session>> {
+        return self.session.as_ref();
     }
 
     pub fn clone(&self) -> Response {
