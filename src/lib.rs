@@ -32,7 +32,6 @@ use crate::session::SessionManager;
 
 pub type Configuration = HashMap<String, String>;
 
-
 pub struct HTTP {
     acceptor: Option<TlsAcceptor>,
     listener: TcpListener,

@@ -5,10 +5,11 @@ use std::{
 };
 
 use serde::Serialize;
+use tera::{Context, Tera};
 
 use crate::{
     request::Headers,
-    session::Session
+    session::Session, Configuration
 };
 
 #[derive(Debug)]
@@ -17,6 +18,7 @@ pub struct Response {
     pub(crate) headers: Headers,
     pub(crate) body: Vec<u8>,
     pub(crate) session: Option<Box<dyn Session>>,
+    pub(crate) config: Configuration,
 }
 
 pub fn new_response() -> Response {
@@ -24,7 +26,8 @@ pub fn new_response() -> Response {
         status_code: 200,
         headers: Headers::new(),
         body: vec![],
-        session: None
+        session: None,
+        config: Configuration::new(),
     };
 }
 
@@ -82,7 +85,13 @@ impl Response {
     }
 
     pub fn view(&mut self, name: &str, data: ViewData) -> &mut Response {
-        return self;
+        let tera = Tera::new("views/**/*").unwrap();
+
+        let mut context = Context::new();
+
+        let html = tera.render(&format!("{}.html", name), &context).unwrap();
+
+        return self.html(&html);
     }
 
     pub fn session<'a>(&self) -> Option<&Box<dyn Session>> {
@@ -95,6 +104,7 @@ impl Response {
             headers: self.headers.clone(),
             body: self.body.clone(),
             session: None,
+            config: Configuration::new(),
         };
     }
 }

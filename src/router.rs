@@ -1,5 +1,8 @@
-use std::net::IpAddr;
-use std::{collections::HashMap, io::Result};
+use std::{
+    collections::HashMap,
+    io::Result
+};
+
 use crate::Values;
 use crate::{
     request::{Request},
@@ -27,7 +30,6 @@ pub struct Next<'a> {
     is_next: &'a mut bool,
     response: &'a mut Response,
 }
-
 
 pub struct Router<'a> {
     pub(crate) router: &'a mut GroupRouter,

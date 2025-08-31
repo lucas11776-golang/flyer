@@ -125,7 +125,11 @@ impl HTTP {
     where
         RW: AsyncRead + AsyncWrite + Unpin
     {
-        match server.router.match_web_routes(req, &mut new_response()) {
+        let mut res = new_response();
+
+        res.config = server.configuration.clone();
+
+        match server.router.match_web_routes(req, &mut res) {
             Some(res) => {
                 match &server.session_manger {
                     Some(manager) => {
@@ -141,8 +145,6 @@ impl HTTP {
             None => {
                 match server.router.not_found_callback {
                     Some(route) => {
-                        let mut res: Response = new_response();
-
                         route(req, &mut res);
 
                         let _ = buffer.write(parse(&mut res)?.as_bytes()).await;
@@ -150,8 +152,6 @@ impl HTTP {
                         Ok(())
                     },
                     None => {
-                        let mut res: Response = new_response();
-
                         res.status_code(404);
 
                         let _ = buffer.write(parse(&mut res)?.as_bytes()).await;
