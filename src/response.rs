@@ -5,11 +5,10 @@ use std::{
 };
 
 use serde::Serialize;
-use tera::{Context, Tera};
+use tera::{to_value, Context, Tera};
 
 use crate::{
-    request::Headers,
-    session::Session, Configuration
+    request::Headers, session::Session, view::View, Configuration
 };
 
 #[derive(Debug)]
@@ -84,10 +83,16 @@ impl Response {
             .body(html.as_bytes());
     }
 
-    pub fn view(&mut self, name: &str, data: ViewData) -> &mut Response {
+    pub fn view(&mut self, name: &str, data: Option<ViewData>) -> &mut Response {
+        // TODO: move to HTTP....
         let tera = Tera::new("views/**/*").unwrap();
 
-        let mut context = Context::new();
+        let context: Context;
+
+        match data {
+            Some(ctx) => context = ctx.context,
+            None => context = Context::new(),
+        }
 
         let html = tera.render(&format!("{}.html", name), &context).unwrap();
 
@@ -110,4 +115,21 @@ impl Response {
 }
 
 
-pub type ViewData = HashMap<String, Box<dyn Any>>;
+
+// TODO: move to view namespace
+pub fn view_data() -> ViewData {
+    return ViewData{
+        context: Context::new()
+    };
+}
+
+pub struct ViewData {
+    pub(crate) context: Context, 
+}
+
+impl ViewData {
+     pub fn insert<T: Serialize + ?Sized, S: Into<String>>(&mut self, key: S, val: &T) {
+        self.context.insert(key, val);
+
+    }
+}

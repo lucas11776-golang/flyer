@@ -88,9 +88,9 @@
     <!-- Profile Card -->
     <div class="profile-card">
       <div class="avatar"><i class="bi bi-person-circle"></i></div>
-      <h4>Riccardo Cavallo</h4>
-      <p>Hi, I’m Riccardo Cavallo and I’m a Graphic and Visual Designer.</p>
-      <button class="contact-btn">CONTACT ME</button>
+      <h4>{{ user.first_name }} {{ user.last_name }}</h4>
+      <p>Hi, I'm {{ user.first_name }} {{ user.last_name }} and I'm a Software Engineer.</p>
+      <a style="text-decoration: none;" href="mailto:{{ user.email }}" class="contact-btn">CONTACT ME</a>
       <div class="contact-arrow">
         <i class="bi bi-chevron-up"></i>
       </div>
@@ -100,10 +100,10 @@
     <div class="contact-list">
       <div class="contact-item">
         <div class="icon text-danger"><i class="bi bi-envelope-fill"></i></div>
-        <span>Email <small>riccavallo@gmail.com</small></span>
+        <span>Email <small>{{ user.email }}</small></span>
         <i class="bi bi-chevron-right"></i>
       </div>
-      <div class="contact-item">
+      <!-- <div class="contact-item">
         <div class="icon text-primary"><i class="bi bi-facebook"></i></div>
         <span>Facebook <small>Riccardo Cavallo</small></span>
         <i class="bi bi-chevron-right"></i>
@@ -112,7 +112,7 @@
         <div class="icon text-info"><i class="bi bi-twitter"></i></div>
         <span>Twitter <small>@RicHoxGFX</small></span>
         <i class="bi bi-chevron-right"></i>
-      </div>
+      </div> -->
     </div>
   </div>
 

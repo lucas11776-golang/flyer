@@ -1,6 +1,6 @@
 use std::{collections::HashMap, fs, io::Result};
 
-use flyer::{request::Request, response::{Response, ViewData}, router::Next, session::cookie::CookieSessionManager};
+use flyer::{request::Request, response::{Response, view_data}, router::Next, session::cookie::CookieSessionManager};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
@@ -23,31 +23,32 @@ fn view<'a>(req: &'a mut Request, res: &'a mut Response) -> &'a mut Response {
 
     println!("{:?}", req.values.get("first_name").unwrap());
 
-    let mut data: ViewData = HashMap::new();
+    let mut data = view_data();
 
-    data.insert("first_name".to_string(), Box::new("Jeo Deo"));
-    data.insert("age".to_string(), Box::new(10));
+    data.insert("first_name", "Jeo Deo");
+    data.insert("age", &10);
 
     res.session().unwrap().set("user_id", "1");
 
-    return res.view("index", data);
+    return res.view("index", Some(data));
 }
 
 fn home<'a>(req: &'a mut Request, res: &'a mut Response) -> &'a mut Response {
-    let mut data: ViewData = HashMap::new();
+    let mut data = view_data();
 
-    data.insert("user".to_owned(), Box::new(User {
+    data.insert("user", &User {
         id: 1,
         first_name: "Themba".to_owned(),
         last_name: "Ngubeni".to_owned(),
         email: "themba@testing.com".to_owned(),
-    }));
+    });
 
-    return res.view("index", data);
+    return res.view("index", Some(data));
 }
 
 fn services<'a>(req: &'a mut Request, res: &'a mut Response) -> &'a mut Response {
-    return res.view("nested/services", ViewData::new());
+    // let data = view_data();
+    return res.view("nested/services", None);
 }
 
 fn auth<'a>(req: &'a mut Request, res: &'a mut Response, next: &'a mut Next<'a>) -> &'a mut Response {

@@ -7,7 +7,7 @@ use std::net::SocketAddr;
 use std::pin::Pin;
 use tokio::io::{AsyncRead, AsyncWrite, BufReader};
 
-use crate::{response::{self, new_response, Response}, HTTP as Server};
+use crate::{response::{new_response, Response}, HTTP as Server};
 use crate::request::{Headers, Request};
 use crate::utils::url::parse_query_params;
 
@@ -89,7 +89,7 @@ impl <'a> Handler<'a> {
     }
 
     fn handle_request(&mut self, mut req: Request, send: SendResponse<Bytes>) -> Result<()> {
-        let mut res = response::new_response();
+        let mut res = new_response();
 
         match self.server.router.match_web_routes(&mut req, &mut res) {
             Some(res) => {
