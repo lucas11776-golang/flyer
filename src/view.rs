@@ -1,15 +1,45 @@
+use std::io::Result;
+
+use serde::Serialize;
+use tera::{Context, Tera};
+
 pub fn new_view(path: String) -> View {
     return View{
-        path: path
+        render: Tera::new(&format!("{}/**/*", path.trim_end_matches("/"))).unwrap()
     };
 }
 
+#[derive(Debug)]
 pub struct View {
-    pub(crate) path: String
+    pub(crate) render: Tera
 }
 
 impl View {
-    pub fn render(&mut self, view: String) -> Vec<u8> {
-        return vec![]
+    pub fn render(&mut self, view: &str, data: Option<ViewData>) -> String {
+        match data {
+            Some(data) => self.build(view, &data.context).unwrap(),
+            None => self.build(view, &Context::new()).unwrap(),
+        }
+    }
+
+    fn build(&mut self, view: &str, context: &Context) -> Result<String> {
+        return Ok(self.render.render(&format!("{}", view), &context).unwrap())
+    }
+}
+
+pub fn view_data() -> ViewData {
+    return ViewData{
+        context: Context::new()
+    };
+}
+
+pub struct ViewData {
+    pub(crate) context: Context, 
+}
+
+impl ViewData {
+     pub fn insert<T: Serialize + ?Sized, S: Into<String>>(&mut self, key: S, val: &T) {
+        self.context.insert(key, val);
+
     }
 }

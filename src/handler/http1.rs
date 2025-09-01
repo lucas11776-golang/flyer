@@ -17,6 +17,7 @@ pub struct Handler {
 
 
 impl <'a>Handler {
+    // TODO: refactor handler...
     pub async fn handle<RW>(server: &'a mut Server, mut rw: Pin<&mut BufReader<RW>>, addr: SocketAddr) -> std::io::Result<()>
     where
         RW: AsyncRead + AsyncWrite + Unpin + Send
@@ -126,8 +127,6 @@ impl <'a>Handler {
         req.headers.insert("Connection".to_owned(), "keep-alive".to_owned());
 
         parse_request_body(&mut req).await.unwrap();
-
-    
 
         let _ = HTTP::web(server, &mut rw, &mut req).await;
     }

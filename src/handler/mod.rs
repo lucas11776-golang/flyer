@@ -5,46 +5,19 @@ pub mod http3;
 use std::io::{Result as IOResult};
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt, BufReader};
 
+use bytes::Bytes;
+use futures_util::stream::once;
+use multer::Multipart;
+
 use crate::utils::url;
+use crate::view::new_view;
 use crate::{Values, HTTP as Server};
 use crate::request::{File, Files, MultipartForm, Request};
-use crate::response::{Response, new_response, parse};
+use crate::response::{new_response, parse};
 
 pub struct HTTP { }
 
-
 use std::convert::Infallible;
-
-use bytes::Bytes;
-// Import multer types.
-use futures_util::stream::once;
-use futures_util::stream::Stream;
-use multer::Multipart;
-
-// fn parse_parameters(parameters: String) -> Headers {
-//     let mut params: Values = Values::new();
-
-//     parameters.trim()
-//         .split("&")
-//         .for_each(|item| {
-//             let param: Vec<String> = item.to_string()
-//                 .split("=")
-//                 .map(|val| val.to_string())
-//                 .collect();
-
-//             params.insert(
-//                 param.get(0).get_or_insert(&"".to_owned()).to_string(),
-//                 decode(param.get(1).get_or_insert(&"".to_owned())).unwrap().to_string()
-//             );
-//         });
-
-//     return params;
-// }
-
-// fn parse_urlencoded_form(body: String) -> Values {
-//     return parse_parameters(body);
-// }
-
 
 async fn parse_multipart_form<'a>(req: &'a mut Request, boundary: &'a str) -> IOResult<MultipartForm> {
     let mut form =  MultipartForm {
@@ -54,10 +27,8 @@ async fn parse_multipart_form<'a>(req: &'a mut Request, boundary: &'a str) -> IO
 
     let stream = once(async move { Result::<Bytes, Infallible>::Ok(Bytes::from(req.body.clone())) });
 
-    // Create a `Multipart` instance from that byte stream and the boundary.
     let mut multipart = Multipart::new(stream, boundary);
 
-    // Iterate over the fields, use `next_field()` to get the next field.
     while let Some(mut field) = multipart.next_field().await.unwrap() {
         match field.file_name().clone() {
             Some(filename) => {
@@ -89,7 +60,6 @@ async fn parse_multipart_form<'a>(req: &'a mut Request, boundary: &'a str) -> IO
 
 }
 
-// TODO: Parse multipart base on (https://www.rfc-editor.org/rfc/rfc7578)
 pub async fn parse_request_body<'a>(req: &'a mut Request) -> IOResult<()> {
     let binding = req.header("Content-Type");
     let content_type: Vec<&str> = binding.split(";").collect();
@@ -110,6 +80,7 @@ pub async fn parse_request_body<'a>(req: &'a mut Request) -> IOResult<()> {
             req.files = form.files;
             req.values = form.values;
         },
+        // TODO: implement url-encode
         _ => {
 
         }
@@ -127,7 +98,9 @@ impl HTTP {
     {
         let mut res = new_response();
 
-        res.config = server.configuration.clone();
+        if server.configuration.get("view_path").is_some() {
+            res.view = Some(new_view(server.configuration.get("view_path").unwrap().to_string()));
+        }
 
         match server.router.match_web_routes(req, &mut res) {
             Some(res) => {
@@ -163,6 +136,7 @@ impl HTTP {
         }
     }
 
+    // TODO: implement socket protocol.
     pub async fn socket<'a, RW>(server: &'a mut HTTP, buffer: &mut BufReader<RW>, req: &mut Request) -> IOResult<()>
     where
         RW: AsyncRead + AsyncWrite + Unpin

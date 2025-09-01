@@ -1,6 +1,6 @@
-use std::{collections::HashMap, fs, io::Result};
+use std::{fs, io::Result};
 
-use flyer::{request::Request, response::{Response, view_data}, router::Next, session::cookie::CookieSessionManager};
+use flyer::{request::Request, response::Response, router::Next, session::cookie::CookieSessionManager, view::view_data};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
@@ -43,12 +43,12 @@ fn home<'a>(req: &'a mut Request, res: &'a mut Response) -> &'a mut Response {
         email: "themba@testing.com".to_owned(),
     });
 
-    return res.view("index", Some(data));
+    return res.view("index.html", Some(data));
 }
 
 fn services<'a>(req: &'a mut Request, res: &'a mut Response) -> &'a mut Response {
     // let data = view_data();
-    return res.view("nested/services", None);
+    return res.view("nested/services.html", None);
 }
 
 fn auth<'a>(req: &'a mut Request, res: &'a mut Response, next: &'a mut Next<'a>) -> &'a mut Response {

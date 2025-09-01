@@ -8,7 +8,7 @@ use serde::Serialize;
 use tera::{to_value, Context, Tera};
 
 use crate::{
-    request::Headers, session::Session, view::View, Configuration
+    request::Headers, session::Session, view::{View, ViewData}, Configuration
 };
 
 #[derive(Debug)]
@@ -17,7 +17,7 @@ pub struct Response {
     pub(crate) headers: Headers,
     pub(crate) body: Vec<u8>,
     pub(crate) session: Option<Box<dyn Session>>,
-    pub(crate) config: Configuration,
+    pub(crate) view: Option<View>,
 }
 
 pub fn new_response() -> Response {
@@ -26,7 +26,7 @@ pub fn new_response() -> Response {
         headers: Headers::new(),
         body: vec![],
         session: None,
-        config: Configuration::new(),
+        view: None
     };
 }
 
@@ -83,18 +83,8 @@ impl Response {
             .body(html.as_bytes());
     }
 
-    pub fn view(&mut self, name: &str, data: Option<ViewData>) -> &mut Response {
-        // TODO: move to HTTP....
-        let tera = Tera::new("views/**/*").unwrap();
-
-        let context: Context;
-
-        match data {
-            Some(ctx) => context = ctx.context,
-            None => context = Context::new(),
-        }
-
-        let html = tera.render(&format!("{}.html", name), &context).unwrap();
+    pub fn view(&mut self, view: &str, data: Option<ViewData>) -> &mut Response {
+        let html = self.view.as_mut().unwrap().render(view, data);
 
         return self.html(&html);
     }
@@ -109,27 +99,10 @@ impl Response {
             headers: self.headers.clone(),
             body: self.body.clone(),
             session: None,
-            config: Configuration::new(),
+            view: None,
         };
     }
 }
 
 
 
-// TODO: move to view namespace
-pub fn view_data() -> ViewData {
-    return ViewData{
-        context: Context::new()
-    };
-}
-
-pub struct ViewData {
-    pub(crate) context: Context, 
-}
-
-impl ViewData {
-     pub fn insert<T: Serialize + ?Sized, S: Into<String>>(&mut self, key: S, val: &T) {
-        self.context.insert(key, val);
-
-    }
-}
