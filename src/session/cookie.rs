@@ -1,6 +1,5 @@
 use aes_gcm::{Aes256Gcm, Key};
 use serde::{Deserialize, Serialize};
-
 use lazy_static::lazy_static;
 
 use crate::request::Request;

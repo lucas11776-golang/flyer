@@ -1,6 +1,5 @@
 use std::{io::Result};
 
-
 #[tokio::main]
 async fn main() -> Result<()> {
     let mut server = flyer::server("127.0.0.1", 9999).await?;

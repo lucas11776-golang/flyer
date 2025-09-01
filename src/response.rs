@@ -1,14 +1,14 @@
-use std::{
-    any::Any,
-    collections::HashMap,
-    io::Result
-};
+use std::{io::Result};
 
 use serde::Serialize;
-use tera::{to_value, Context, Tera};
 
 use crate::{
-    request::Headers, session::Session, view::{View, ViewData}, Configuration
+    request::Headers,
+    session::Session,
+    view::{
+        View,
+        ViewData
+    }
 };
 
 #[derive(Debug)]
@@ -70,7 +70,6 @@ impl Response {
         return self;
     }
 
-    // where -> specify the type of data that is allowed in T.
     pub fn json<T>(&mut self, json: &T) -> &mut Response
     where T: ?Sized + Serialize
     {

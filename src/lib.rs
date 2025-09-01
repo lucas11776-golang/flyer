@@ -6,8 +6,6 @@ pub mod utils;
 pub mod session;
 pub mod view;
 
-pub type Values = HashMap<String, String>;
-
 use std::collections::HashMap;
 use std::io::{Result as IOResult};
 use std::net::SocketAddr;
@@ -30,6 +28,7 @@ use crate::handler::http2::{H2_PREFACE};
 use crate::router::{new_group_router, GroupRouter, Router};
 use crate::session::SessionManager;
 
+pub type Values = HashMap<String, String>;
 pub type Configuration = HashMap<String, String>;
 
 pub struct HTTP {
