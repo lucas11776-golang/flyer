@@ -5,7 +5,8 @@ use lazy_static::lazy_static;
 use crate::request::Request;
 use crate::response::Response;
 use crate::session::Session;
-use crate::{SessionManager, Values};
+use crate::utils::Values;
+use crate::{SessionManager};
 
 pub struct Cookie {
     pub name: String,

@@ -1,6 +1,6 @@
 pub mod http1;
 pub mod http2;
-pub mod http3;
+// pub mod http3;
 
 use std::io::{Result as IOResult};
 use std::net::SocketAddr;
@@ -12,28 +12,23 @@ use bytes::Bytes;
 use futures_util::stream::once;
 use multer::Multipart;
 
-use crate::utils::url;
+use crate::utils::{url, Values};
 use crate::view::new_view;
-use crate::{Values, HTTP as Server};
+use crate::{HTTP as Server};
 use crate::request::{File, Files, MultipartForm, Request};
 use crate::response::{new_response, parse};
 
-
-
 pub trait TcpHandler<'a> {
-    fn new(http: &'a mut HTTP);
+    fn new(http: &'a mut Parse);
     // fn handle<RW>(rw: &'a mut Pin<&mut BufReader<RW>>, addr: SocketAddr) -> impl std::future::Future<Output = std::io::Result<()>> + Send;
     // fn handle<RW>(rw: &'a mut Pin<&mut BufReader<RW>>, addr: SocketAddr) -> impl Future<Output = IOResult<()>> + Send;
 }
 
 pub trait UdpHandler {
-    fn new<'a>(http: &'a mut HTTP);
+    fn new<'a>(http: &'a mut Parse);
 }
 
-
-
-
-pub struct HTTP { }
+pub struct Parse { }
 
 use std::convert::Infallible;
 
@@ -78,18 +73,14 @@ async fn parse_multipart_form<'a>(req: &'a mut Request, boundary: &'a str) -> IO
 
 }
 
-pub async fn parse_request_body<'a>(req: &'a mut Request) -> IOResult<()> {
+pub async fn parse_request_body<'a>(req: &'a mut Request) -> IOResult<&'a mut Request> {
     let binding = req.header("Content-Type");
     let content_type: Vec<&str> = binding.split(";").collect();
-
-    if content_type.len() != 2 {
-        return Ok(());
-    }
 
     match content_type[0] {
         "multipart/form-data" => {
             if content_type.len() != 2 {
-                return Ok(());
+                return Ok(req);
             }
 
             let params = url::parse_query_params(content_type[1].trim());
@@ -99,17 +90,19 @@ pub async fn parse_request_body<'a>(req: &'a mut Request) -> IOResult<()> {
             req.values = form.values;
         },
         // TODO: implement url-encode
+        "urlencoded" => {
+
+        },
         _ => {
 
         }
     }
 
-    return Ok(());
+    return Ok(req);
 }
 
-
-// TODO: HTTP2 write response not the same HTTP1 must find a better way.
-impl HTTP {
+// TODO: temp still refactoring remove.
+impl Parse {
     pub async fn web<'a, RW>(server: &'a mut Server, buffer: &mut BufReader<RW>, req: &mut Request) -> IOResult<()>
     where
         RW: AsyncRead + AsyncWrite + Unpin
@@ -155,7 +148,7 @@ impl HTTP {
     }
 
     // TODO: implement socket protocol.
-    pub async fn socket<'a, RW>(server: &'a mut HTTP, buffer: &mut BufReader<RW>, req: &mut Request) -> IOResult<()>
+    pub async fn socket<'a, RW>(server: &'a mut Parse, buffer: &mut BufReader<RW>, req: &mut Request) -> IOResult<()>
     where
         RW: AsyncRead + AsyncWrite + Unpin
     {

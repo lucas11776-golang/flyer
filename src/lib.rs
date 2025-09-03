@@ -1,5 +1,4 @@
 pub mod request;
-pub mod handler;
 pub mod response;
 pub mod ws;
 pub mod router;
@@ -19,41 +18,29 @@ use tokio::runtime::Runtime;
 use tokio_rustls::{TlsAcceptor};
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, BufReader};
 
-use crate::handler::{http1, http2};
-use crate::handler::http2::{H2_PREFACE};
 use crate::request::Request;
 use crate::response::Response;
 use crate::router::{new_group_router, GroupRouter, Router};
-use crate::server::{get_server_config, RoutesCallback, WebCallback};
-use crate::server::tcp::{TcpServer, Tls};
+use crate::server::{get_server_config, HttpConfig, RoutesCallback, Tls, WebCallback};
+use crate::server::tcp::{TcpServer};
 use crate::session::SessionManager;
+use crate::utils::Configuration;
 use crate::ws::Ws;
 
-
-use std::{thread, time::Duration};
 use std::sync::atomic::{AtomicBool, Ordering};
-// use std::sync::Arc;
-
-
-pub type Values = HashMap<String, String>;
-pub type Configuration = HashMap<String, String>;
 
 pub struct HTTP {
-    // acceptor: Option<TlsAcceptor>,
-    // listener: TcpListener,
-    host: String,
-    port: i32,
-    tls: Option<Tls>,
-    request_max_size: i64,
-    router: GroupRouter,
+    pub(crate) host: String,
+    pub(crate) port: i32,
+    pub(crate) tls: Option<Tls>,
+    pub(crate) request_max_size: i64,
+    pub(crate) router: GroupRouter,
     pub(crate) session_manger: Option<Box<dyn SessionManager>>,
     pub(crate) configuration: Configuration,
 }
 
 pub async fn server<'a>(host: &str, port: i32) -> IOResult<HTTP> {
     return Ok(HTTP {
-        // acceptor: None,
-        // listener: TcpListener::bind(format!("{0}:{1}", host, port)).await?,
         host: host.to_owned(),
         port: port,
         tls: None,
@@ -66,8 +53,6 @@ pub async fn server<'a>(host: &str, port: i32) -> IOResult<HTTP> {
 
 pub async fn server_tls<'a>(host: &str, port: i32, key: &str, cert: &str) -> IOResult<HTTP> {
     return Ok(HTTP {
-        // acceptor: Some(TlsAcceptor::from(Arc::new(get_server_config(key, certs)?))),
-        // listener: TcpListener::bind(format!("{0}:{1}", host, port)).await?,
         host: host.to_owned(),
         port: port,
         tls: Some(Tls {
@@ -81,19 +66,14 @@ pub async fn server_tls<'a>(host: &str, port: i32, key: &str, cert: &str) -> IOR
     });
 }
 
-// TODO: find better way
-
-// fn web_handler<'a>(http, req: &'a mut Request, res: &'a mut Response) {
-
-// }
 
 impl HTTP {
     pub fn host(&self) -> String {
-        return "".to_owned();  //self.listener.local_addr().unwrap().ip().to_string();
+        return self.host.to_owned();
     }
 
     pub fn port(&self) -> i32 {
-        return 9999 ;//self.listener.local_addr().unwrap().port().into();
+        return self.port;
     }
 
     pub fn address(&self) -> String {
@@ -110,67 +90,14 @@ impl HTTP {
         return self;
     }
 
-    pub fn session(&mut self, manager: impl SessionManager) -> &mut HTTP {
+    pub fn session(&mut self, manager: Box<dyn SessionManager>) -> &mut HTTP {
+        self.session_manger = Some(manager);
+
         return self;
     }
 
-    async fn handle_stream<RW>(&mut self, stream: RW, addr:  SocketAddr) -> IOResult<()>
-    where
-        RW: AsyncRead + AsyncWrite + Unpin + Send
-    {
-        let mut reader = pin!(BufReader::new(stream));
-        let buf = reader.fill_buf().await?;
-
-        // match buf.len() >= H2_PREFACE.len() && &buf[..H2_PREFACE.len()] == H2_PREFACE {
-        //     true => http2::Handler::handle(self,reader, addr).await?,
-        //     false => http1::Handler::handle(self,reader, addr).await?,
-        // }
-
-        Ok(())
-    }
-
-    async fn handle_connection<RW>(&mut self, stream: RW, addr: SocketAddr)
-    where
-        RW: AsyncRead + AsyncWrite + Unpin + Send
-    {
-        match self.handle_stream(stream, addr).await {
-            Ok(_) => {},
-            Err(err) => println!("error: {}", err),
-        }
-    }
-
-    async fn new_connection<RW>(&mut self, stream: RW, addr: SocketAddr)
-    where
-        RW: AsyncRead + AsyncWrite + Unpin + Send
-    {
-        // match &self.acceptor {
-        //     Some(acceptor) => {
-        //         let _ = match acceptor.accept(stream).await {
-        //             Ok(stream) => self.handle_connection(stream, addr).await,
-        //             Err(err) => println!("error: {}", err),
-        //         };
-        //     },
-        //     None => self.handle_connection(stream, addr).await,
-        // };
-    }
-
-  
-
-
-    fn web_callback<'a>(http: &HTTP,  req: &'a mut Request, res: &'a mut Response) {
-        Runtime::new().unwrap().block_on(async {
-            // http.address();
-        });
-    } 
-
-    async fn ws_callback<'a>(server: &mut HTTP, req: &'a mut Request, res: &'a mut Ws) {
-        Runtime::new().unwrap().block_on(async {
-                
-        });
-    }
-
     pub async fn tcp_server(&mut self) {
-        TcpServer::new(&self.host, self.port, self.tls.clone()).await
+        TcpServer::new(self).await
             .listen()
             .await;
     }
@@ -180,30 +107,13 @@ impl HTTP {
     }
 
     pub async fn listen(&mut self) -> IOResult<()> {
-        // loop {
-        //     match self.listener.accept().await {
-        //         Ok((stream, addr)) => {
-        //             tokio_scoped::scope(|scope| {
-        //                 scope.spawn(self.new_connection(stream, addr));
-        //             });
-        //         },
-        //         Err(err) => println!("{}", err),
-        //     }
-        // }
+        tokio_scoped::scope(|scope| {
+            scope.spawn(self.tcp_server());
+        });
 
-        match &self.tls {
-            Some(tls) => {
-                // tokio_scoped::scope(|scope| {
-                //     scope.spawn(self.udp_server(None));
-                // });
-            },
-            None => {
-                tokio_scoped::scope(|scope| {
-                    scope.spawn(self.tcp_server());
-                });
-            },
-        }
-
+        tokio_scoped::scope(|scope| {
+            scope.spawn(self.udp_server());
+        });
 
         self.block_main_thread();
 
@@ -220,10 +130,10 @@ impl HTTP {
 
     fn block_main_thread(&mut self) {
         let running = Arc::new(AtomicBool::new(true));
-        let c_running: Arc<AtomicBool> = running.clone();
+        let running_clone: Arc<AtomicBool> = running.clone();
 
         ctrlc::set_handler(move || {
-            c_running.store(false, Ordering::SeqCst);
+            running_clone.store(false, Ordering::SeqCst);
         }).unwrap();
 
         while running.load(Ordering::SeqCst) {}

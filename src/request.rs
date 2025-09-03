@@ -1,6 +1,7 @@
 use std::{collections::HashMap};
 
-use crate::{Values};
+use crate::utils::Values;
+
 
 pub type Headers = HashMap<String, String>;
 pub type Files = HashMap<String, File>;

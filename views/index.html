@@ -88,9 +88,9 @@
     <!-- Profile Card -->
     <div class="profile-card">
       <div class="avatar"><i class="bi bi-person-circle"></i></div>
-      <h4>{{ user.first_name }} {{ user.last_name }}</h4>
-      <p>Hi, I'm {{ user.first_name }} {{ user.last_name }} and I'm a Software Engineer.</p>
-      <a style="text-decoration: none;" href="mailto:{{ user.email }}" class="contact-btn">CONTACT ME</a>
+      <h4>{{ first_name }} {{ last_name }}</h4>
+      <p>Hi, I'm {{ first_name }} {{ last_name }} and I'm a Software Engineer.</p>
+      <a style="text-decoration: none;" href="mailto:{{ email }}" class="contact-btn">CONTACT ME</a>
       <div class="contact-arrow">
         <i class="bi bi-chevron-up"></i>
       </div>
@@ -100,7 +100,7 @@
     <div class="contact-list">
       <div class="contact-item">
         <div class="icon text-danger"><i class="bi bi-envelope-fill"></i></div>
-        <span>Email <small>{{ user.email }}</small></span>
+        <span>Email <small>{{ email }}</small></span>
         <i class="bi bi-chevron-right"></i>
       </div>
       <!-- <div class="contact-item">

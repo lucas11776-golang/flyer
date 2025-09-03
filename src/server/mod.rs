@@ -1,9 +1,10 @@
 pub mod udp;
 pub mod tcp;
+pub mod handler;
 
-use std::io::{Result as IOResult};
+use std::{io::Result as IOResult, net::SocketAddr};
 
-use openssl::conf;
+
 use rustls::{
     ServerConfig,
     pki_types::{
@@ -14,9 +15,7 @@ use rustls::{
 };
 
 use crate::{
-    request::Request,
-    response::Response,
-    ws::Ws
+    request::Request, response::Response, router::GroupRouter, session::SessionManager, utils::Configuration, ws::Ws
 };
 
 pub type WebCallback<'a> = fn(req: &'a mut Request, res: &'a mut Response); 
@@ -36,6 +35,20 @@ pub trait Server<'a> {
 pub struct TlsConfig { 
     pub key: PrivateKeyDer<'static>,
     pub cert: Vec<CertificateDer<'static>>
+}
+
+pub struct HttpConfig<'a> {
+    pub address: SocketAddr,
+    pub routes: &'a GroupRouter,
+    pub config: &'a Configuration,
+    pub tls: Option<&'a Tls>,
+    pub session: Option<&'a Box<dyn SessionManager>>
+} 
+
+#[derive(Clone)]
+pub struct Tls {
+    pub key_path: String,
+    pub cert_path: String
 }
 
 pub fn get_tls_config(key: &str, certs: &str) -> IOResult<TlsConfig> {

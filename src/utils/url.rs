@@ -1,4 +1,4 @@
-use crate::Values;
+use crate::utils::Values;
 
 pub fn clean_url(uri: String) -> String {
     if uri == "/" {

@@ -9,48 +9,35 @@ use tokio::net::{TcpListener};
 use tokio_rustls::TlsAcceptor;
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, BufReader};
 
-use crate::handler::http1;
-use crate::handler::http2::{H2_PREFACE};
-use crate::server::{get_server_config, RoutesCallback, WebCallback};
+// use crate::handler::http1;
+// use crate::handler::http2::{H2_PREFACE};
+use crate::router::GroupRouter;
+use crate::server::handler::http1;
+use crate::server::handler::http2::H2_PREFACE;
+use crate::server::{get_server_config, HttpConfig, RoutesCallback, Tls, WebCallback};
+use crate::utils::Configuration;
+use crate::HTTP;
 
 pub struct TcpServer<'a> {
     listener: TcpListener,
     acceptor: Option<TlsAcceptor>,
-    callback: Option<RoutesCallback<'a>>,
-    web_callback: Option<WebCallback<'a>>,
+    http: &'a mut HTTP
 }
 
-#[derive(Clone)]
-pub struct Tls {
-    pub key_path: String,
-    pub cert_path: String
-}
-
-// TODO: bad design - can not pass self.callback in request...
 impl <'a>TcpServer<'a> {
-    pub async fn new(host: &str, port: i32, tls: Option<Tls>) -> TcpServer {
-        match tls {
+    pub async fn new(http: &'a mut HTTP) -> TcpServer<'a> {
+        match &http.tls {
             Some(tls) => TcpServer {
-                listener: TcpListener::bind(format!("{0}:{1}", host, port)).await.unwrap(),
+                listener: TcpListener::bind(http.address()).await.unwrap(),
                 acceptor: Some(TlsAcceptor::from(Arc::new(get_server_config(tls.key_path.as_str(), tls.cert_path.as_str()).unwrap()))),
-                callback: None,
-                web_callback: None,
+                http: http,
             },
             None => TcpServer {
-                listener: TcpListener::bind(format!("{0}:{1}", host, port)).await.unwrap(),
+                listener: TcpListener::bind(http.address()).await.unwrap(),
                 acceptor: None,
-                callback: None,
-                web_callback: None,
+                http: http,
             },
         }
-    }
-
-    pub fn on_request(&mut self, callback: WebCallback<'a>) -> &mut Self {
-        // self.callback = Some(callbacks);
-
-        self.web_callback = Some(callback);
-
-        return self;
     }
 
     pub async fn listen(&mut self) {
@@ -100,20 +87,7 @@ impl <'a>TcpServer<'a> {
 
         match buffer.len() >= H2_PREFACE.len() && &buffer[..H2_PREFACE.len()] == H2_PREFACE {
             true => {},
-            false => {
-
-                // TODO: temp refactor
-
-                // match &self.callback {
-                //     Some(callbacks) => {
-                //         http1::Handler::handle(callbacks.web, rw, addr).await?
-                //     },
-                //     None => {},
-                // }
-
-
-                // 
-            },
+            false => http1::Handler::handle(self.http, rw, addr).await.unwrap(),
         }
 
         Ok(())
