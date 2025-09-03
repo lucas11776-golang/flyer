@@ -7,27 +7,24 @@ pub mod session;
 pub mod view;
 pub mod server;
 
-use std::collections::HashMap;
 use std::io::{Result as IOResult};
-use std::net::SocketAddr;
-use std::pin::{pin};
 use std::sync::Arc;
+use std::sync::atomic::{
+    AtomicBool,
+    Ordering
+};
 
-use tokio::net::{TcpListener};
-use tokio::runtime::Runtime;
-use tokio_rustls::{TlsAcceptor};
-use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, BufReader};
-
-use crate::request::Request;
-use crate::response::Response;
-use crate::router::{new_group_router, GroupRouter, Router};
-use crate::server::{get_server_config, HttpConfig, RoutesCallback, Tls, WebCallback};
-use crate::server::tcp::{TcpServer};
+use crate::router::{
+    new_group_router,
+    GroupRouter,
+    Router
+};
+use crate::server::{
+    Tls,
+    tcp::{TcpServer}
+};
 use crate::session::SessionManager;
 use crate::utils::Configuration;
-use crate::ws::Ws;
-
-use std::sync::atomic::{AtomicBool, Ordering};
 
 pub struct HTTP {
     pub(crate) host: String,
@@ -65,7 +62,6 @@ pub async fn server_tls<'a>(host: &str, port: i32, key: &str, cert: &str) -> IOR
         configuration: Configuration::new(),
     });
 }
-
 
 impl HTTP {
     pub fn host(&self) -> String {

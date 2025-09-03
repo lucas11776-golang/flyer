@@ -1,14 +1,13 @@
 pub mod http1;
 pub mod http2;
-// pub mod http3;
+pub mod http3;
 
 use std::io::{Result as IOResult};
-use std::net::SocketAddr;
-use std::pin::Pin;
-use std::future::Future;
+use std::convert::Infallible;
+
+use bytes::Bytes;
 
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt, BufReader};
-use bytes::Bytes;
 use futures_util::stream::once;
 use multer::Multipart;
 
@@ -18,19 +17,8 @@ use crate::{HTTP as Server};
 use crate::request::{File, Files, MultipartForm, Request};
 use crate::response::{new_response, parse};
 
-pub trait TcpHandler<'a> {
-    fn new(http: &'a mut Parse);
-    // fn handle<RW>(rw: &'a mut Pin<&mut BufReader<RW>>, addr: SocketAddr) -> impl std::future::Future<Output = std::io::Result<()>> + Send;
-    // fn handle<RW>(rw: &'a mut Pin<&mut BufReader<RW>>, addr: SocketAddr) -> impl Future<Output = IOResult<()>> + Send;
-}
-
-pub trait UdpHandler {
-    fn new<'a>(http: &'a mut Parse);
-}
-
 pub struct Parse { }
 
-use std::convert::Infallible;
 
 async fn parse_multipart_form<'a>(req: &'a mut Request, boundary: &'a str) -> IOResult<MultipartForm> {
     let mut form =  MultipartForm {
@@ -148,10 +136,10 @@ impl Parse {
     }
 
     // TODO: implement socket protocol.
-    pub async fn socket<'a, RW>(server: &'a mut Parse, buffer: &mut BufReader<RW>, req: &mut Request) -> IOResult<()>
-    where
-        RW: AsyncRead + AsyncWrite + Unpin
-    {
-        return Ok(());
-    }
+    // pub async fn socket<'a, RW>(server: &'a mut Parse, buffer: &mut BufReader<RW>, req: &mut Request) -> IOResult<()>
+    // where
+    //     RW: AsyncRead + AsyncWrite + Unpin
+    // {
+    //     return Ok(());
+    // }
 }

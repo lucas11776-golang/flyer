@@ -4,7 +4,6 @@ pub mod handler;
 
 use std::{io::Result as IOResult, net::SocketAddr};
 
-
 use rustls::{
     ServerConfig,
     pki_types::{
@@ -15,20 +14,14 @@ use rustls::{
 };
 
 use crate::{
-    request::Request, response::Response, router::GroupRouter, session::SessionManager, utils::Configuration, ws::Ws
+    router::GroupRouter,
+    session::SessionManager,
+    utils::Configuration,
+    HTTP
 };
 
-pub type WebCallback<'a> = fn(req: &'a mut Request, res: &'a mut Response); 
-pub type WsCallback<'a> = fn(req: &'a mut Request, res: &'a mut Ws); 
-
-pub struct RoutesCallback<'a> {
-    pub web:  WebCallback<'a>,
-    // pub ws: WsCallback<'a>
-}
-
 pub trait Server<'a> {
-    fn new(host: &str, port: u32) -> Self;
-    fn on_request(callbacks: RoutesCallback);
+    fn new(http: &'a mut HTTP) -> &'a mut Self;
     fn listen() -> IOResult<()>;
 }
 
@@ -37,19 +30,16 @@ pub struct TlsConfig {
     pub cert: Vec<CertificateDer<'static>>
 }
 
-pub struct HttpConfig<'a> {
-    pub address: SocketAddr,
-    pub routes: &'a GroupRouter,
-    pub config: &'a Configuration,
-    pub tls: Option<&'a Tls>,
-    pub session: Option<&'a Box<dyn SessionManager>>
-} 
-
-#[derive(Clone)]
 pub struct Tls {
     pub key_path: String,
     pub cert_path: String
 }
+
+type Protocol<'a> = &'a str;
+
+const HTTP1: Protocol = "HTTP/1.1";
+const HTTP2: Protocol = "HTTP/2.0";
+const HTTP3: Protocol = "HTTP/3.0";
 
 pub fn get_tls_config(key: &str, certs: &str) -> IOResult<TlsConfig> {
     rustls::crypto::ring::default_provider()

@@ -4,7 +4,8 @@ use flyer::view::{view_data};
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let mut server = flyer::server("127.0.0.1", 9999).await?;
+    let mut server = flyer::server_tls("127.0.0.1", 9999, "host.key", "host.cert").await?;
+    // let mut server = flyer::server("127.0.0.1", 9999).await?;
 
     // Create view folder in base project directory.
     server.view("views");
@@ -23,7 +24,7 @@ async fn main() -> Result<()> {
 
     print!("\r\n\r\nRunning server: {}\r\n\r\n", server.address());
 
-    server.listen().await;
+    server.listen().await.unwrap();
 
     Ok(())
 }

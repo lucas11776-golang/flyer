@@ -9,13 +9,9 @@ use tokio::net::{TcpListener};
 use tokio_rustls::TlsAcceptor;
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, BufReader};
 
-// use crate::handler::http1;
-// use crate::handler::http2::{H2_PREFACE};
-use crate::router::GroupRouter;
-use crate::server::handler::http1;
+use crate::server::handler::{http1, http2};
 use crate::server::handler::http2::H2_PREFACE;
-use crate::server::{get_server_config, HttpConfig, RoutesCallback, Tls, WebCallback};
-use crate::utils::Configuration;
+use crate::server::{get_server_config, Protocol, HTTP1, HTTP2};
 use crate::HTTP;
 
 pub struct TcpServer<'a> {
@@ -48,7 +44,7 @@ impl <'a>TcpServer<'a> {
                         scope.spawn(self.new_connection(stream, addr));
                     });
                 },
-                Err(err) => println!("{}", err), // TODO: Log
+                Err(_) => {}, // TODO: Log
             }
         }
     }
@@ -61,7 +57,7 @@ impl <'a>TcpServer<'a> {
             Some(acceptor) => {
                 let _ = match acceptor.accept(stream).await {
                     Ok(stream) => self.handle_connection(stream, addr).await,
-                    Err(err) => println!("error: {}", err),
+                    Err(_) => {}, // TODO: Log
                 };
             },
             None => self.handle_connection(stream, addr).await,
@@ -72,25 +68,30 @@ impl <'a>TcpServer<'a> {
     where
         RW: AsyncRead + AsyncWrite + Unpin + Send
     {
-        match self.handle_stream(stream, addr).await {
+        match self.handle_stream(pin!(BufReader::new(stream)), addr).await {
             Ok(_) => {},
-            Err(err) => println!("error: {}", err),
+            Err(_) => {}, // TODO: Log
         }
     }
 
-    async fn handle_stream<RW>(&mut self, stream: RW, addr:  SocketAddr) -> Result<()>
+    fn get_protocol(&mut self, buffer: &[u8]) -> Protocol
+    {
+        match buffer.len() >= H2_PREFACE.len() && &buffer[..H2_PREFACE.len()] == H2_PREFACE {
+            true => HTTP2,
+            false => HTTP1,
+        }
+    }
+
+    async fn handle_stream<RW>(&mut self, mut rw: std::pin::Pin<&mut BufReader<RW>>, addr:  SocketAddr) -> Result<()>
     where
         RW: AsyncRead + AsyncWrite + Unpin + Send
     {
-        let mut rw = pin!(BufReader::new(stream));
-        let buffer = rw.fill_buf().await?;
-
-        match buffer.len() >= H2_PREFACE.len() && &buffer[..H2_PREFACE.len()] == H2_PREFACE {
-            true => {},
-            false => http1::Handler::handle(self.http, rw, addr).await.unwrap(),
-        }
-
-        Ok(())
+        Ok(
+            match self.get_protocol(rw.fill_buf().await?) {
+                HTTP2 => http2::Handler::handle(self.http, rw, addr).await.unwrap(),
+                _ => http1::Handler::handle(self.http, rw, addr).await.unwrap() // TODO: bad must check if is HTTP1 or HTTP2 or drop
+            }
+        )
     }
 
 }

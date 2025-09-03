@@ -7,24 +7,24 @@ use std::net::SocketAddr;
 use std::pin::Pin;
 use tokio::io::{AsyncRead, AsyncWrite, BufReader};
 
-use crate::{response::{new_response, Response}, view::new_view, HTTP as Server};
+use crate::{response::{new_response, Response}, view::new_view, HTTP};
 use crate::request::{Headers, Request};
 use crate::utils::url::parse_query_params;
 
 pub const H2_PREFACE: &[u8] = b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n";
 
 pub struct Handler<'a> {
-    server: &'a mut Server,
+    http: &'a mut HTTP,
     addr: SocketAddr,
 }
 
 impl <'a> Handler<'a> {
-    pub async fn handle<RW>(server: &'a mut Server, rw: Pin<&mut BufReader<RW>>, addr: SocketAddr) -> std::io::Result<()>
+    pub async fn handle<RW>(http: &'a mut HTTP, rw: Pin<&mut BufReader<RW>>, addr: SocketAddr) -> std::io::Result<()>
     where
         RW: AsyncRead + AsyncWrite + Unpin + std::marker::Send
     {
         let mut handler: Handler<'_> = Handler{
-            server,
+            http: http,
             addr: addr
         };
 
@@ -91,16 +91,16 @@ impl <'a> Handler<'a> {
     fn handle_request(&mut self, mut req: Request, send: SendResponse<Bytes>) -> Result<()> {
         let mut res = new_response();
 
-        if self.server.configuration.get("view_path").is_some() {
-            res.view = Some(new_view(self.server.configuration.get("view_path").unwrap().to_string()));
+        if self.http.configuration.get("view_path").is_some() {
+            res.view = Some(new_view(self.http.configuration.get("view_path").unwrap().to_string()));
         }
 
-        match self.server.router.match_web_routes(&mut req, &mut res) {
+        match self.http.router.match_web_routes(&mut req, &mut res) {
             Some(res) => {
                 self.write_response(res, send)?;
             },
             None => {
-                match self.server.router.not_found_callback {
+                match self.http.router.not_found_callback {
                     Some(callback) => {
                         callback(&mut req, &mut res);
 
