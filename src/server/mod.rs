@@ -41,23 +41,23 @@ const HTTP1: Protocol = "HTTP/1.1";
 const HTTP2: Protocol = "HTTP/2.0";
 const HTTP3: Protocol = "HTTP/3.0";
 
-pub fn get_tls_config(key: &str, certs: &str) -> IOResult<TlsConfig> {
+pub fn get_tls_config(tls: &Tls) -> IOResult<TlsConfig> {
     rustls::crypto::ring::default_provider()
         .install_default()
         .unwrap();
 
     return Ok(TlsConfig {
-        key: PrivateKeyDer::from_pem_file(key)
+        key: PrivateKeyDer::from_pem_file(tls.key_path.clone())
             .unwrap(),
-        cert: CertificateDer::pem_file_iter(certs)
+        cert: CertificateDer::pem_file_iter(tls.cert_path.clone())
             .unwrap()
             .collect::<Result<Vec<_>, _>>()
             .unwrap()
     })
 }
 
-pub fn get_server_config(key: &str, certs: &str) -> IOResult<ServerConfig> {
-    let config = get_tls_config(key, certs)?;
+pub fn get_server_config(tls: &Tls) -> IOResult<ServerConfig> {
+    let config = get_tls_config(tls)?;
     return Ok(
         rustls::ServerConfig::builder()
         .with_no_client_auth()

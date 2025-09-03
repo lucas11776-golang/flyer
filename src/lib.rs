@@ -19,6 +19,7 @@ use crate::router::{
     GroupRouter,
     Router
 };
+use crate::server::udp::UdpServer;
 use crate::server::{
     Tls,
     tcp::{TcpServer}
@@ -99,13 +100,16 @@ impl HTTP {
     }
 
     pub async fn udp_server(&mut self) {
-        
+        UdpServer::new(self).await
+            .listen()
+            .await;
     }
 
     pub async fn listen(&mut self) -> IOResult<()> {
-        tokio_scoped::scope(|scope| {
-            scope.spawn(self.tcp_server());
-        });
+        // TODO: uncomment...
+        // tokio_scoped::scope(|scope| {
+        //     scope.spawn(self.tcp_server());
+        // });
 
         tokio_scoped::scope(|scope| {
             scope.spawn(self.udp_server());

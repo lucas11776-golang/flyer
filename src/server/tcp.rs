@@ -25,7 +25,7 @@ impl <'a>TcpServer<'a> {
         match &http.tls {
             Some(tls) => TcpServer {
                 listener: TcpListener::bind(http.address()).await.unwrap(),
-                acceptor: Some(TlsAcceptor::from(Arc::new(get_server_config(tls.key_path.as_str(), tls.cert_path.as_str()).unwrap()))),
+                acceptor: Some(TlsAcceptor::from(Arc::new(get_server_config(tls).unwrap()))),
                 http: http,
             },
             None => TcpServer {
