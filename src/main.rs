@@ -1,104 +1,29 @@
-use bytes::Bytes;
-use h3::server::RequestResolver;
-use h3_quinn::quinn::{self, crypto::rustls::QuicServerConfig};
-use quinn::{Endpoint, ServerConfig};
-use rustls::pki_types::{pem::PemObject, CertificateDer, PrivateKeyDer};
-use std::io::Result as IOResult;
-use std::sync::Arc;
+use std::{io::Result};
+
+use flyer::view::{view_data};
 
 #[tokio::main]
-async fn main() -> IOResult<()> {
-    let tls_config = get_tls_config("host.key", "host.cert").unwrap();
-    let server_config = ServerConfig::with_crypto(Arc::new(QuicServerConfig::try_from(tls_config).unwrap()));
-    let endpoint = Endpoint::server(server_config, "127.0.0.1:9999".parse().unwrap())?;
+async fn main() -> Result<()> {
+    let mut server = flyer::server("127.0.0.1", 9999).await?;
 
-    println!("Server running on https://127.0.0.1:9999 (HTTP/3)");
+    // Create view folder in base project directory.
+    server.view("views");
+    
+    server.router().get("/", |req, res| {
+        let mut data = view_data();
 
-    while let Some(new_conn) = endpoint.accept().await {
-        tokio::spawn(async move {
-            match new_conn.await {
-                Ok(conn) => {
-                    let mut h3_conn = h3::server::Connection::new(h3_quinn::Connection::new(conn))
-                        .await
-                        .unwrap();
+        data.insert("first_name", "Jeo");
+        data.insert("last_name", "Doe");
+        data.insert("email", "jeo@doe.com");
+        data.insert("age", &23);
 
-                    while let Ok(Some(resolver)) = h3_conn.accept().await {
-                        tokio::spawn(handle_request(resolver));
-                    }
-                }
-                Err(err) => {
-                    eprintln!("Connection error: {}", err);
-                }
-            }
-        });
-    }
+        // Create file called index.html in views folder.
+        return res.view("index.html", Some(data))
+    }, None);
 
-    endpoint.wait_idle().await;
+    print!("\r\n\r\nRunning server: {}\r\n\r\n", server.address());
+
+    server.listen().await;
 
     Ok(())
-}
-
-fn get_tls_config(key: &str, certs: &str) -> IOResult<rustls::ServerConfig> {
-    rustls::crypto::ring::default_provider()
-        .install_default()
-        .unwrap();
-
-    let certs = CertificateDer::pem_file_iter(certs)
-        .unwrap()
-        .collect::<Result<Vec<_>, _>>()
-        .unwrap();
-    let key = PrivateKeyDer::from_pem_file(key).unwrap();
-
-    let mut config: rustls::ServerConfig = rustls::ServerConfig::builder()
-        .with_no_client_auth()
-        .with_single_cert(certs, key)
-        .unwrap();
-
-    config.alpn_protocols = vec![
-        b"h3".to_vec(),
-        b"h3-29".to_vec(),
-        b"h3-32".to_vec(),
-        b"h3-34".to_vec(),
-    ];
-
-    Ok(config)
-}
-
-async fn handle_request<C>(resolver: RequestResolver<C, Bytes>)
-where
-    C: h3::quic::Connection<Bytes>,
-{
-    let (req, mut stream) = resolver.resolve_request().await.unwrap();
-    println!("Received request: {} {}", req.method(), req.uri());
-
-    let body = "<h1>Hello World</h1>";
-
-    let response = http::Response::builder()
-        .status(200)
-        .header("Content-Type", "text/html")
-        .header("Content-Length", format!("{}", body.len()))
-        .body(()) // <-- must be ()
-        .unwrap();
-
-
-    match stream.send_response(response).await {
-        Ok(_) => {
-            match stream.send_data(Bytes::from(body)).await {
-                Ok(_) => todo!(),
-                Err(err) => {
-                    // TODO: Error handle
-                },
-            }
-        }
-        Err(err) => {
-            // TODO: Error handle
-        },
-    }
-
-    match stream.finish().await {
-        Ok(_) => {},
-        Err(_) => {
-            // TODO: Error handle
-        },
-    }
 }

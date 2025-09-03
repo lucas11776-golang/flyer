@@ -3,6 +3,7 @@ use std::{
     io::Result
 };
 
+use crate::ws::Ws;
 use crate::Values;
 use crate::{
     request::{Request},
@@ -14,6 +15,7 @@ use regex::Regex;
 use once_cell::sync::Lazy;
 
 pub type WebRoute = for<'a> fn (req: &'a mut Request, res: &'a mut Response) -> &'a mut Response;
+pub type WsRoute = for<'a> fn (req: &'a mut Request, res: &'a mut Ws);
 pub type Middleware = for<'a> fn (req: &'a mut Request, res: &'a mut Response, next: &'a mut Next<'a>) -> &'a mut Response;
 pub type Middlewares = Vec<Middleware>;
 

@@ -3,8 +3,11 @@ pub mod http2;
 pub mod http3;
 
 use std::io::{Result as IOResult};
-use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt, BufReader};
+use std::net::SocketAddr;
+use std::pin::Pin;
+use std::future::Future;
 
+use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt, BufReader};
 use bytes::Bytes;
 use futures_util::stream::once;
 use multer::Multipart;
@@ -14,6 +17,21 @@ use crate::view::new_view;
 use crate::{Values, HTTP as Server};
 use crate::request::{File, Files, MultipartForm, Request};
 use crate::response::{new_response, parse};
+
+
+
+pub trait TcpHandler<'a> {
+    fn new(http: &'a mut HTTP);
+    // fn handle<RW>(rw: &'a mut Pin<&mut BufReader<RW>>, addr: SocketAddr) -> impl std::future::Future<Output = std::io::Result<()>> + Send;
+    // fn handle<RW>(rw: &'a mut Pin<&mut BufReader<RW>>, addr: SocketAddr) -> impl Future<Output = IOResult<()>> + Send;
+}
+
+pub trait UdpHandler {
+    fn new<'a>(http: &'a mut HTTP);
+}
+
+
+
 
 pub struct HTTP { }
 
