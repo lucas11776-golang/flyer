@@ -87,11 +87,11 @@ impl HTTP {
         return self;
     }
 
-    pub fn session(&mut self, manager: Box<dyn SessionManager>) -> &mut HTTP {
-        self.session_manger = Some(manager);
+    // pub fn session(&mut self, manager: Box<dyn SessionManager>) -> &mut HTTP {
+    //     self.session_manger = Some(manager);
 
-        return self;
-    }
+    //     return self;
+    // }
 
     pub async fn tcp_server(&mut self) {
         TcpServer::new(self).await

@@ -103,12 +103,12 @@ impl Parse {
 
         match server.router.match_web_routes(req, &mut res) {
             Some(res) => {
-                match &server.session_manger {
-                    Some(manager) => {
-                        manager.handle(req, res);
-                    },
-                    None => {},
-                };
+                // match &server.session_manger {
+                //     Some(manager) => {
+                //         manager.handle(req, res);
+                //     },
+                //     None => {},
+                // };
 
                 let _ = buffer.write( parse(res)?.as_bytes()).await?;
                 

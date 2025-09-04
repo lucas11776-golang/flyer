@@ -27,11 +27,11 @@
 //         tokio::spawn(async move {
 //             match new_conn.await {
 //                 Ok(conn) => {
-//                     let mut h3_conn = h3::server::Connection::new(h3_quinn::Connection::new(conn))
+//                     let mut connection: h3::server::Connection<h3_quinn::Connection, Bytes> = h3::server::Connection::new(h3_quinn::Connection::new(conn))
 //                         .await
 //                         .unwrap();
 
-//                     while let Ok(Some(resolver)) = h3_conn.accept().await {
+//                     while let Ok(Some(resolver)) = connection.accept().await {
 //                         tokio::spawn(handle_request(resolver));
 //                     }
 //                 }
