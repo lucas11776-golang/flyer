@@ -2,7 +2,7 @@ pub mod udp;
 pub mod tcp;
 pub mod handler;
 
-use std::{io::Result as IOResult, net::SocketAddr};
+use std::{io::Result as IOResult};
 
 use rustls::{
     ServerConfig,
@@ -14,11 +14,14 @@ use rustls::{
 };
 
 use crate::{
-    router::GroupRouter,
-    session::SessionManager,
-    utils::Configuration,
-    HTTP
+    request::Request, response::Response, view::new_view, ws::Ws, HTTP
 };
+
+type Protocol<'a> = &'a str;
+
+const HTTP1: Protocol = "HTTP/1.1";
+const HTTP2: Protocol = "HTTP/2.0";
+const HTTP3: Protocol = "HTTP/3.0";
 
 pub trait Server<'a> {
     fn new(http: &'a mut HTTP) -> &'a mut Self;
@@ -30,18 +33,13 @@ pub struct TlsConfig {
     pub cert: Vec<CertificateDer<'static>>
 }
 
-pub struct Tls {
+pub struct TlsPathConfig {
     pub key_path: String,
     pub cert_path: String
 }
 
-type Protocol<'a> = &'a str;
 
-const HTTP1: Protocol = "HTTP/1.1";
-const HTTP2: Protocol = "HTTP/2.0";
-const HTTP3: Protocol = "HTTP/3.0";
-
-pub fn get_tls_config(tls: &Tls) -> IOResult<TlsConfig> {
+pub fn get_tls_config(tls: &TlsPathConfig) -> IOResult<TlsConfig> {
     rustls::crypto::ring::default_provider()
         .install_default()
         .unwrap();
@@ -56,7 +54,7 @@ pub fn get_tls_config(tls: &Tls) -> IOResult<TlsConfig> {
     })
 }
 
-pub fn get_server_config(tls: &Tls) -> IOResult<ServerConfig> {
+pub fn get_server_config(tls: &TlsPathConfig) -> IOResult<ServerConfig> {
     let config = get_tls_config(tls)?;
     return Ok(
         rustls::ServerConfig::builder()

@@ -21,7 +21,7 @@ use crate::router::{
 };
 use crate::server::udp::UdpServer;
 use crate::server::{
-    Tls,
+    TlsPathConfig,
     tcp::{TcpServer}
 };
 use crate::session::SessionManager;
@@ -30,7 +30,7 @@ use crate::utils::Configuration;
 pub struct HTTP {
     pub(crate) host: String,
     pub(crate) port: i32,
-    pub(crate) tls: Option<Tls>,
+    pub(crate) tls: Option<TlsPathConfig>,
     pub(crate) request_max_size: i64,
     pub(crate) router: GroupRouter,
     pub(crate) session_manger: Option<Box<dyn SessionManager>>,
@@ -53,7 +53,7 @@ pub async fn server_tls<'a>(host: &str, port: i32, key: &str, cert: &str) -> IOR
     return Ok(HTTP {
         host: host.to_owned(),
         port: port,
-        tls: Some(Tls {
+        tls: Some(TlsPathConfig {
             key_path: key.to_owned(),
             cert_path: cert.to_owned()
         }),
@@ -107,13 +107,13 @@ impl HTTP {
 
     pub async fn listen(&mut self) -> IOResult<()> {
         // TODO: uncomment...
-        // tokio_scoped::scope(|scope| {
-        //     scope.spawn(self.tcp_server());
-        // });
-
         tokio_scoped::scope(|scope| {
-            scope.spawn(self.udp_server());
+            scope.spawn(self.tcp_server());
         });
+
+        // tokio_scoped::scope(|scope| {
+        //     scope.spawn(self.udp_server());
+        // });
 
         self.block_main_thread();
 

@@ -2,9 +2,10 @@ use std::io::{ErrorKind};
 use std::io::{Error as IoError};
 use std::net::SocketAddr;
 use std::pin::Pin;
-use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, BufReader};
+use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader};
 
-use crate::server::handler::{parse_request_body, Parse};
+use crate::response::{new_response, parse};
+use crate::server::handler::{parse_request_body, RequestHandler};
 use crate::server::HTTP1;
 use crate::utils::url::parse_query_params;
 use crate::utils::Values;
@@ -111,7 +112,7 @@ impl <'a>Handler {
                 host: host,
                 method: method,
                 path: path,
-                parameters: parameters,
+                query: parameters,
                 protocol: HTTP1.to_string(),
                 headers: headers,
                 body: body,
@@ -121,10 +122,10 @@ impl <'a>Handler {
 
             req.headers.insert("Connection".to_owned(), "keep-alive".to_owned());
 
-
-            parse_request_body(&mut req).await.unwrap();
-
-            let _ = Parse::web(http, &mut rw, &mut req).await;
+            let req = parse_request_body(&mut req).await.unwrap();
+            let res = &mut new_response();
+            let res = RequestHandler::web(http, req, res).await?;
+            let _ = rw.write(parse(res)?.as_bytes()).await;
         }
     }
 }

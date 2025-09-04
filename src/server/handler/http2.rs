@@ -96,9 +96,7 @@ impl <'a> Handler<'a> {
         }
 
         match self.http.router.match_web_routes(&mut req, &mut res) {
-            Some(res) => {
-                self.write_response(res, send)?;
-            },
+            Some(res) => self.write_response(res, send)?,
             None => {
                 match self.http.router.not_found_callback {
                     Some(callback) => {
@@ -119,7 +117,7 @@ impl <'a> Handler<'a> {
     async fn listen(&mut self , request: H2Request<h2::RecvStream>, send: SendResponse<Bytes>) -> std::io::Result<()> {
         let method = request.method().to_string();
         let path = Url::parse(request.uri().to_string().as_str()).unwrap().path().to_string();
-        let parameters = parse_query_params(request.uri().query().unwrap_or(""));
+        let query = parse_query_params(request.uri().query().unwrap_or(""));
         let mut body = Vec::new();
         let headers = self.hashmap_to_headers(request.headers());
         let mut recv = request.into_body();
@@ -139,7 +137,7 @@ impl <'a> Handler<'a> {
             host: host,
             method: method,
             path: path,
-            parameters: parameters,
+            query: query,
             protocol: "HTTP/2.0".to_string(),
             headers: headers,
             body: body,

@@ -82,7 +82,7 @@ impl GroupRouter {
                 continue;
             }
             
-            req.parameters = parameters;
+            req.query = parameters;
 
             for middleware in  &mut route.middlewares {
                 let mut move_to_next: bool = false;

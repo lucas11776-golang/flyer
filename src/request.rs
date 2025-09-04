@@ -26,7 +26,7 @@ pub struct Request {
     pub host: String,
     pub method: String,
     pub path: String,
-    pub parameters: Values,
+    pub query: Values,
     pub protocol: String,
     pub headers: Headers,
     pub body: Vec<u8>,
@@ -38,9 +38,13 @@ impl Request {
     pub fn header(&self, key: &str) -> String {
         return self.headers.get(key).get_or_insert(&"".to_string()).to_string()
     }
-
+    
     pub fn parameter(&self, key: &str) -> String {
-        return self.parameters.get(key).get_or_insert(&"".to_string()).to_string()
+        return "".to_owned();
+    }
+
+    pub fn query(&self, key: &str) -> String {
+        return self.query.get(key).get_or_insert(&"".to_string()).to_string()
     }
 
     pub fn value(&self, key: &str) -> Option<String> {
