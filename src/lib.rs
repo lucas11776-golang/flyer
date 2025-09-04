@@ -106,9 +106,9 @@ impl HTTP {
     }
 
     pub async fn listen(&mut self) -> IOResult<()> {
-        tokio_scoped::scope(|scope| {
-            scope.spawn(self.tcp_server());
-        });
+        // tokio_scoped::scope(|scope| {
+        //     scope.spawn(self.tcp_server());
+        // });
 
         tokio_scoped::scope(|scope| {
             scope.spawn(self.udp_server());

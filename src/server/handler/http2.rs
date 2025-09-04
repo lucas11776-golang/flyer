@@ -1,13 +1,13 @@
 use bytes::Bytes;
 use h2::{server, server::{SendResponse}};
-use http::{HeaderMap, Request as H2Request, Response as H2Response};
+use http::{HeaderMap, Request as HttpRequest, Response as HttpResponse};
 use reqwest::Url;
 use std::{collections::HashMap, io::Result};
 use std::net::SocketAddr;
 use std::pin::Pin;
 use tokio::io::{AsyncRead, AsyncWrite, BufReader};
 
-use crate::{response::{new_response, Response}, server::handler::RequestHandler, view::new_view, HTTP};
+use crate::{response::{new_response}, server::handler::RequestHandler, HTTP};
 use crate::request::{Headers, Request};
 use crate::utils::url::parse_query_params;
 
@@ -19,7 +19,7 @@ pub struct Handler<'a> {
 }
 
 impl <'a> Handler<'a> {
-    pub async fn handle<RW>(http: &'a mut HTTP, rw: Pin<&mut BufReader<RW>>, addr: SocketAddr) -> std::io::Result<()>
+    pub async fn handle<RW>(http: &'a mut HTTP, rw: Pin<&mut BufReader<RW>>, addr: SocketAddr) -> Result<()>
     where
         RW: AsyncRead + AsyncWrite + Unpin + std::marker::Send
     {
@@ -50,7 +50,7 @@ impl <'a> Handler<'a> {
         }
     }
 
-    async fn new_request(&mut self , request: H2Request<h2::RecvStream>, send: SendResponse<Bytes>) -> std::io::Result<()> {
+    async fn new_request(&mut self , request: HttpRequest<h2::RecvStream>, send: SendResponse<Bytes>) -> std::io::Result<()> {
         let method = request.method().to_string();
         let path = Url::parse(request.uri().to_string().as_str()).unwrap().path().to_string();
         let query = parse_query_params(request.uri().query().unwrap_or(""));
@@ -103,7 +103,7 @@ impl <'a> Handler<'a> {
         let mut response = new_response();
         let response = RequestHandler::web(&mut self.http, &mut req, &mut response).await?;
 
-        let mut builder = http::Response::builder().status(response.status_code);
+        let mut builder = HttpResponse::builder().status(response.status_code);
 
         for (k, v) in &mut response.headers {
             builder = builder.header(k.clone(), v.clone());
