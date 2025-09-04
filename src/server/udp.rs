@@ -18,6 +18,8 @@ use quinn::{
 };
 
 use crate::request::{Files, Request};
+use crate::response::{new_response};
+use crate::server::handler::RequestHandler;
 use crate::server::{
     get_server_config,
     HTTP3
@@ -80,7 +82,7 @@ impl<'a> UdpServer<'a> {
     }
 
     async fn handle_resolver(&mut self, resolver: RequestResolver<h3_quinn::Connection, Bytes>) {
-        let (req, mut stream) = resolver.resolve_request().await.unwrap();
+        let (req, stream) = resolver.resolve_request().await.unwrap();
         let mut headers = Values::new();
 
         for (k, v) in req.headers() {
@@ -106,15 +108,24 @@ impl<'a> UdpServer<'a> {
             files: Files::new(),
         };
 
-        self.handle_request(&mut request, &mut stream).await;
+        self.handle_request(&mut request, stream).await.unwrap();
     }
 
-    async fn handle_request<'s>(&mut self, req: &'s mut Request, stream: &'s RequestStream<BidiStream<Bytes>, Bytes>) {
+    async fn handle_request<'s>(&mut self, req: &'s mut Request, mut stream: RequestStream<BidiStream<Bytes>, Bytes>) -> IOResult<()> {
+        let mut res = new_response();
+        let res = RequestHandler::web(&mut self.http, req, &mut res).await.unwrap();
+        let mut builder = http::Response::builder().status(res.status_code);
 
+        for (k, v) in &mut res.headers {
+            builder = builder.header(k.clone(), v.clone());
+        }
 
-        
+        let response = builder.body(()).unwrap();
 
+        stream.send_response(response).await.unwrap();
+        stream.send_data(Bytes::from(res.body.to_owned()).clone()).await.unwrap();
+        stream.finish().await.unwrap();
 
-        println!("REQUEST: {:?}", req);
+        Ok(())
     }
 }

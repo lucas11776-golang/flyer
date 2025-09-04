@@ -87,11 +87,11 @@ impl HTTP {
         return self;
     }
 
-    // pub fn session(&mut self, manager: Box<dyn SessionManager>) -> &mut HTTP {
-    //     self.session_manger = Some(manager);
+    pub fn session(&mut self, manager: Box<dyn SessionManager>) -> &mut HTTP {
+        self.session_manger = Some(manager);
 
-    //     return self;
-    // }
+        return self;
+    }
 
     pub async fn tcp_server(&mut self) {
         TcpServer::new(self).await
@@ -106,14 +106,13 @@ impl HTTP {
     }
 
     pub async fn listen(&mut self) -> IOResult<()> {
-        // TODO: uncomment...
         tokio_scoped::scope(|scope| {
             scope.spawn(self.tcp_server());
         });
 
-        // tokio_scoped::scope(|scope| {
-        //     scope.spawn(self.udp_server());
-        // });
+        tokio_scoped::scope(|scope| {
+            scope.spawn(self.udp_server());
+        });
 
         self.block_main_thread();
 

@@ -7,7 +7,7 @@ use std::net::SocketAddr;
 use std::pin::Pin;
 use tokio::io::{AsyncRead, AsyncWrite, BufReader};
 
-use crate::{response::{new_response, Response}, view::new_view, HTTP};
+use crate::{response::{new_response, Response}, server::handler::RequestHandler, view::new_view, HTTP};
 use crate::request::{Headers, Request};
 use crate::utils::url::parse_query_params;
 
@@ -44,77 +44,13 @@ impl <'a> Handler<'a> {
 
             tokio_scoped::scope(|scope| {
                 scope.spawn(async {
-                    let _ = self.listen( req, response).await;
+                    let _ = self.new_request( req, response).await;
                 });
             });
         }
     }
 
-    fn hashmap_to_headers(&mut self, map: &HeaderMap) -> Headers {
-        let mut headers = Headers::new();
-
-        for (k, v) in map.iter() {
-            headers.insert(
-                k.as_str().to_string(),
-                v.to_str().unwrap_or_default().to_string()
-            );
-        }
-
-        return headers;
-    }
-
-    fn response_to_h2_response(&mut self, response: &mut Response) -> Result<H2Response<()>> {
-        let mut builder = H2Response::builder()
-            .status(response.status_code)
-            .header("Content-Length", format!("{}", response.body.len()));
-
-        for (k, v) in &mut response.headers {
-            builder = builder.header(k.clone(), v.clone());
-        }
-
-        return Ok(builder.body(()).unwrap());
-    }
-
-    // TODO: when make request from https and change http the request hangs mush check if it has change
-    // if it has change must close the connection.
-    fn write_response(&mut self, response: &mut Response, mut send: SendResponse<Bytes>) -> Result<()> {
-        let res = self.response_to_h2_response(response).unwrap();
-        
-        send.send_response(res, false)
-            .unwrap()
-            .send_data(Bytes::from(response.body.clone()), true)
-            .unwrap();
-
-        return Ok(());
-    }
-
-    fn handle_request(&mut self, mut req: Request, send: SendResponse<Bytes>) -> Result<()> {
-        let mut res = new_response();
-
-        if self.http.configuration.get("view_path").is_some() {
-            res.view = Some(new_view(self.http.configuration.get("view_path").unwrap().to_string()));
-        }
-
-        match self.http.router.match_web_routes(&mut req, &mut res) {
-            Some(res) => self.write_response(res, send)?,
-            None => {
-                match self.http.router.not_found_callback {
-                    Some(callback) => {
-                        callback(&mut req, &mut res);
-
-                        self.write_response(&mut res, send)?;
-                    },
-                    None => {
-                        self.write_response(&mut res.status_code(404), send)?;
-                    },
-                }
-            },
-        }
-
-        return Ok(())
-    }
-
-    async fn listen(&mut self , request: H2Request<h2::RecvStream>, send: SendResponse<Bytes>) -> std::io::Result<()> {
+    async fn new_request(&mut self , request: H2Request<h2::RecvStream>, send: SendResponse<Bytes>) -> std::io::Result<()> {
         let method = request.method().to_string();
         let path = Url::parse(request.uri().to_string().as_str()).unwrap().path().to_string();
         let query = parse_query_params(request.uri().query().unwrap_or(""));
@@ -132,7 +68,7 @@ impl <'a> Handler<'a> {
             .or_else(|| headers.get(":authority").cloned())
             .unwrap_or_default();
 
-        self.handle_request(Request {
+        let req = Request {
             ip: self.addr.ip().to_string(),
             host: host,
             method: method,
@@ -143,8 +79,41 @@ impl <'a> Handler<'a> {
             body: body,
             values: HashMap::new(),
             files: HashMap::new(),
-        }, send)?;
+        };
+
+        self.handle_request(req, send).await?;
 
         Ok(())
+    }
+
+    fn hashmap_to_headers(&mut self, map: &HeaderMap) -> Headers {
+        let mut headers = Headers::new();
+
+        for (k, v) in map.iter() {
+            headers.insert(
+                k.as_str().to_string(),
+                v.to_str().unwrap_or_default().to_string()
+            );
+        }
+
+        return headers;
+    }
+
+    async fn handle_request(&mut self, mut req: Request, mut send:  SendResponse<Bytes>) -> Result<()> {
+        let mut response = new_response();
+        let response = RequestHandler::web(&mut self.http, &mut req, &mut response).await?;
+
+        let mut builder = http::Response::builder().status(response.status_code);
+
+        for (k, v) in &mut response.headers {
+            builder = builder.header(k.clone(), v.clone());
+        }
+
+        return Ok(
+            send.send_response(builder.body(()).unwrap(), false)
+                .unwrap()
+                .send_data(Bytes::from(response.body.clone()), true)
+                .unwrap()
+        )
     }
 }

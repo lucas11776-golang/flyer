@@ -15,13 +15,11 @@ use crate::HTTP;
 pub struct Handler { }
 
 impl <'a>Handler {
-    // TODO: refactor handler...
     pub async fn handle<RW>(http: &mut HTTP, mut rw: Pin<&mut BufReader<RW>>, addr: SocketAddr) -> std::io::Result<()> 
     where
         RW: AsyncRead + AsyncWrite + Unpin + Send
     {
         loop {
-            // Parse request line
             let mut request_line: String = String::new();
             let n: usize = rw.read_line(&mut request_line).await?;
 
