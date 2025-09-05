@@ -10,8 +10,10 @@ async fn main() -> Result<()> {
     // Create view folder in base project directory.
     server.view("views");
     
-    server.router().get("/", |req, res| {
+    server.router().post("/", |req, res| {
         let mut data = view_data();
+
+        println!("{:?}", req.values);
 
         data.insert("first_name", "Jeo");
         data.insert("last_name", "Doe");

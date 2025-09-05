@@ -1,6 +1,7 @@
 use std::io::Result;
 
 use bytes::Bytes;
+
 use h3::server::{
     RequestResolver,
     RequestStream
@@ -37,7 +38,7 @@ impl <'a>Handler {
             host: host.to_string(),
             method: req.method().to_string(),
             path: req.uri().path().to_string(),
-            query: parse_query_params(req.uri().query().unwrap_or("")),
+            query: parse_query_params(req.uri().query().unwrap_or(""))?,
             protocol: HTTP3.to_string(),
             headers: headers,
             body: vec![],

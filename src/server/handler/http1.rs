@@ -97,7 +97,7 @@ impl <'a>Handler {
                 (target.clone(), String::new())
             };
 
-            let parameters: Values = parse_query_params(&query);
+            let parameters: Values = parse_query_params(&query)?;
 
             let host: String = headers
                 .get("Host")

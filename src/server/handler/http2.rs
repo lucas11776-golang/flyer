@@ -53,7 +53,7 @@ impl <'a> Handler<'a> {
     async fn new_request(&mut self , request: HttpRequest<h2::RecvStream>, send: SendResponse<Bytes>) -> std::io::Result<()> {
         let method = request.method().to_string();
         let path = Url::parse(request.uri().to_string().as_str()).unwrap().path().to_string();
-        let query = parse_query_params(request.uri().query().unwrap_or(""));
+        let query = parse_query_params(request.uri().query().unwrap_or(""))?;
         let mut body = Vec::new();
         let headers = self.hashmap_to_headers(request.headers());
         let mut recv = request.into_body();

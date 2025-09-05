@@ -10,6 +10,7 @@ use bytes::Bytes;
 use futures_util::stream::once;
 use multer::Multipart;
 
+use crate::utils::url::parse_query_params;
 use crate::utils::{url, Values};
 use crate::view::new_view;
 use crate::ws::Ws;
@@ -45,36 +46,34 @@ impl <'a>RequestHandler {
     }
 
     pub fn ws(http: &'a mut HTTP, req: &'a mut Request, ws: &'a mut Ws) -> IOResult<()> {
-        return Ok(())
+        Ok(())
     }  
 }
 
 pub async fn parse_request_body<'a>(req: &'a mut Request) -> IOResult<&'a mut Request> {
-    let binding = req.header("Content-Type");
+    let binding = req.header("content-type");
     let content_type: Vec<&str> = binding.split(";").collect();
 
     match content_type[0] {
         "multipart/form-data" => {
+            // TODO: error invalid form-data
             if content_type.len() != 2 {
                 return Ok(req);
             }
 
-            let params = url::parse_query_params(content_type[1].trim());
+            let params = url::parse_query_params(content_type[1].trim())?;
             let form = parse_multipart_form(req, &params.get("boundary").unwrap().clone()).await?;
 
             req.files = form.files;
             req.values = form.values;
         },
-        // TODO: implement url-encode
-        "urlencoded" => {
-
+        "application/x-www-form-urlencoded" => {
+            req.values = parse_query_params(&String::from_utf8_lossy(&req.body).to_string())?;
         },
-        _ => {
-
-        }
+        _ => {}
     }
 
-    return Ok(req);
+    Ok(req)
 }
 
 async fn parse_multipart_form<'a>(req: &'a mut Request, boundary: &'a str) -> IOResult<MultipartForm> {
@@ -114,5 +113,5 @@ async fn parse_multipart_form<'a>(req: &'a mut Request, boundary: &'a str) -> IO
         }
     }
 
-    return Ok(form)
+    Ok(form)
 }
