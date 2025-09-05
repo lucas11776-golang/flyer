@@ -1,4 +1,4 @@
-use std::io::{ErrorKind};
+use std::io::{ErrorKind, Result};
 use std::io::{Error as IoError};
 use std::net::SocketAddr;
 use std::pin::Pin;
@@ -19,7 +19,6 @@ impl <'a>Handler {
     where
         RW: AsyncRead + AsyncWrite + Unpin + Send
     {
-        // TODO: refactor this by removing.
         loop {
             let mut request_line: String = String::new();
             let n: usize = rw.read_line(&mut request_line).await?;
@@ -57,13 +56,13 @@ impl <'a>Handler {
                 }
 
                 if let Some((k, v)) = line_trim.split_once(':') {
-                    headers.insert(k.trim().to_string(), v.trim().to_string());
+                    headers.insert(k.trim().to_string().to_lowercase(), v.trim().to_string());
                 }
             }
 
             let mut body: Vec<u8> = Vec::new();
 
-            if let Some(te) = headers.get("Transfer-Encoding") {
+            if let Some(te) = headers.get("transfer-encoding") {
                 if te.eq_ignore_ascii_case("chunked") {
                     loop {
                         let mut size_line = String::new();
@@ -85,7 +84,7 @@ impl <'a>Handler {
                         tokio::io::AsyncReadExt::read_exact(&mut rw, &mut crlf).await?;
                     }
                 }
-            } else if let Some(cl) = headers.get("Content-Length") {
+            } else if let Some(cl) = headers.get("content-length") {
                 let size = cl.parse::<usize>().map_err(|_| IoError::new(ErrorKind::InvalidData, "bad content-length"))?;
                 let mut buffer = vec![0u8; size];
                 tokio::io::AsyncReadExt::read_exact(&mut rw, &mut buffer).await?;
@@ -99,12 +98,12 @@ impl <'a>Handler {
             };
              
             let host: String = headers
-                .get("Host")
+                .get("host")
                 .cloned()
                 .or_else(|| headers.get("host").cloned())
                 .unwrap_or_default();
 
-            let mut req = Request {
+            let req = Request {
                 ip: addr.ip().to_string(),
                 host: host,
                 method: method,
@@ -118,12 +117,43 @@ impl <'a>Handler {
                 files: Files::new(),
             };
 
-            req.headers.insert("Connection".to_owned(), "keep-alive".to_owned());
+            return Ok(
+                match req.headers.get("upgrade").cloned() {
+                    Some(upgrade) => {
+                        if upgrade == "websocket".to_string() {
+                            return Ok(Handler::handle_ws_request(http, rw, req).await?);
+                        }
 
-            let req = parse_request_body(&mut req).await.unwrap();
-            let res = &mut new_response();
-            let res = RequestHandler::web(http, req, res).await?;
-            let _ = rw.write(parse(res)?.as_bytes()).await;
+                        Handler::handle_web_request(http, rw, req).await?;
+                    },
+                    None => Handler::handle_web_request(http, rw, req).await?,
+                }
+            )
         }
+    }
+
+    async fn handle_web_request<RW>(http: &mut HTTP, mut rw: Pin<&mut BufReader<RW>>, mut req: Request) -> Result<()>
+    where
+        RW: AsyncRead + AsyncWrite + Unpin + Send
+    {
+        req.headers.insert("Connection".to_owned(), "keep-alive".to_owned());
+
+        let req = parse_request_body(&mut req).await.unwrap();
+        let res = &mut new_response();
+
+        let res = RequestHandler::web(http, req, res).await?;
+        let _ = rw.write(parse(res)?.as_bytes()).await;
+
+        Ok(())
+    }
+
+    async fn handle_ws_request<RW>(http: &mut HTTP, mut rw: Pin<&mut BufReader<RW>>, mut req: Request) -> Result<()>
+    where
+        RW: AsyncRead + AsyncWrite + Unpin + Send
+    {
+        // TODO: Do some websocket handshake staff / put it in `RequestHandler`...
+        println!("WebSocket Connection");
+
+        Ok(())
     }
 }

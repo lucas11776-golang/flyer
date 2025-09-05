@@ -13,9 +13,13 @@ use once_cell::sync::Lazy;
 
 pub type Group = fn (router: &mut Router);
 pub type WebRoute = for<'a> fn (req: &'a mut Request, res: &'a mut Response) -> &'a mut Response;
-pub type WsRoute = for<'a> fn (req: &'a mut Request, res: &'a mut Ws);
 pub type Middleware = for<'a> fn (req: &'a mut Request, res: &'a mut Response, next: &'a mut Next<'a>) -> &'a mut Response;
 pub type Middlewares = Vec<Middleware>;
+
+
+pub type WsRoute = for<'a> fn (req: &'a mut Request, res: &'a mut Ws);
+// pub type Middleware = for<'a> fn (req: &'a mut Request, res: &'a mut Response, next: &'a mut Next<'a>) -> &'a mut Response;
+// pub type Middlewares = Vec<Middleware>;
 
 static PARAM_REGEX: Lazy<Regex> = Lazy::new(|| {
     Regex::new(r"\{[a-zA-Z_]+\}").expect("Invalid parameter regex")
@@ -186,6 +190,10 @@ impl <'a>Router<'a> {
 
     pub fn route(&mut self, method: &str, path: &str, callback: WebRoute, middleware: Option<Middlewares>) {
         self.add_web_route(method, path, callback, middleware).unwrap();
+    }
+
+    pub fn web(&mut self, path: &str, callback: WsRoute) {
+
     }
 
     pub fn group(&mut self , path: &str, group: Group, middleware: Option<Middlewares>) {

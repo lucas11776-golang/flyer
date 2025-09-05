@@ -1,4 +1,4 @@
-use std::{io::Result};
+use std::io::{Error, Result};
 
 use serde::Serialize;
 
@@ -7,41 +7,60 @@ pub trait RW {
     fn write(&mut self, payload: Vec<u8>) -> Result<()>;
 }
 
+
+pub type OnReady = fn (ws: &mut Ws);
+pub type OnMessage = fn (data: Vec<u8>);
+pub type OnPing = fn (data: Vec<u8>);
+pub type OnPong = fn (data: Vec<u8>);
+pub type OnClose = fn (code: u16);
+pub type OnError = fn (error: Error);
+
 pub struct Ws {
-    rw: Box<dyn RW>
+    rw: Box<dyn RW>,
+    pub(crate) ready: Option<OnReady>,
+    pub(crate) message: Option<OnMessage>,
+    pub(crate) ping: Option<OnPing>,
+    pub(crate) pong: Option<OnPong>,
+    pub(crate) close: Option<OnClose>,
+    pub(crate) error: Option<OnError>,
 }
 
 impl Ws {
     pub fn new(rw: Box<dyn RW>) -> Self {
         return Ws {
-            rw: rw
+            rw: rw,
+            ready: None,
+            message: None,
+            ping: None,
+            pong: None,
+            close: None,
+            error: None,
         }
     }
 
-    pub fn on_ready(&mut self, callback: fn (ws: &mut Ws)) {
-
+    pub fn on_ready(&mut self, callback: OnReady) {
+        self.ready = Some(callback);
     }
 
-    pub fn on_message(&mut self, callback: fn (ws: &mut Ws)) {
-        
+    pub fn on_message(&mut self, callback: OnMessage) {
+        self.message = Some(callback);
     }
 
-    pub fn on_ping(&mut self, callback: fn (ws: &mut Ws)) {
-        
+    pub fn on_ping(&mut self, callback: OnPing) {
+        self.ping = Some(callback);
     }
 
-    pub fn on_pong(&mut self, callback: fn (ws: &mut Ws)) {
-        
-    }
-
-
-    pub fn on_close(&mut self, callback: fn (ws: &mut Ws)) {
-        
+    pub fn on_pong(&mut self, callback: OnPong) {
+        self.pong = Some(callback);
     }
 
 
-    pub fn on_error(&mut self, callback: fn (ws: &mut Ws)) {
-        
+    pub fn on_close(&mut self, callback: OnClose) {
+        self.close = Some(callback);
+    }
+
+    pub fn on_error(&mut self, callback: OnError) {
+        self.error = Some(callback);
     }
 
     pub fn write(&mut self, data: Vec<u8>) -> Result<()> {

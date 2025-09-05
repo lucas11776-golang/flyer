@@ -1,10 +1,13 @@
 use flyer::{server_tls, view::view_data};
 
 fn main() {
-    let mut server = server_tls("127.0.0.1", 9999, "host.key", "host.cert");
-    // let mut server = flyer::server("127.0.0.1", 9999).await?;
+    // let mut server = server_tls("127.0.0.1", 9999, "host.key", "host.cert");
+    let mut server = flyer::server("127.0.0.1", 9999);
 
     server.view("views");
+
+
+    // server.router()
     
     server.router().get("api/users/{user}", |req, res| {
         let mut data = view_data();
