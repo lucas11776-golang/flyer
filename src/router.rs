@@ -166,27 +166,28 @@ impl <'a>Router<'a> {
     }
 
     fn parameters_route_match(route_path: Vec<String>, request_path: Vec<String>) -> (bool, Values) {
-        let mut params: Values = HashMap::new();
+        let mut params: Values = Values::new();
 
-        for (i, seg) in request_path.iter().enumerate() {
-            if i > route_path.len() - 1 {
+        for (i, seg) in route_path.iter().enumerate() {
+            if i > request_path.len() - 1 {
                 return (false, Values::new());
             }
 
-            let route_seg = route_path[i].clone();
+            let seg_match = request_path[i].clone();
 
-            if route_seg == "*" {
+            if seg == "*" {
                 return (true, Values::new());
             }
 
-            if seg == &route_seg {
+            if seg == &seg_match {
                 continue;
             }
 
-            if PARAM_REGEX.is_match(&route_seg.to_string()) {
-                let key = route_seg.trim_start_matches('{').trim_end_matches('}');
-
-                params.insert(key.to_string(), (*seg).to_string());
+            if PARAM_REGEX.is_match(&seg.to_string()) {
+                params.insert(
+                    seg.trim_start_matches('{').trim_end_matches('}').to_owned(),
+                    seg_match
+                );
 
                 continue;
             }

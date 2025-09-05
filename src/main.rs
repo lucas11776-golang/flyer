@@ -7,7 +7,6 @@ fn main() {
     // Create view folder in base project directory.
     server.view("views");
     
-    // TODO: update route to advance routing.
     server.router().post("api/users/{user}", |req, res| {
         let mut data = view_data();
 
