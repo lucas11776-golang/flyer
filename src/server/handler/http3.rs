@@ -38,6 +38,7 @@ impl <'a>Handler {
             host: host.to_string(),
             method: req.method().to_string(),
             path: req.uri().path().to_string(),
+            parameters: Values::new(),
             query: parse_query_params(req.uri().query().unwrap_or(""))?,
             protocol: HTTP3.to_string(),
             headers: headers,

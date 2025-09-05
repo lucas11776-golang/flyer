@@ -7,7 +7,7 @@ use std::net::SocketAddr;
 use std::pin::Pin;
 use tokio::io::{AsyncRead, AsyncWrite, BufReader};
 
-use crate::{response::{new_response}, server::handler::RequestHandler, HTTP};
+use crate::{response::new_response, server::handler::RequestHandler, utils::Values, HTTP};
 use crate::request::{Headers, Request};
 use crate::utils::url::parse_query_params;
 
@@ -73,6 +73,7 @@ impl <'a> Handler<'a> {
             host: host,
             method: method,
             path: path,
+            parameters: Values::new(),
             query: query,
             protocol: "HTTP/2.0".to_string(),
             headers: headers,

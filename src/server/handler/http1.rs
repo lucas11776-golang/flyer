@@ -19,6 +19,7 @@ impl <'a>Handler {
     where
         RW: AsyncRead + AsyncWrite + Unpin + Send
     {
+        // TODO: refactor this by removing.
         loop {
             let mut request_line: String = String::new();
             let n: usize = rw.read_line(&mut request_line).await?;
@@ -96,9 +97,7 @@ impl <'a>Handler {
             } else {
                 (target.clone(), String::new())
             };
-
-            let parameters: Values = parse_query_params(&query)?;
-
+             
             let host: String = headers
                 .get("Host")
                 .cloned()
@@ -110,7 +109,8 @@ impl <'a>Handler {
                 host: host,
                 method: method,
                 path: path,
-                query: parameters,
+                parameters: Values::new(),
+                query: parse_query_params(&query)?,
                 protocol: HTTP1.to_string(),
                 headers: headers,
                 body: body,

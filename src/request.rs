@@ -2,7 +2,6 @@ use std::{collections::HashMap};
 
 use crate::utils::Values;
 
-
 pub type Headers = HashMap<String, String>;
 pub type Files = HashMap<String, File>;
 
@@ -27,6 +26,7 @@ pub struct Request {
     pub method: String,
     pub path: String,
     pub query: Values,
+    pub parameters: Values,
     pub protocol: String,
     pub headers: Headers,
     pub body: Vec<u8>,
@@ -35,12 +35,16 @@ pub struct Request {
 }
 
 impl Request {
+    pub fn ip(&self) -> String {
+        return self.ip.to_owned();
+    }
+
     pub fn header(&self, key: &str) -> String {
         return self.headers.get(key).get_or_insert(&"".to_string()).to_string()
     }
     
     pub fn parameter(&self, key: &str) -> String {
-        return "".to_owned();
+        return self.parameters.get(key).get_or_insert(&"".to_string()).to_string()
     }
 
     pub fn query(&self, key: &str) -> String {
@@ -53,9 +57,5 @@ impl Request {
 
     pub fn file(&self, key: &str) -> Option<&File> {
         return self.files.get(key);
-    }
-
-    pub fn ip(&self) -> String {
-        return self.ip.to_owned();
     }
 }

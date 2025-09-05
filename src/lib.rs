@@ -38,31 +38,27 @@ pub struct HTTP {
     pub(crate) configuration: Configuration,
 }
 
-pub fn server<'a>(host: &str, port: i32) -> HTTP {
+fn new_http(host: &str, port: i32, tls: Option<TlsPathConfig>) -> HTTP {
     return HTTP {
         host: host.to_owned(),
         port: port,
-        tls: None,
-        request_max_size: 1024,
-        router: new_group_router(),
-        session_manger: None,
-        configuration: Configuration::new()
-    };
-}
-
-pub fn server_tls<'a>(host: &str, port: i32, key: &str, cert: &str) -> HTTP {
-    return HTTP {
-        host: host.to_owned(),
-        port: port,
-        tls: Some(TlsPathConfig {
-            key_path: key.to_owned(),
-            cert_path: cert.to_owned()
-        }),
+        tls: tls,
         request_max_size: 1024,
         router: new_group_router(),
         session_manger: None,
         configuration: Configuration::new(),
     };
+}
+
+pub fn server<'a>(host: &str, port: i32) -> HTTP {
+    return new_http(host, port, None);
+}
+
+pub fn server_tls<'a>(host: &str, port: i32, key: &str, cert: &str) -> HTTP {
+    return new_http(host, port, Some(TlsPathConfig {
+        key_path: key.to_owned(),
+        cert_path: cert.to_owned()
+    }));
 }
 
 impl HTTP {
@@ -105,6 +101,7 @@ impl HTTP {
             });
         });
 
+        // TODO: check if the is no better way...
         self.block_main_thread();
     }
 

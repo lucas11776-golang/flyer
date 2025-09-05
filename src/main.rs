@@ -1,13 +1,14 @@
-use flyer::view::{view_data};
+use flyer::{server_tls, view::view_data};
 
 fn main() {
-    let mut server = flyer::server_tls("127.0.0.1", 9999, "host.key", "host.cert");
+    let mut server = server_tls("127.0.0.1", 9999, "host.key", "host.cert");
     // let mut server = flyer::server("127.0.0.1", 9999).await?;
 
     // Create view folder in base project directory.
     server.view("views");
     
-    server.router().post("/", |req, res| {
+    // TODO: update route to advance routing.
+    server.router().post("api/users/{user}", |req, res| {
         let mut data = view_data();
 
         println!("{:?}", req.values);
@@ -16,6 +17,8 @@ fn main() {
         data.insert("last_name", "Doe");
         data.insert("email", "jeo@doe.com");
         data.insert("age", &23);
+
+        println!("USER: {}", req.parameter("user"));
 
         // Create file called index.html in views folder.
         return res.view("index.html", Some(data))

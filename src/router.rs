@@ -14,6 +14,7 @@ use crate::{
 use regex::Regex;
 use once_cell::sync::Lazy;
 
+pub type Group = fn (router: &mut Router);
 pub type WebRoute = for<'a> fn (req: &'a mut Request, res: &'a mut Response) -> &'a mut Response;
 pub type WsRoute = for<'a> fn (req: &'a mut Request, res: &'a mut Ws);
 pub type Middleware = for<'a> fn (req: &'a mut Request, res: &'a mut Response, next: &'a mut Next<'a>) -> &'a mut Response;
@@ -45,8 +46,6 @@ pub fn new_group_router<'a>() -> GroupRouter {
         not_found_callback: None
     }
 }
-
-type Group = fn (router: &mut Router);
 
 pub struct Route<R> {
     pub(crate) path: String,
@@ -82,7 +81,7 @@ impl GroupRouter {
                 continue;
             }
             
-            req.query = parameters;
+            req.parameters = parameters;
 
             for middleware in  &mut route.middlewares {
                 let mut move_to_next: bool = false;
@@ -109,27 +108,6 @@ impl GroupRouter {
 }
 
 impl <'a>Router<'a> {
-    pub fn group(&mut self , path: &str, group: Group, middleware: Option<Middlewares>) {
-        match middleware {
-            Some(middleware) => {
-                group(&mut Router{
-                    // TODO: fix
-                    path: Router::get_path(self.path.clone(), vec![path.to_string()]),
-                    router: self.router,
-                    middleware: merge(vec![self.middleware.clone(), middleware])
-                });
-            },
-            None => {
-                group(&mut Router{
-                    // TODO: fix
-                    path: Router::get_path(self.path.clone(), vec![path.to_string()]),
-                    router: self.router,
-                    middleware: self.middleware.clone()
-                });
-            },
-        }
-    }
-
     pub fn get(&mut self, path: &str, callback: WebRoute, middleware: Option<Middlewares>) {
         self.route("GET", path, callback, middleware);
     }
@@ -160,6 +138,27 @@ impl <'a>Router<'a> {
 
     pub fn route(&mut self, method: &str, path: &str, callback: WebRoute, middleware: Option<Middlewares>) {
         self.add_web_route(method, path, callback, middleware).unwrap();
+    }
+
+    pub fn group(&mut self , path: &str, group: Group, middleware: Option<Middlewares>) {
+        match middleware {
+            Some(middleware) => {
+                group(&mut Router{
+                    // TODO: fix
+                    path: Router::get_path(self.path.clone(), vec![path.to_string()]),
+                    router: self.router,
+                    middleware: merge(vec![self.middleware.clone(), middleware])
+                });
+            },
+            None => {
+                group(&mut Router{
+                    // TODO: fix
+                    path: Router::get_path(self.path.clone(), vec![path.to_string()]),
+                    router: self.router,
+                    middleware: self.middleware.clone()
+                });
+            },
+        }
     }
 
     pub fn not_found(&mut self, callback: WebRoute) {
