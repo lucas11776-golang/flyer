@@ -4,22 +4,16 @@ fn main() {
     let mut server = server_tls("127.0.0.1", 9999, "host.key", "host.cert");
     // let mut server = flyer::server("127.0.0.1", 9999).await?;
 
-    // Create view folder in base project directory.
     server.view("views");
     
-    server.router().post("api/users/{user}", |req, res| {
+    server.router().get("api/users/{user}", |req, res| {
         let mut data = view_data();
-
-        println!("{:?}", req.values);
 
         data.insert("first_name", "Jeo");
         data.insert("last_name", "Doe");
         data.insert("email", "jeo@doe.com");
         data.insert("age", &23);
 
-        println!("USER: {}", req.parameter("user"));
-
-        // Create file called index.html in views folder.
         return res.view("index.html", Some(data))
     }, None);
 

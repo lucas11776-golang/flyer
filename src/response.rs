@@ -70,11 +70,12 @@ impl Response {
         return self;
     }
 
-    pub fn json<T>(&mut self, json: &T) -> &mut Response
-    where T: ?Sized + Serialize
+    pub fn json<J>(&mut self, object: &J) -> &mut Response
+    where 
+        J: ?Sized + Serialize
     {
         return self.header("Content-Type".to_owned(), "application/json".to_owned())
-            .body(serde_json::to_string(json).unwrap().as_bytes());
+            .body(serde_json::to_string(object).unwrap().as_bytes());
     }
 
     pub fn html(&mut self, html: &str) -> &mut Response {

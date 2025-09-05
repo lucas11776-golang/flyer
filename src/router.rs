@@ -1,7 +1,4 @@
-use std::{
-    collections::HashMap,
-    io::Result
-};
+use std::io::Result;
 
 use crate::utils::Values;
 use crate::ws::Ws;
@@ -75,7 +72,7 @@ impl <'a>Next<'a> {
 impl GroupRouter {
     pub fn match_web_routes<'a>(&mut self, req: &mut Request, res: &'a mut Response) -> Option<&'a mut Response> {
         for route in &mut self.web {
-            let (matches, parameters) = Router::match_route(route, req);
+            let (matches, parameters) = GroupRouter::match_route(route, req);
 
             if !matches {
                 continue;
@@ -104,6 +101,57 @@ impl GroupRouter {
         }
 
         return None;
+    }
+
+
+    fn match_route<T>(route: &mut Route<T>, req: &mut Request) -> (bool, Values) {
+        let request_path: Vec<String> = url::clean_uri_to_vec(req.path.clone());
+        let route_path: Vec<String> = url::clean_uri_to_vec(route.path.clone());
+
+        if route.method.to_uppercase() != req.method.to_uppercase() {
+            return (false, Values::new());
+        }
+
+        let (matches, parameters) = GroupRouter::parameters_route_match(route_path, request_path);
+
+        if !matches {
+            return (false, Values::new());
+        }
+
+        return (true, parameters);
+    }
+
+    fn parameters_route_match(route_path: Vec<String>, request_path: Vec<String>) -> (bool, Values) {
+        let mut params: Values = Values::new();
+
+        for (i, seg) in route_path.iter().enumerate() {
+            if i > request_path.len() - 1 {
+                return (false, Values::new());
+            }
+
+            let seg_match = request_path[i].clone();
+
+            if seg == "*" {
+                return (true, Values::new());
+            }
+
+            if seg == &seg_match {
+                continue;
+            }
+
+            if PARAM_REGEX.is_match(&seg.to_string()) {
+                params.insert(
+                    seg.trim_start_matches('{').trim_end_matches('}').to_owned(),
+                    seg_match
+                );
+
+                continue;
+            }
+
+            return (false, Values::new());
+        }
+
+        return (true, params)
     }
 }
 
@@ -165,39 +213,6 @@ impl <'a>Router<'a> {
         self.router.not_found_callback = Some(callback);
     }
 
-    fn parameters_route_match(route_path: Vec<String>, request_path: Vec<String>) -> (bool, Values) {
-        let mut params: Values = Values::new();
-
-        for (i, seg) in route_path.iter().enumerate() {
-            if i > request_path.len() - 1 {
-                return (false, Values::new());
-            }
-
-            let seg_match = request_path[i].clone();
-
-            if seg == "*" {
-                return (true, Values::new());
-            }
-
-            if seg == &seg_match {
-                continue;
-            }
-
-            if PARAM_REGEX.is_match(&seg.to_string()) {
-                params.insert(
-                    seg.trim_start_matches('{').trim_end_matches('}').to_owned(),
-                    seg_match
-                );
-
-                continue;
-            }
-
-            return (false, Values::new());
-        }
-
-        return (true, params)
-    }
-
     fn get_path(old: Vec<String>, new: Vec<String>) -> Vec<String> {
         return merge(vec![old,new]).iter()
             .map(|x| clean_url(x.to_owned()))
@@ -227,22 +242,5 @@ impl <'a>Router<'a> {
         }
 
         Ok(())
-    }
-
-    fn match_route<T>(route: &mut Route<T>, req: &mut Request) -> (bool, Values) {
-        let request_path: Vec<String> = url::clean_uri_to_vec(req.path.clone());
-        let route_path: Vec<String> = url::clean_uri_to_vec(route.path.clone());
-
-        if route.method.to_uppercase() != req.method.to_uppercase() {
-            return (false, Values::new());
-        }
-
-        let (matches, parameters) = Router::parameters_route_match(route_path, request_path);
-
-        if !matches {
-            return (false, Values::new());
-        }
-
-        return (true, parameters);
     }
 }
