@@ -7,12 +7,13 @@ pub mod session;
 pub mod view;
 pub mod server;
 
-use std::io::{Result as IOResult};
 use std::sync::Arc;
 use std::sync::atomic::{
     AtomicBool,
     Ordering
 };
+
+use tokio::runtime::Runtime;
 
 use crate::router::{
     new_group_router,
@@ -37,8 +38,8 @@ pub struct HTTP {
     pub(crate) configuration: Configuration,
 }
 
-pub async fn server<'a>(host: &str, port: i32) -> IOResult<HTTP> {
-    return Ok(HTTP {
+pub fn server<'a>(host: &str, port: i32) -> HTTP {
+    return HTTP {
         host: host.to_owned(),
         port: port,
         tls: None,
@@ -46,11 +47,11 @@ pub async fn server<'a>(host: &str, port: i32) -> IOResult<HTTP> {
         router: new_group_router(),
         session_manger: None,
         configuration: Configuration::new()
-    });
+    };
 }
 
-pub async fn server_tls<'a>(host: &str, port: i32, key: &str, cert: &str) -> IOResult<HTTP> {
-    return Ok(HTTP {
+pub fn server_tls<'a>(host: &str, port: i32, key: &str, cert: &str) -> HTTP {
+    return HTTP {
         host: host.to_owned(),
         port: port,
         tls: Some(TlsPathConfig {
@@ -61,7 +62,7 @@ pub async fn server_tls<'a>(host: &str, port: i32, key: &str, cert: &str) -> IOR
         router: new_group_router(),
         session_manger: None,
         configuration: Configuration::new(),
-    });
+    };
 }
 
 impl HTTP {
@@ -93,30 +94,30 @@ impl HTTP {
         return self;
     }
 
-    pub async fn tcp_server(&mut self) {
+    pub fn listen(&mut self) {
+        Runtime::new().unwrap().block_on(async {
+            tokio_scoped::scope(|scope| {
+                scope.spawn(self.tcp_server());
+            });
+
+            tokio_scoped::scope(|scope| {
+                scope.spawn(self.udp_server());
+            });
+        });
+
+        self.block_main_thread();
+    }
+
+    async fn tcp_server(&mut self) {
         TcpServer::new(self).await
             .listen()
             .await;
     }
 
-    pub async fn udp_server(&mut self) {
+    async fn udp_server(&mut self) {
         UdpServer::new(self).await
             .listen()
             .await;
-    }
-
-    pub async fn listen(&mut self) -> IOResult<()> {
-        tokio_scoped::scope(|scope| {
-            scope.spawn(self.tcp_server());
-        });
-
-        tokio_scoped::scope(|scope| {
-            scope.spawn(self.udp_server());
-        });
-
-        self.block_main_thread();
-
-        Ok(())
     }
 
     pub fn router(&mut self) -> Router {

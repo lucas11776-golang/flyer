@@ -1,6 +1,4 @@
-use std::{io::Result};
-
-use flyer::{request::Request, response::Response};
+use flyer::{server, request::Request, response::Response};
 
 fn index<'a>(req: &'a mut Request, res: &'a mut Response) -> &'a mut Response {
     return res
@@ -22,9 +20,8 @@ fn destroy<'a>(req: &'a mut Request, res: &'a mut Response) -> &'a mut Response 
     return res
 }
 
-#[tokio::main]
-async fn main() -> Result<()> {
-    let mut server = flyer::server("127.0.0.1", 9999).await?;
+fn main() {
+    let mut server = server("127.0.0.1", 9999);
     
     server.router().group("api", |router| {
         router.group("users", |router| {
@@ -40,7 +37,5 @@ async fn main() -> Result<()> {
 
     print!("\r\n\r\nRunning server: {}\r\n\r\n", server.address());
 
-    server.listen().await;
-
-    Ok(())
+    server.listen();
 }

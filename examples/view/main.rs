@@ -1,10 +1,8 @@
-use std::{io::Result};
 
-use flyer::view::{view_data};
+use flyer::{server, view::view_data};
 
-#[tokio::main]
-async fn main() -> Result<()> {
-    let mut server = flyer::server("127.0.0.1", 9999).await?;
+fn main() {
+    let mut server = server("127.0.0.1", 9999);
 
     // Create view folder in base project directory.
     server.view("views");
@@ -23,7 +21,5 @@ async fn main() -> Result<()> {
 
     print!("\r\n\r\nRunning server: {}\r\n\r\n", server.address());
 
-    server.listen().await;
-
-    Ok(())
+    server.listen();
 }

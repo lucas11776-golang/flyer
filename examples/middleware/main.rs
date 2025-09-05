@@ -1,8 +1,5 @@
-use std::{io::Result};
-
-use flyer::{request::Request, response::Response, router::Next};
+use flyer::{server, request::Request, response::Response, router::Next};
 use serde::{Deserialize, Serialize};
-
 
 #[derive(Serialize, Deserialize)]
 pub struct User {
@@ -21,9 +18,8 @@ pub fn auth<'a>(req: &'a mut Request, res: &'a mut Response, next: &'a mut Next<
     });
 }
 
-#[tokio::main]
-async fn main() -> Result<()> {
-    let mut server = flyer::server("127.0.0.1", 9999).await?;
+fn main() {
+    let mut server = server("127.0.0.1", 9999);
     
     server.router().get("api/users/{user}", |req, res| {
         return res.json(&User{
@@ -34,7 +30,5 @@ async fn main() -> Result<()> {
 
     print!("\r\n\r\nRunning server: {}\r\n\r\n", server.address());
 
-    server.listen().await;
-
-    Ok(())
+    server.listen();
 }
