@@ -1,14 +1,19 @@
-use std::io::{Error, Result};
+use std::{fmt::Debug, io::{Error, Result}, pin::Pin};
 
+use futures_util::stream::SplitSink;
 use serde::Serialize;
+use tokio::io::{AsyncRead, AsyncWrite, BufReader};
+use tokio_tungstenite::WebSocketStream;
+use tungstenite::Message;
+
 
 pub const SecWebSocketAcceptStatic: &str = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 
-pub trait RW {
-    fn read(&mut self) -> Result<Vec<u8>>;
+// TODO: fix
+pub trait RW: Send + Debug {
+    // fn read(&mut self) -> Result<Vec<u8>>;
     fn write(&mut self, payload: Vec<u8>) -> Result<()>;
 }
-
 
 pub type OnReady = fn (ws: &mut Ws);
 pub type OnMessage = fn (data: Vec<u8>);
@@ -17,8 +22,10 @@ pub type OnPong = fn (data: Vec<u8>);
 pub type OnClose = fn (code: u16);
 pub type OnError = fn (error: Error);
 
+
+#[derive(Debug)]
 pub struct Ws {
-    rw: Box<dyn RW>,
+    pub(crate) rw: Pin<Box<dyn RW>>,
     pub(crate) ready: Option<OnReady>,
     pub(crate) message: Option<OnMessage>,
     pub(crate) ping: Option<OnPing>,
@@ -28,7 +35,7 @@ pub struct Ws {
 }
 
 impl Ws {
-    pub fn new(rw: Box<dyn RW>) -> Self {
+    pub async fn new(rw: Pin<Box<dyn RW>>) -> Self {
         return Ws {
             rw: rw,
             ready: None,
@@ -69,13 +76,6 @@ impl Ws {
         Ok(())
     }
 
-    pub(crate) fn listen(&mut self) -> Result<()> {
-        for data  in self.rw.read().unwrap() {
-
-        }
-
-        Ok(())
-    }
 
     pub fn write_json<J>(&mut self, object: &J) -> Result<()>
     where 
@@ -85,6 +85,38 @@ impl Ws {
     }
 
     pub fn write_baniry(&mut self, data: Vec<u8>) -> Result<()> {
+        Ok(())
+    }
+
+
+    // fn clone(&self) -> Self {
+    //     return Ws {
+    //         rw: self.rw, 
+    //         ready: self.ready,
+    //         message: self.message,
+    //         ping: self.ping,
+    //         pong: self.pong,
+    //         close: self.close,
+    //         error: self.error,
+    //     }
+    // }
+}
+
+
+
+
+pub(crate) struct WsWrite<'a, RW> {
+    pub(crate) writer: SplitSink<WebSocketStream<Pin<&'a mut BufReader<RW>>>, Message>
+}
+
+
+impl <'a, RW>WsWrite<'a, RW> {
+    pub fn write(&mut self, payload: Vec<u8>) -> Result<()>
+    where
+        RW: AsyncRead + AsyncWrite + Unpin + Send
+    {
+        // let _ = self.writer.send(Message::Text(String::from_utf8(payload).unwrap().into())).await;
+
         Ok(())
     }
 }

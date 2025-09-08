@@ -2,7 +2,8 @@ use std::io::{ErrorKind, Result};
 use std::io::{Error as IoError};
 use std::net::SocketAddr;
 use std::pin::Pin;
-use futures_util::StreamExt;
+
+use futures_util::{StreamExt};
 use openssl::sha::{Sha1};
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader};
 use tokio_tungstenite::WebSocketStream;
@@ -15,7 +16,7 @@ use crate::server::HTTP1;
 use crate::utils::url::parse_query_params;
 use crate::utils::Values;
 use crate::request::{Files, Headers, Request};
-use crate::ws::SecWebSocketAcceptStatic;
+use crate::ws::{SecWebSocketAcceptStatic, WsWrite};
 use crate::HTTP;
 
 pub struct Handler { }
@@ -167,8 +168,6 @@ impl <'a>Handler {
     where
         RW: AsyncRead + AsyncWrite + Unpin + Send
     {
-        // TODO: match route before handshake to safe steps if route does not exists...
-
         let sec_websocket_key = req.header("sec-websocket-key");
         let mut resp = new_response();
         
@@ -176,11 +175,28 @@ impl <'a>Handler {
             .header("Upgrade".to_owned(), "websocket".to_owned())
             .header("Connection".to_owned(), "Upgrade".to_owned())
             .header("Sec-WebSocket-Accept".to_owned(), Handler::generate_accept_key(sec_websocket_key));
-        
+
+
         rw.write(parse(&mut resp).unwrap().as_bytes()).await.unwrap();
-    
-        let client = WebSocketStream::from_raw_socket(rw, Server, None).await;
+
+        let client: WebSocketStream<Pin<&mut BufReader<RW>>> = WebSocketStream::from_raw_socket(rw, Server, None).await;
         let (mut write, mut read) = client.split();
+
+
+
+        let mut res = new_response();
+
+        let mut writer = WsWrite{
+            writer: write
+        };
+
+        let a = Pin::new(Box::new(writer));
+
+        // res.ws = Some(Ws::new(a).await);
+
+        let _ = http.router.match_ws_routes(&mut req, &mut res).unwrap();
+
+        // TODO: match route before handshake to safe steps if route does not exists...
 
         while let Some(message) = read.next().await {
             match message {
@@ -188,6 +204,9 @@ impl <'a>Handler {
                     match msg {
                         Message::Text(text) => {
                             println!("Received text: {}", text);
+
+                            // writer.write("Hello!!!.".into()).await.unwrap();
+
                         }
                         Message::Binary(bin) => {
                             println!("Received binary data: {:?}", bin);
@@ -207,3 +226,6 @@ impl <'a>Handler {
         Ok(())
     }
 }
+
+
+    

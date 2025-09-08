@@ -8,7 +8,7 @@ use crate::{
     view::{
         View,
         ViewData
-    }
+    }, ws::Ws
 };
 
 #[derive(Debug)]
@@ -18,6 +18,7 @@ pub struct Response {
     pub(crate) body: Vec<u8>,
     pub(crate) session: Option<Box<dyn Session>>,
     pub(crate) view: Option<View>,
+    pub ws: Option<Ws>,
 }
 
 pub fn new_response() -> Response {
@@ -26,7 +27,8 @@ pub fn new_response() -> Response {
         headers: Headers::new(),
         body: vec![],
         session: None,
-        view: None
+        view: None,
+        ws: None
     };
 }
 
@@ -100,6 +102,7 @@ impl Response {
             body: self.body.clone(),
             session: None,
             view: None,
+            ws: None
         };
     }
 }

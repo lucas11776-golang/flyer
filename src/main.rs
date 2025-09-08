@@ -20,6 +20,18 @@ fn main() {
         return res.view("index.html", Some(data))
     }, None);
 
+
+    server.router().ws("/", |req, ws| {
+        ws.on_ready(|ws| {
+
+            println!("Ready...");
+            
+            ws.on_message(|data| {
+                println!("Received data: {:?}", data);
+            });
+        });
+    }, None);
+
     print!("\r\n\r\nRunning server: {}\r\n\r\n", server.address());
 
     server.listen();

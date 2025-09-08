@@ -16,10 +16,7 @@ pub type WebRoute = for<'a> fn (req: &'a mut Request, res: &'a mut Response) -> 
 pub type Middleware = for<'a> fn (req: &'a mut Request, res: &'a mut Response, next: &'a mut Next<'a>) -> &'a mut Response;
 pub type Middlewares = Vec<Middleware>;
 
-
 pub type WsRoute = for<'a> fn (req: &'a mut Request, res: &'a mut Ws);
-// pub type Middleware = for<'a> fn (req: &'a mut Request, res: &'a mut Response, next: &'a mut Next<'a>) -> &'a mut Response;
-// pub type Middlewares = Vec<Middleware>;
 
 static PARAM_REGEX: Lazy<Regex> = Lazy::new(|| {
     Regex::new(r"\{[a-zA-Z_]+\}").expect("Invalid parameter regex")
@@ -27,6 +24,7 @@ static PARAM_REGEX: Lazy<Regex> = Lazy::new(|| {
 
 pub struct GroupRouter {
     web: Vec<Route<WebRoute>>,
+    ws: Vec<Route<WsRoute>>,
     pub(crate) not_found_callback: Option<WebRoute>,
 }
 
@@ -44,6 +42,7 @@ pub struct Router<'a> {
 pub fn new_group_router<'a>() -> GroupRouter {
     return GroupRouter {
         web: vec![],
+        ws: vec![],
         not_found_callback: None
     }
 }
@@ -100,6 +99,46 @@ impl GroupRouter {
             }
 
             (route.route)(req, res);
+
+            return Some(res);
+        }
+
+        return None;
+    }
+
+    pub fn match_ws_routes<'a>(&mut self, req: &mut Request, res: &'a mut Response) -> Option<&'a mut Response> {
+        for route in &mut self.ws {
+            let (matches, parameters) = GroupRouter::match_route(route, req);
+
+            if !matches {
+                continue;
+            }
+            
+            req.parameters = parameters;
+
+            for middleware in  &mut route.middlewares {
+                let mut move_to_next: bool = false;
+
+                let mut next: Next = Next{
+                    is_next: &mut move_to_next,
+                    response: &mut res.clone(),
+                };
+
+                (middleware)(req, res, &mut next);
+
+                if !move_to_next {
+                    return Some(res);
+                }
+            }
+
+            let ws = &mut res.ws.as_mut().unwrap();
+
+            (route.route)(req, ws);
+
+            match ws.ready {
+                Some(callback) => callback(ws),
+                None => todo!(),
+            }
 
             return Some(res);
         }
@@ -192,8 +231,26 @@ impl <'a>Router<'a> {
         self.add_web_route(method, path, callback, middleware).unwrap();
     }
 
-    pub fn web(&mut self, path: &str, callback: WsRoute) {
-
+    pub fn ws(&mut self, path: &str, callback: WsRoute, middleware: Option<Middlewares>) {
+      match middleware {
+            Some(middleware) => {
+                self.router.ws.push(Route{
+                    path: Router::get_path(self.path.clone(), vec![path.to_string()]).join("/"),
+                    method: "GET".to_owned(),
+                    route: callback,
+                    middlewares: merge(vec![self.middleware.clone(), middleware],),
+                });
+            },
+            None => {
+                self.router.ws.push(Route{
+                    // TODO: fix
+                    path: Router::get_path(self.path.clone(), vec![path.to_string()]).join("/"),
+                    method: "GET".to_owned(),
+                    route: callback,
+                    middlewares: self.middleware.clone(),
+                });
+            },
+        }
     }
 
     pub fn group(&mut self , path: &str, group: Group, middleware: Option<Middlewares>) {
