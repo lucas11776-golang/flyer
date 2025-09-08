@@ -2,6 +2,8 @@ use std::io::{Error, Result};
 
 use serde::Serialize;
 
+pub const SecWebSocketAcceptStatic: &str = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
+
 pub trait RW {
     fn read(&mut self) -> Result<Vec<u8>>;
     fn write(&mut self, payload: Vec<u8>) -> Result<()>;
@@ -64,6 +66,14 @@ impl Ws {
     }
 
     pub fn write(&mut self, data: Vec<u8>) -> Result<()> {
+        Ok(())
+    }
+
+    pub(crate) fn listen(&mut self) -> Result<()> {
+        for data  in self.rw.read().unwrap() {
+
+        }
+
         Ok(())
     }
 

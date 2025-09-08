@@ -2,7 +2,12 @@ use std::io::{ErrorKind, Result};
 use std::io::{Error as IoError};
 use std::net::SocketAddr;
 use std::pin::Pin;
+use futures_util::StreamExt;
+use openssl::sha::{Sha1};
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader};
+use tokio_tungstenite::WebSocketStream;
+use tungstenite::protocol::Role::Server;
+use tungstenite::Message;
 
 use crate::response::{new_response, parse};
 use crate::server::handler::{parse_request_body, RequestHandler};
@@ -10,6 +15,7 @@ use crate::server::HTTP1;
 use crate::utils::url::parse_query_params;
 use crate::utils::Values;
 use crate::request::{Files, Headers, Request};
+use crate::ws::SecWebSocketAcceptStatic;
 use crate::HTTP;
 
 pub struct Handler { }
@@ -147,12 +153,56 @@ impl <'a>Handler {
         Ok(())
     }
 
+    fn generate_accept_key(key: String) -> String {
+        let mut hasher = Sha1::new();
+        
+        hasher.update(format!("{}{}", key, SecWebSocketAcceptStatic).as_bytes());
+
+        let result = hasher.finish();
+        
+        return base64::encode(&result)
+    }
+
     async fn handle_ws_request<RW>(http: &mut HTTP, mut rw: Pin<&mut BufReader<RW>>, mut req: Request) -> Result<()>
     where
         RW: AsyncRead + AsyncWrite + Unpin + Send
     {
-        // TODO: Do some websocket handshake staff / put it in `RequestHandler`...
-        println!("WebSocket Connection");
+        // TODO: match route before handshake to safe steps if route does not exists...
+
+        let sec_websocket_key = req.header("sec-websocket-key");
+        let mut resp = new_response();
+        
+        resp.status_code(101)
+            .header("Upgrade".to_owned(), "websocket".to_owned())
+            .header("Connection".to_owned(), "Upgrade".to_owned())
+            .header("Sec-WebSocket-Accept".to_owned(), Handler::generate_accept_key(sec_websocket_key));
+        
+        rw.write(parse(&mut resp).unwrap().as_bytes()).await.unwrap();
+    
+        let client = WebSocketStream::from_raw_socket(rw, Server, None).await;
+        let (mut write, mut read) = client.split();
+
+        while let Some(message) = read.next().await {
+            match message {
+                Ok(msg) => {
+                    match msg {
+                        Message::Text(text) => {
+                            println!("Received text: {}", text);
+                        }
+                        Message::Binary(bin) => {
+                            println!("Received binary data: {:?}", bin);
+                        }
+                        _ => {
+                            println!("Received other message type");
+                        }
+                    }
+                }
+                Err(e) => {
+                    eprintln!("Error receiving message: {}", e);
+                    break;
+                }
+            }
+        }
 
         Ok(())
     }
