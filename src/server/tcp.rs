@@ -52,7 +52,7 @@ impl <'a>TcpServer<'a> {
 
     async fn new_connection<RW>(&mut self, stream: RW, addr: SocketAddr)
     where
-        RW: AsyncRead + AsyncWrite + Unpin + Send + Debug
+        RW: AsyncRead + AsyncWrite + Unpin + Send + Debug + Sync
     {
         match &self.acceptor {
             Some(acceptor) => {
@@ -67,7 +67,7 @@ impl <'a>TcpServer<'a> {
 
     async fn handle_connection<RW>(&mut self, stream: RW, addr: SocketAddr)
     where
-        RW: AsyncRead + AsyncWrite + Unpin + Send + Debug
+        RW: AsyncRead + AsyncWrite + Unpin + Send + Debug + Sync
     {
         match self.handle_stream(pin!(BufReader::new(stream)), addr).await {
             Ok(_) => {},
@@ -85,7 +85,7 @@ impl <'a>TcpServer<'a> {
 
     async fn handle_stream<RW>(&mut self, mut rw: std::pin::Pin<&mut BufReader<RW>>, addr:  SocketAddr) -> Result<()>
     where
-        RW: AsyncRead + AsyncWrite + Unpin + Send + Debug
+        RW: AsyncRead + AsyncWrite + Unpin + Send + Debug + Sync
     {
         Ok(
             match self.get_protocol(rw.fill_buf().await?) {

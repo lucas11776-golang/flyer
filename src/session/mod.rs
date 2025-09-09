@@ -12,6 +12,6 @@ pub trait Session: Send + Debug {
     fn get(&self, key: &str) -> String; // Change to &self for object safety
 }
 
-pub trait SessionManager: Send + Sync {
+pub trait SessionManager: Send + Sync + Debug {
     fn handle<'a>(&self, req: &'a mut Request, res: &'a mut Response) -> Box<dyn Session + 'a>;
 }

@@ -4,11 +4,15 @@ use std::future::Future;
 use std::{fmt::Debug, io::{Error, Result}, pin::Pin};
 
 use bytes::Bytes;
+use futures_util::future::BoxFuture;
+use futures_util::StreamExt;
 use futures_util::{stream::SplitSink, SinkExt};
 use serde::Serialize;
 use tokio::{io::{AsyncRead, AsyncWrite, BufReader}};
 use tokio_tungstenite::WebSocketStream;
 use tungstenite::{Message, Utf8Bytes};
+
+use crate::HTTP;
 
 pub const SEC_WEB_SOCKET_ACCEPT_STATIC: &str = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 
@@ -19,40 +23,76 @@ pub type OnPong = fn (data: Vec<u8>);
 pub type OnClose = fn (code: u16);
 pub type OnError = fn (error: Error);
 
-pub trait Rw: Debug + Send + Sync
+pub trait Rw<'a, R>: Send + Sync + Debug
 {
-    fn send(&mut self, item: Message) -> impl Future<Output = Result<()>>
-    where 
-        Self: Sized;
+    fn new(http: &'a mut HTTP, client: WebSocketStream<Pin<&'a mut BufReader<R>>>) -> Self;
+    fn send(&mut self, item: Message) -> impl Future<Output = Result<()>>;
+    fn listen(&mut self) -> impl Future<Output = Result<()>>;
 }
-
 
 #[derive(Debug)]
-pub(crate) struct Writer<'a, R> {
-    // pub(crate) writer: &'a mut Pin<Box<SplitSink<WebSocketStream<Pin<&'a mut BufReader<R>>>, Message>>>
-    pub(crate) writer: SplitSink<WebSocketStream<Pin<&'a mut BufReader<R>>>, Message>,
+pub struct Client<'a, R> {
+    // pub(crate) client: WebSocketStream<Pin<&'a mut BufReader<R>>>,
+
+    pub(crate) http: &'a mut HTTP,
+    pub(crate) read: futures_util::stream::SplitStream<WebSocketStream<Pin<&'a mut BufReader<R>>>>,
+    pub(crate) write: SplitSink<WebSocketStream<Pin<&'a mut BufReader<R>>>, Message>,
 }
 
-
-// TODO: life time final boss...
-impl <'a, R>Rw for Writer<'a, R>
+impl <'a, R> Rw<'a, R> for Client<'a, R>
 where
-    R: AsyncRead + AsyncWrite + Unpin + Send + Debug
+    R: AsyncRead + AsyncWrite + Unpin + Send + Debug + Sync
 {
-    async fn send(&mut self, item: Message) -> Result<()>
-    // where
-    //     Self: Sized
-    {
-        return Ok(self.writer.send(item).await.unwrap());
+    fn new(http: &'a mut HTTP, client: WebSocketStream<Pin<&'a mut BufReader<R>>>) -> Client<'a, R> {
+        let (write, read) = client.split();
+        
+        return Client {
+            http: http,
+            read: read,
+            write: write
+        }
+    }
+
+    async fn send(&mut self, item: Message) -> Result<()> {
+        todo!()
+    }
+    
+    async fn listen(&mut self) -> Result<()> {
+        // while let Some(message) = read.next().await {
+        //     match message {
+        //         Ok(msg) => {
+        //             match msg {
+        //                 Message::Text(text) => {
+        //                     println!("Received text: {}", text);
+
+        //                     // writer.write("Hello!!!.".into()).await.unwrap();
+
+        //                 }
+        //                 Message::Binary(bin) => {
+        //                     println!("Received binary data: {:?}", bin);
+        //                 }
+        //                 _ => {
+        //                     println!("Received other message type");
+        //                 }
+        //             }
+        //         }
+        //         Err(e) => {
+        //             eprintln!("Error receiving message: {}", e);
+        //             break;
+        //         }
+        //     }
+        // }
+
+        Ok(())
     }
 }
+
 
 
 #[derive(Debug)]
 pub struct Ws
 {
     // pub(crate) rw: Box<&'a dyn Rw>,
-    pub(crate) rw: Pin<Box<dyn Rw>>,
     pub(crate) ready: Option<OnReady>,
     pub(crate) message: Option<OnMessage>,
     pub(crate) ping: Option<OnPing>,
@@ -88,42 +128,12 @@ impl <'a>Ws {
     }
 
     pub async fn write(&mut self, data: &[u8]) -> Result<()> {
-        
-        
-
-
-        // self.rw.as_mut().send(Message::Text(Utf8Bytes::from(data.into())));
-        
-
-
-
-        
-        // self.send(Box::pin(self.rw), item);
-
-        // self.rw.as_mut().send(Message::Text(Utf8Bytes::from(data.into())));
-
-        // self.rw.as_mut().send(Message::Text(Utf8Bytes::from(data.into())));
-
-        // self.rw.as_ref().send();
-
-        Ok(())
-    }
-
-    async fn send<T: Rw>(&mut self, rw: Pin<Box<T>>, item: Message) -> Result<()> {
-
-
-
-        // rw.as_ref().send(item);
-
-        // rw.send(item).await.unwrap();
-
         Ok(())
     }
 
     pub fn write_string(&mut self, data: String) -> Result<()> {
         Ok(())
     }
-
 
     pub fn write_json<J>(&mut self, object: &J) -> Result<()>
     where 

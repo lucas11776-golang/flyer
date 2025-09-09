@@ -5,12 +5,13 @@ use std::io::{Error as IoError};
 use std::net::SocketAddr;
 use std::pin::Pin;
 
-use futures_util::{StreamExt};
+use futures_util::io::BufWriter;
+use futures_util::{SinkExt, StreamExt};
 use openssl::sha::{Sha1};
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader};
 use tokio_tungstenite::WebSocketStream;
 use tungstenite::protocol::Role::Server;
-use tungstenite::{Message};
+use tungstenite::{Message, Utf8Bytes};
 
 use crate::response::{new_response, parse};
 use crate::server::handler::{parse_request_body, RequestHandler};
@@ -18,7 +19,7 @@ use crate::server::HTTP1;
 use crate::utils::url::parse_query_params;
 use crate::utils::Values;
 use crate::request::{Files, Headers, Request};
-use crate::ws::{Writer, SEC_WEB_SOCKET_ACCEPT_STATIC};
+use crate::ws::{Rw, Client, Ws, SEC_WEB_SOCKET_ACCEPT_STATIC};
 use crate::HTTP;
 
 pub struct Handler { }
@@ -26,7 +27,7 @@ pub struct Handler { }
 impl <'a>Handler {
     pub async fn handle<RW>(http: &mut HTTP, mut sender: Pin<&mut BufReader<RW>>, addr: SocketAddr) -> std::io::Result<()> 
     where
-        RW: AsyncRead + AsyncWrite + Unpin + Send + Debug
+        RW: AsyncRead + AsyncWrite + Unpin + Send + Debug + Sync
     {
         loop {
             let mut request_line: String = String::new();
@@ -169,7 +170,7 @@ impl <'a>Handler {
 
     async fn handle_ws_request<'b, R>(http: &mut HTTP, mut sender: Pin<&mut BufReader<R>>, mut req: Request) -> Result<()>
     where
-        R: AsyncRead + AsyncWrite + Unpin + Send + Debug
+        R: AsyncRead + AsyncWrite + Unpin + Send + Debug + Sync
     {
         let sec_websocket_key = req.header("sec-websocket-key");
         let mut resp = new_response();
@@ -182,19 +183,73 @@ impl <'a>Handler {
 
         sender.write(parse(&mut resp).unwrap().as_bytes()).await.unwrap();
 
-        let client: WebSocketStream<Pin<&mut BufReader<R>>> = WebSocketStream::from_raw_socket(sender, Server, None).await;
-        let (mut write, mut read) = client.split();
+        Client::new(http, WebSocketStream::from_raw_socket(sender, Server, None).await)
+            .listen()
+            .await
+            .unwrap();
 
-        let mut res = new_response();
 
-        // let a = write;
 
-        let ws: Writer<R> = Writer{
-            writer: write
-        };
+        // Client::new()
+
+
+
+        // let (mut write, mut read) = client.split();
+
+        
+
+        
+
+        // BufWriter::new(write);
+
+        
+        // let a = Message::Text();
+
+        // a.into_data();
+        
+
+
+
+
+        // let mut res = new_response();
+
+
+
+        
+        // #[derive(Debug)]
+        // struct Example<'a, R> {
+        //     pub(crate) client: WebSocketStream<Pin<&'a mut BufReader<R>>>,
+        // };
+
+        // impl <'a, R> Rw for Example<'a, R>
+        // where
+        //     R: AsyncRead + AsyncWrite + Unpin + Send + Debug + Sync
+        // {
+        //     async fn send(&mut self, item: Message) -> Result<()>
+        //     where 
+        //         Self: Sized
+        //     {
+        //         todo!()
+        //     }
+
+        // }
+
+
+
+        
+
+        // let mut ws = Example{client: client};
+
+
+
+        // let a = async |item: Message| {
+        //     ws.send(item).await.unwrap();
+        // };
+
+        
 
         // res.ws = Some(Ws {
-        //     rw: Box::pin(ws),
+        //     // rw: Box::new(ws),
         //     ready: None,
         //     message: None,
         //     ping: None,
@@ -203,32 +258,25 @@ impl <'a>Handler {
         //     error: None,
         // });
 
-        let _ = http.router.match_ws_routes(&mut req, &mut res).unwrap();
 
-        while let Some(message) = read.next().await {
-            match message {
-                Ok(msg) => {
-                    match msg {
-                        Message::Text(text) => {
-                            println!("Received text: {}", text);
+        // let l: &mut futures_util::stream::SplitSink<WebSocketStream<Pin<&mut BufReader<R>>>, Message> = Box::leak(Box::new(write));
 
-                            // writer.write("Hello!!!.".into()).await.unwrap();
+        // let w = Writer{
+        //     // writer: write
+        // };
+        // res.ws = Some(Ws {
+        //     rw: Box::new(w),
+        //     ready: None,
+        //     message: None,
+        //     ping: None,
+        //     pong: None,
+        //     close: None,
+        //     error: None,
+        // });
 
-                        }
-                        Message::Binary(bin) => {
-                            println!("Received binary data: {:?}", bin);
-                        }
-                        _ => {
-                            println!("Received other message type");
-                        }
-                    }
-                }
-                Err(e) => {
-                    eprintln!("Error receiving message: {}", e);
-                    break;
-                }
-            }
-        }
+        // let _ = http.router.match_ws_routes(&mut req, &mut res).unwrap();
+
+ 
 
         Ok(())
     }

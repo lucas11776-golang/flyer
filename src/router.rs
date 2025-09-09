@@ -22,6 +22,8 @@ static PARAM_REGEX: Lazy<Regex> = Lazy::new(|| {
     Regex::new(r"\{[a-zA-Z_]+\}").expect("Invalid parameter regex")
 });
 
+
+#[derive(Debug)]
 pub struct GroupRouter {
     web: Vec<Route<WebRoute>>,
     ws: Vec<Route<WsRoute>>,
@@ -47,6 +49,8 @@ pub fn new_group_router<'a>() -> GroupRouter {
     }
 }
 
+
+#[derive(Debug)]
 pub struct Route<R> {
     pub(crate) path: String,
     pub(crate) method: String,
