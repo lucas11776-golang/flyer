@@ -5,7 +5,6 @@ use crate::utils::Values;
 pub type Headers = HashMap<String, String>;
 pub type Files = HashMap<String, File>;
 
-#[derive(Debug)]
 pub struct File {
     pub name: String,
     pub content_type: String,
@@ -13,13 +12,11 @@ pub struct File {
     pub size: usize,
 }
 
-#[derive(Debug)]
 pub struct MultipartForm {
     pub values: Values,
     pub files: Files,
 }
 
-#[derive(Debug)]
 pub struct Request {
     pub(crate) ip: String,
     pub host: String,

@@ -33,7 +33,6 @@ pub struct TlsConfig {
     pub cert: Vec<CertificateDer<'static>>
 }
 
-#[derive(Debug)]
 pub struct TlsPathConfig {
     pub key_path: String,
     pub cert_path: String

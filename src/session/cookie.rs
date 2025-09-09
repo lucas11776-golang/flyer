@@ -27,7 +27,7 @@ pub struct CookieSessionManager {
     pub token: String,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize)]
 pub struct CookieSession {
     pub(crate) values: Values,
 }

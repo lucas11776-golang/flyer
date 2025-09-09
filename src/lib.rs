@@ -28,7 +28,6 @@ use crate::server::{
 use crate::session::SessionManager;
 use crate::utils::Configuration;
 
-#[derive(Debug)]
 pub struct HTTP {
     pub(crate) host: String,
     pub(crate) port: i32,

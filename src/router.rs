@@ -23,7 +23,6 @@ static PARAM_REGEX: Lazy<Regex> = Lazy::new(|| {
 });
 
 
-#[derive(Debug)]
 pub struct GroupRouter {
     web: Vec<Route<WebRoute>>,
     ws: Vec<Route<WsRoute>>,
@@ -49,8 +48,6 @@ pub fn new_group_router<'a>() -> GroupRouter {
     }
 }
 
-
-#[derive(Debug)]
 pub struct Route<R> {
     pub(crate) path: String,
     pub(crate) method: String,
@@ -131,10 +128,10 @@ impl GroupRouter {
                 (middleware)(req, res, &mut next);
 
                 if !move_to_next {
-                    return Some(res);
+                    return None;
                 }
             }
-
+            
             let ws = &mut res.ws.as_mut().unwrap();
 
             (route.route)(req, ws);

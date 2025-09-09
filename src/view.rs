@@ -9,7 +9,6 @@ pub fn new_view(path: String) -> View {
     };
 }
 
-#[derive(Debug)]
 pub struct View {
     pub(crate) render: Tera
 }

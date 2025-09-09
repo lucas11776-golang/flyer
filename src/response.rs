@@ -11,7 +11,6 @@ use crate::{
     }, ws::Ws
 };
 
-#[derive(Debug)]
 pub struct Response {
     pub(crate) status_code: u16,
     pub(crate) headers: Headers,

@@ -1,5 +1,3 @@
-
-use std::fmt::Debug;
 use std::io::{ErrorKind, Result};
 use std::io::{Error as IoError};
 use std::net::SocketAddr;
@@ -27,7 +25,7 @@ pub struct Handler { }
 impl <'a>Handler {
     pub async fn handle<RW>(http: &mut HTTP, mut sender: Pin<&mut BufReader<RW>>, addr: SocketAddr) -> std::io::Result<()> 
     where
-        RW: AsyncRead + AsyncWrite + Unpin + Send + Debug + Sync
+        RW: AsyncRead + AsyncWrite + Unpin + Send + Sync
     {
         loop {
             let mut request_line: String = String::new();
@@ -144,7 +142,7 @@ impl <'a>Handler {
 
     async fn handle_web_request<sender>(http: &mut HTTP, mut sender: Pin<&mut BufReader<sender>>, mut req: Request) -> Result<()>
     where
-        sender: AsyncRead + AsyncWrite + Unpin + Send + Debug
+        sender: AsyncRead + AsyncWrite + Unpin + Send
     {
         req.headers.insert("Connection".to_owned(), "keep-alive".to_owned());
 
@@ -170,7 +168,7 @@ impl <'a>Handler {
 
     async fn handle_ws_request<'b, R>(http: &mut HTTP, mut sender: Pin<&mut BufReader<R>>, mut req: Request) -> Result<()>
     where
-        R: AsyncRead + AsyncWrite + Unpin + Send + Debug + Sync
+        R: AsyncRead + AsyncWrite + Unpin + Send + Sync
     {
         let sec_websocket_key = req.header("sec-websocket-key");
         let mut resp = new_response();
@@ -183,100 +181,10 @@ impl <'a>Handler {
 
         sender.write(parse(&mut resp).unwrap().as_bytes()).await.unwrap();
 
-        Client::new(http, WebSocketStream::from_raw_socket(sender, Server, None).await)
+        Client::new(http, &mut req, WebSocketStream::from_raw_socket(sender, Server, None).await)
             .listen()
             .await
             .unwrap();
-
-
-
-        // Client::new()
-
-
-
-        // let (mut write, mut read) = client.split();
-
-        
-
-        
-
-        // BufWriter::new(write);
-
-        
-        // let a = Message::Text();
-
-        // a.into_data();
-        
-
-
-
-
-        // let mut res = new_response();
-
-
-
-        
-        // #[derive(Debug)]
-        // struct Example<'a, R> {
-        //     pub(crate) client: WebSocketStream<Pin<&'a mut BufReader<R>>>,
-        // };
-
-        // impl <'a, R> Rw for Example<'a, R>
-        // where
-        //     R: AsyncRead + AsyncWrite + Unpin + Send + Debug + Sync
-        // {
-        //     async fn send(&mut self, item: Message) -> Result<()>
-        //     where 
-        //         Self: Sized
-        //     {
-        //         todo!()
-        //     }
-
-        // }
-
-
-
-        
-
-        // let mut ws = Example{client: client};
-
-
-
-        // let a = async |item: Message| {
-        //     ws.send(item).await.unwrap();
-        // };
-
-        
-
-        // res.ws = Some(Ws {
-        //     // rw: Box::new(ws),
-        //     ready: None,
-        //     message: None,
-        //     ping: None,
-        //     pong: None,
-        //     close: None,
-        //     error: None,
-        // });
-
-
-        // let l: &mut futures_util::stream::SplitSink<WebSocketStream<Pin<&mut BufReader<R>>>, Message> = Box::leak(Box::new(write));
-
-        // let w = Writer{
-        //     // writer: write
-        // };
-        // res.ws = Some(Ws {
-        //     rw: Box::new(w),
-        //     ready: None,
-        //     message: None,
-        //     ping: None,
-        //     pong: None,
-        //     close: None,
-        //     error: None,
-        // });
-
-        // let _ = http.router.match_ws_routes(&mut req, &mut res).unwrap();
-
- 
 
         Ok(())
     }
