@@ -47,3 +47,4 @@ sha1 = "0.10.6"
 
 tokio-tungstenite = "0.27.0"
 tungstenite = "0.27.0"
+event-emitter-rs = "0.1.4"

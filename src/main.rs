@@ -1,4 +1,16 @@
-use flyer::{server_tls, view::view_data};
+use flyer::{request::Request, server_tls, view::view_data, ws::Ws};
+
+
+pub fn ws<'a>(req: &'a mut Request, ws: &'a mut Ws) {
+     ws.on_ready(|ws| {
+
+            println!("Ready...");
+
+            ws.on_message(|data| {
+                println!("Received data: {:?}", data);
+            });
+        });
+}
 
 fn main() {
     // let mut server = server_tls("127.0.0.1", 9999, "host.key", "host.cert");
@@ -21,16 +33,7 @@ fn main() {
     }, None);
 
 
-    server.router().ws("/", |req, ws| {
-        ws.on_ready(|ws| {
-
-            println!("Ready...");
-            
-            ws.on_message(|data| {
-                println!("Received data: {:?}", data);
-            });
-        });
-    }, None);
+    server.router().ws("/", ws, None);
 
     print!("\r\n\r\nRunning server: {}\r\n\r\n", server.address());
 

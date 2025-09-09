@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use std::{
     io::Result,
     net::SocketAddr,
@@ -51,7 +52,7 @@ impl <'a>TcpServer<'a> {
 
     async fn new_connection<RW>(&mut self, stream: RW, addr: SocketAddr)
     where
-        RW: AsyncRead + AsyncWrite + Unpin + Send
+        RW: AsyncRead + AsyncWrite + Unpin + Send + Debug
     {
         match &self.acceptor {
             Some(acceptor) => {
@@ -66,7 +67,7 @@ impl <'a>TcpServer<'a> {
 
     async fn handle_connection<RW>(&mut self, stream: RW, addr: SocketAddr)
     where
-        RW: AsyncRead + AsyncWrite + Unpin + Send
+        RW: AsyncRead + AsyncWrite + Unpin + Send + Debug
     {
         match self.handle_stream(pin!(BufReader::new(stream)), addr).await {
             Ok(_) => {},
@@ -84,7 +85,7 @@ impl <'a>TcpServer<'a> {
 
     async fn handle_stream<RW>(&mut self, mut rw: std::pin::Pin<&mut BufReader<RW>>, addr:  SocketAddr) -> Result<()>
     where
-        RW: AsyncRead + AsyncWrite + Unpin + Send
+        RW: AsyncRead + AsyncWrite + Unpin + Send + Debug
     {
         Ok(
             match self.get_protocol(rw.fill_buf().await?) {
