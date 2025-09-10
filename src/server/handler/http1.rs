@@ -3,21 +3,20 @@ use std::io::{Error as IoError};
 use std::net::SocketAddr;
 use std::pin::Pin;
 
-use futures_util::io::BufWriter;
-use futures_util::{SinkExt, StreamExt};
+use futures_util::{StreamExt};
 use openssl::sha::{Sha1};
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader};
 use tokio_tungstenite::WebSocketStream;
 use tungstenite::protocol::Role::Server;
-use tungstenite::{Message, Utf8Bytes};
+use tungstenite::{Message};
 
 use crate::response::{new_response, parse};
 use crate::server::handler::{parse_request_body, RequestHandler};
 use crate::server::HTTP1;
 use crate::utils::url::parse_query_params;
-use crate::utils::Values;
+use crate::utils::{Pointer, Values};
 use crate::request::{Files, Headers, Request};
-use crate::ws::{Events, Ws, SEC_WEB_SOCKET_ACCEPT_STATIC};
+use crate::ws::{Ws, SEC_WEB_SOCKET_ACCEPT_STATIC};
 use crate::HTTP;
 
 pub struct Handler { }
@@ -165,7 +164,6 @@ impl <'a>Handler {
         return base64::encode(&result)
     }
 
-
     async fn handle_ws_request<'b, R>(http: &mut HTTP, mut sender: Pin<&mut BufReader<R>>, mut req: Request) -> Result<()>
     where
         R: AsyncRead + AsyncWrite + Unpin + Send + Sync
@@ -178,42 +176,27 @@ impl <'a>Handler {
             .header("Connection".to_owned(), "Upgrade".to_owned())
             .header("Sec-WebSocket-Accept".to_owned(), Handler::generate_accept_key(sec_websocket_key));
 
-
         sender.write(parse(&mut resp).unwrap().as_bytes()).await.unwrap();
 
-
-
-        let mut ws_stream = WebSocketStream::from_raw_socket(sender, Server, None).await;
-
-
+        let mut stream = WebSocketStream::from_raw_socket(sender, Server, None).await;
         let mut res = new_response();
-
-       
-
-        res.ws = Some(Ws {
+        let mut  ws_pointer = Pointer::new(Ws {
             ready: None,
-            // events: None
+            message: None,
         });
 
+        res.ws = Some(ws_pointer.point());
 
-        http.router().router.match_ws_routes(&mut req, &mut res).await.unwrap();
+        let ws = http.router().router.match_ws_routes(&mut req, &mut res).await.unwrap();
 
-        
-
-        while let Some(msg) = ws_stream.next().await {
-
-
-
-
-            // let msg = msg.unwrap();
-
-
-
-
-
+        while let Some(msg) = stream.next().await {
             match msg.unwrap() {
-                Message::Text(utf8_bytes) => {
+                Message::Text(data) => {
+                    if ws.message.is_some() {
+                        ws.message.as_ref().unwrap()(&mut ws_pointer.point(), data.as_bytes().to_vec()).await;
 
+                        println!("SOME {:?}:{:?}", ws.message.is_some(), ws.ready.is_some());
+                    }
                 },
                 Message::Binary(bytes) => todo!(),
                 Message::Ping(bytes) => todo!(),
@@ -223,22 +206,8 @@ impl <'a>Handler {
             }
         }
 
-
-
-
-
-
-
-
-
-        // Client::new(http, &mut req, WebSocketStream::from_raw_socket(sender, Server, None).await)
-        //     .listen()
-        //     .await
-        //     .unwrap();
-
         Ok(())
     }
 }
-
 
     

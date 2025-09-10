@@ -29,16 +29,13 @@ use crate::HTTP;
 pub const SEC_WEB_SOCKET_ACCEPT_STATIC: &str = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 
 pub type OnReady = dyn Fn(&mut Ws) -> BoxFuture<'static, ()> + Send + Sync + 'static;
+pub type OnMessage = dyn Fn(&mut Ws, Vec<u8>) -> BoxFuture<'static, ()> + Send + Sync + 'static;
 
-pub struct Events {
-    pub(crate) ready: Option<Box<OnReady>>,
-}
 
 #[derive(Default)]
 pub struct Ws {
-    pub(crate) ready: Option<Box<OnReady>>,
-
-    // pub(crate) events: Option<Events>
+    pub ready: Option<Box<OnReady>>,
+    pub message: Option<Box<OnMessage>>,
 }
 
 impl <'a>Ws {
@@ -48,5 +45,13 @@ impl <'a>Ws {
         F: Future<Output = ()> + Send + Sync + 'static,
     {
         self.ready = Some(Box::new( move |ws: &mut Ws| callback(ws).boxed()));
+    }
+
+    pub fn on_message<F, C>(&mut self, callback: C)
+    where
+        C: Fn(&mut Ws, Vec<u8>) -> F + Send + Sync + 'static,
+        F: Future<Output = ()> + Send + Sync + 'static,
+    {
+        self.message = Some(Box::new( move |ws: &mut Ws, data: Vec<u8>| callback(ws, data).boxed()));
     }
 }

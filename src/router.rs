@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::io::Result;
 
 use crate::utils::Values;
-use crate::ws::{Events, OnReady, Ws};
+use crate::ws::{OnReady, Ws};
 use crate::{
     request::{Request},
     response::{Response},
@@ -109,7 +109,7 @@ impl GroupRouter {
         return None;
     }
 
-    pub async fn match_ws_routes<'a>(&mut self, req: &mut Request, res: &'a mut Response) -> Option<&'a mut Response> {
+    pub async fn match_ws_routes<'a>(&mut self, req: &mut Request, res: &'a mut Response) -> Option<&'a mut Ws> {
         for route in &mut self.ws {
             let (matches, parameters) = GroupRouter::match_route(route, req);
 
@@ -134,12 +134,28 @@ impl GroupRouter {
                 }
             }
 
+
+
+            // let ws = res.ws.as_mut().unwrap();
+            // let mut ws_copy = std::mem::take(ws);
+
+            // (route.route)(req, &mut ws_copy);
+            
+            // match ws_copy.ready {
+            //     Some(ref callback) => {
+            //         callback(ws).await;
+            //     },
+            //     None => {},
+            // }
+
+            // return Some(ws);
+
+
             let ws = res.ws.as_mut().unwrap();
             let mut ws_copy = std::mem::take(ws);
 
             (route.route)(req, ws);
             
-
             match ws.ready {
                 Some(ref callback) => {
                     callback(&mut ws_copy).await;
@@ -147,41 +163,13 @@ impl GroupRouter {
                 None => {},
             }
 
-
-
-
-
-
-            // match &ws.ready {
-            //     Some(callback) => {
-            //         callback(ws).await;
-            //     },
-            //     None => todo!(),
-            // }
-
-            
-
-            // match &res.ws.as_mut().unwrap().ready {
-            //     Some(call) => {
-
-            //         call(&mut res.ws.as_mut().unwrap());
-
-            //     },
-            //     None => todo!(),
-            // }
-
-            return Some(res);
+            return Some(ws);
         }
 
         return None;
     }
 
-    async fn call_ws_route (&mut self, callback: &Box<OnReady>, ws: &mut Ws) {
-
-        callback(ws).await;
-
-
-    }
+  
 
 
     fn match_route<T>(route: &mut Route<T>, req: &mut Request) -> (bool, Values) {
