@@ -2,14 +2,25 @@ use flyer::{request::Request, server_tls, view::view_data, ws::Ws};
 
 
 pub fn ws<'a>(req: &'a mut Request, ws: &'a mut Ws) {
-     ws.on_ready(|ws| {
 
-            println!("Ready...");
 
-            ws.on_message(|data| {
-                println!("Received data: {:?}", data);
-            });
-        });
+    println!("Yes....");
+
+    //  ws.on_ready(|ws| async {
+
+    //     // ws.write(vec![1, 3, 4]).;
+
+        
+    //     println!("Ready...");
+    //     // ws.on_message(|ws, data| {
+    //     //     ws.write_string("Hello World".to_owned()).unwrap();
+    //     //     println!("Received data: {:?}", data);
+    //     // });
+
+    //     ws.on_message(|ws, data| async {
+
+    //     });
+    // });
 }
 
 fn main() {

@@ -5,7 +5,7 @@ use crate::response::Response;
 
 
 // TODO: remember if sending struct to thread the must me thread safe...
-pub trait Session: Send {
+pub trait Session: Send + Sync {
     fn set(&self, key: &str, value: &str);
     fn get(&self, key: &str) -> String; // Change to &self for object safety
 }

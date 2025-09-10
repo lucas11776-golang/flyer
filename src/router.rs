@@ -107,7 +107,7 @@ impl GroupRouter {
         return None;
     }
 
-    pub fn match_ws_routes<'a>(&mut self, req: &mut Request, res: &'a mut Response) -> Option<&'a mut Response> {
+    pub async fn match_ws_routes<'a>(&mut self, req: &mut Request, res: &'a mut Response) -> Option<&'a mut Response> {
         for route in &mut self.ws {
             let (matches, parameters) = GroupRouter::match_route(route, req);
 
@@ -132,14 +132,14 @@ impl GroupRouter {
                 }
             }
             
-            let ws = &mut res.ws.as_mut().unwrap();
+            let ws = res.ws.as_mut().unwrap();
 
             (route.route)(req, ws);
 
-            match ws.ready {
-                Some(callback) => callback(ws),
-                None => todo!(),
-            }
+            // match ws.ready {
+            //     Some(callback) => callback(ws),
+            //     None => todo!(),
+            // }
 
             return Some(res);
         }

@@ -35,7 +35,7 @@ impl <'a> Handler<'a> {
 
     async fn connect<RW>(&mut self, mut rw: Pin<&mut BufReader<RW>>)
     where
-        RW: AsyncRead + AsyncWrite + Unpin + std::marker::Send
+        RW: AsyncRead + AsyncWrite + Unpin + Send
     {
         let mut conn = server::handshake(&mut rw).await.unwrap();
 

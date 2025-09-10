@@ -17,7 +17,7 @@ use crate::server::HTTP1;
 use crate::utils::url::parse_query_params;
 use crate::utils::Values;
 use crate::request::{Files, Headers, Request};
-use crate::ws::{Rw, Client, Ws, SEC_WEB_SOCKET_ACCEPT_STATIC};
+use crate::ws::{Ws, SEC_WEB_SOCKET_ACCEPT_STATIC};
 use crate::HTTP;
 
 pub struct Handler { }
@@ -181,10 +181,45 @@ impl <'a>Handler {
 
         sender.write(parse(&mut resp).unwrap().as_bytes()).await.unwrap();
 
-        Client::new(http, &mut req, WebSocketStream::from_raw_socket(sender, Server, None).await)
-            .listen()
-            .await
-            .unwrap();
+
+
+        let mut ws_stream = WebSocketStream::from_raw_socket(sender, Server, None).await;
+
+
+
+        while let Some(msg) = ws_stream.next().await {
+
+
+
+
+            // let msg = msg.unwrap();
+
+
+
+
+
+            match msg.unwrap() {
+                Message::Text(utf8_bytes) => todo!(),
+                Message::Binary(bytes) => todo!(),
+                Message::Ping(bytes) => todo!(),
+                Message::Pong(bytes) => todo!(),
+                Message::Close(close_frame) => todo!(),
+                Message::Frame(frame) => todo!(),
+            }
+        }
+
+
+
+
+
+
+
+
+
+        // Client::new(http, &mut req, WebSocketStream::from_raw_socket(sender, Server, None).await)
+        //     .listen()
+        //     .await
+        //     .unwrap();
 
         Ok(())
     }
