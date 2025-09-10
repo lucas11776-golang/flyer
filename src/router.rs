@@ -1,7 +1,8 @@
+use std::cell::RefCell;
 use std::io::Result;
 
 use crate::utils::Values;
-use crate::ws::Ws;
+use crate::ws::{Events, OnReady, Ws};
 use crate::{
     request::{Request},
     response::{Response},
@@ -10,6 +11,7 @@ use crate::{
 
 use regex::Regex;
 use once_cell::sync::Lazy;
+use tracing::Event;
 
 pub type Group = fn (router: &mut Router);
 pub type WebRoute = for<'a> fn (req: &'a mut Request, res: &'a mut Response) -> &'a mut Response;
@@ -131,13 +133,44 @@ impl GroupRouter {
                     return None;
                 }
             }
-            
+
+
+
             let ws = res.ws.as_mut().unwrap();
 
             (route.route)(req, ws);
+            
 
-            // match ws.ready {
-            //     Some(callback) => callback(ws),
+            let mut ws_copy = std::mem::take(ws);
+
+
+            match ws.ready {
+                Some(ref callback) => {
+                    callback(&mut ws_copy).await;
+                },
+                None => {},
+            }
+
+
+
+
+
+
+            // match &ws.ready {
+            //     Some(callback) => {
+            //         callback(ws).await;
+            //     },
+            //     None => todo!(),
+            // }
+
+            
+
+            // match &res.ws.as_mut().unwrap().ready {
+            //     Some(call) => {
+
+            //         call(&mut res.ws.as_mut().unwrap());
+
+            //     },
             //     None => todo!(),
             // }
 
@@ -145,6 +178,13 @@ impl GroupRouter {
         }
 
         return None;
+    }
+
+    async fn call_ws_route (&mut self, callback: &Box<OnReady>, ws: &mut Ws) {
+
+        callback(ws).await;
+
+
     }
 
 

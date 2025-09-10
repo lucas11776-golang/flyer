@@ -4,7 +4,7 @@ use flyer::{request::Request, server_tls, view::view_data, ws::Ws};
 pub fn ws<'a>(req: &'a mut Request, ws: &'a mut Ws) {
 
 
-    println!("Yes....");
+    println!("Temp fix");
 
     //  ws.on_ready(|ws| async {
 

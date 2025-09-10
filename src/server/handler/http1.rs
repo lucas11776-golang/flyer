@@ -17,7 +17,7 @@ use crate::server::HTTP1;
 use crate::utils::url::parse_query_params;
 use crate::utils::Values;
 use crate::request::{Files, Headers, Request};
-use crate::ws::{Ws, SEC_WEB_SOCKET_ACCEPT_STATIC};
+use crate::ws::{Events, Ws, SEC_WEB_SOCKET_ACCEPT_STATIC};
 use crate::HTTP;
 
 pub struct Handler { }
@@ -186,6 +186,19 @@ impl <'a>Handler {
         let mut ws_stream = WebSocketStream::from_raw_socket(sender, Server, None).await;
 
 
+        let mut res = new_response();
+
+       
+
+        res.ws = Some(Ws {
+            ready: None,
+            // events: None
+        });
+
+
+        http.router().router.match_ws_routes(&mut req, &mut res).await.unwrap();
+
+        
 
         while let Some(msg) = ws_stream.next().await {
 
@@ -199,7 +212,9 @@ impl <'a>Handler {
 
 
             match msg.unwrap() {
-                Message::Text(utf8_bytes) => todo!(),
+                Message::Text(utf8_bytes) => {
+
+                },
                 Message::Binary(bytes) => todo!(),
                 Message::Ping(bytes) => todo!(),
                 Message::Pong(bytes) => todo!(),

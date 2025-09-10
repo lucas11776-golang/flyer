@@ -1,5 +1,6 @@
 
 use std::alloc::GlobalAlloc;
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::future::Future;
 use std::sync::Arc;
@@ -9,7 +10,7 @@ use bytes::Bytes;
 use event_emitter_rs::EventEmitter;
 use futures_util::future::BoxFuture;
 // use event_emitter_rs::AsyncEventEmitter;
-use futures_util::{SinkExt, StreamExt};
+use futures_util::{FutureExt, SinkExt, StreamExt};
 use futures_util::{stream::SplitSink};
 use serde::{Deserialize, Serialize};
 use tokio::io::AsyncWriteExt;
@@ -27,9 +28,26 @@ use crate::HTTP;
 
 pub const SEC_WEB_SOCKET_ACCEPT_STATIC: &str = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 
+pub type OnReady = dyn Fn(&mut Ws) -> BoxFuture<'static, ()> + Send + Sync + 'static;
 
+pub struct Events {
+    pub(crate) ready: Option<Box<OnReady>>,
+}
+
+#[derive(Default)]
 pub struct Ws {
+    pub(crate) ready: Option<Box<OnReady>>,
+
+    // pub(crate) events: Option<Events>
 }
 
 impl <'a>Ws {
+    pub fn on_ready<F, T, C>(&mut self, callback: C)
+    where
+        for<'de> T: Deserialize<'de>,
+        C: Fn(&mut Ws) -> F + Send + Sync + 'static,
+        F: Future<Output = ()> + Send + Sync + 'static,
+    {
+        self.ready = Some(Box::new( move |ws: &mut Ws| callback(ws).boxed()));
+    }
 }
