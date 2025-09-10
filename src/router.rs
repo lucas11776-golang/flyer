@@ -134,15 +134,11 @@ impl GroupRouter {
                 }
             }
 
-
-
             let ws = res.ws.as_mut().unwrap();
+            let mut ws_copy = std::mem::take(ws);
 
             (route.route)(req, ws);
             
-
-            let mut ws_copy = std::mem::take(ws);
-
 
             match ws.ready {
                 Some(ref callback) => {

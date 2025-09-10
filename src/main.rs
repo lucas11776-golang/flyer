@@ -6,21 +6,21 @@ pub fn ws<'a>(req: &'a mut Request, ws: &'a mut Ws) {
 
     println!("Temp fix");
 
-    //  ws.on_ready(|ws| async {
+     ws.on_ready(|ws| async {
 
-    //     // ws.write(vec![1, 3, 4]).;
+        // ws.write(vec![1, 3, 4]).;
 
         
-    //     println!("Ready...");
-    //     // ws.on_message(|ws, data| {
-    //     //     ws.write_string("Hello World".to_owned()).unwrap();
-    //     //     println!("Received data: {:?}", data);
-    //     // });
+        println!("Ready...");
+        // ws.on_message(|ws, data| {
+        //     ws.write_string("Hello World".to_owned()).unwrap();
+        //     println!("Received data: {:?}", data);
+        // });
 
-    //     ws.on_message(|ws, data| async {
+        // ws.on_message(|ws, data| async {
 
-    //     });
-    // });
+        // });
+    });
 }
 
 fn main() {

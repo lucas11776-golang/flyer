@@ -42,9 +42,8 @@ pub struct Ws {
 }
 
 impl <'a>Ws {
-    pub fn on_ready<F, T, C>(&mut self, callback: C)
+    pub fn on_ready<F, C>(&mut self, callback: C)
     where
-        for<'de> T: Deserialize<'de>,
         C: Fn(&mut Ws) -> F + Send + Sync + 'static,
         F: Future<Output = ()> + Send + Sync + 'static,
     {
