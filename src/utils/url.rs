@@ -1,5 +1,7 @@
 use std::io::Result;
 
+use urlencoding::decode;
+
 use crate::utils::Values;
 
 pub fn clean_url(uri: String) -> String {
@@ -15,8 +17,6 @@ pub fn clean_url(uri: String) -> String {
 pub fn clean_uri_to_vec(uri: String) -> Vec<String> {
     return clean_url(uri).split("/").map(|x| x.to_string()).collect();
 }
-
-use urlencoding::decode;
 
 pub fn parse_query_params(query: &str) -> Result<Values> {
     let mut out = Values::new();

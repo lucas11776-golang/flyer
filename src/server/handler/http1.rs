@@ -195,23 +195,24 @@ impl <'a>Handler {
         while let Some(msg) = stream.next().await {
             match msg.unwrap() {
                 Message::Text(data) => {
+                    
                     if ws.message.is_some() {
-                        ws.message.as_ref().unwrap()(&mut ws_pointer.point(), data.as_bytes().to_vec()).await;
+                        ws.message.as_ref().unwrap()(ws_pointer.point(), data.as_bytes().to_vec()).await;
                     }
                 },
                 Message::Binary(bytes) => {
                     if ws.message.is_some() {
-                        ws.message.as_ref().unwrap()(&mut ws_pointer.point(), bytes.to_vec()).await;
+                        ws.message.as_ref().unwrap()(ws_pointer.point(), bytes.to_vec()).await;
                     }
                 },
                 Message::Ping(bytes) => {
                     if ws.ping.is_some() {
-                        ws.ping.as_ref().unwrap()(&mut ws_pointer.point(), bytes.to_vec()).await;
+                        ws.ping.as_ref().unwrap()(ws_pointer.point(), bytes.to_vec()).await;
                     }
                 },
                 Message::Pong(bytes) => {
                     if ws.pong.is_some() {
-                        ws.pong.as_ref().unwrap()(&mut ws_pointer.point(), bytes.to_vec()).await;
+                        ws.pong.as_ref().unwrap()(ws_pointer.point(), bytes.to_vec()).await;
                     }
                 },
                 Message::Close(close_frame) => {

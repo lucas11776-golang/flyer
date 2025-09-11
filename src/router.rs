@@ -1,29 +1,24 @@
-use std::cell::RefCell;
 use std::io::Result;
 
 use crate::utils::{Pointer, Values};
-use crate::ws::{OnReady, Ws};
-use crate::{
-    request::{Request},
-    response::{Response},
-    utils::url::{self, clean_url}
-};
+use crate::ws::Ws;
+
+use crate::request::{Request};
+use crate::response::{Response};
+use crate::utils::url::{clean_url, clean_uri_to_vec};
 
 use regex::Regex;
 use once_cell::sync::Lazy;
-use tracing::Event;
 
 pub type Group = fn (router: &mut Router);
 pub type WebRoute = for<'a> fn (req: &'a mut Request, res: &'a mut Response) -> &'a mut Response;
 pub type Middleware = for<'a> fn (req: &'a mut Request, res: &'a mut Response, next: &'a mut Next<'a>) -> &'a mut Response;
 pub type Middlewares = Vec<Middleware>;
-
 pub type WsRoute = for<'a> fn (req: &'a mut Request, res: &'a mut Ws);
 
 static PARAM_REGEX: Lazy<Regex> = Lazy::new(|| {
     Regex::new(r"\{[a-zA-Z_]+\}").expect("Invalid parameter regex")
 });
-
 
 pub struct GroupRouter {
     web: Vec<Route<WebRoute>>,
@@ -114,12 +109,13 @@ impl <'a>GroupRouter {
             }
 
             let mut ws = res.ws.as_mut().unwrap();
-            let mut ws_clone = Pointer::clone(ws);
+            let ws_clone = Pointer::clone(ws);
 
             (route.route)(req, &mut ws);
+
             
             if ws.ready.is_some() {
-                ws.ready.as_ref().unwrap()(&mut ws_clone).await;
+                ws.ready.as_ref().unwrap()(ws_clone).await;
             }
 
             return Some(ws);
@@ -129,8 +125,8 @@ impl <'a>GroupRouter {
     }
 
     fn match_route<T>(route: &mut Route<T>, req: &mut Request) -> (bool, Values) {
-        let request_path: Vec<String> = url::clean_uri_to_vec(req.path.clone());
-        let route_path: Vec<String> = url::clean_uri_to_vec(route.path.clone());
+        let request_path: Vec<String> = clean_uri_to_vec(req.path.clone());
+        let route_path: Vec<String> = clean_uri_to_vec(route.path.clone());
 
         if route.method.to_uppercase() != req.method.to_uppercase() {
             return (false, Values::new());

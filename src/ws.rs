@@ -14,10 +14,10 @@ pub struct Reason {
     pub message: String,
 }
 
-pub type OnReady = dyn Fn(&mut Ws) -> BoxFuture<'static, ()> + Send + Sync + 'static;
-pub type OnMessage = dyn Fn(&mut Ws, Vec<u8>) -> BoxFuture<'static, ()> + Send + Sync + 'static;
-pub type OnPing = dyn Fn(&mut Ws, Vec<u8>) -> BoxFuture<'static, ()> + Send + Sync + 'static;
-pub type OnPong = dyn Fn(&mut Ws, Vec<u8>) -> BoxFuture<'static, ()> + Send + Sync + 'static;
+pub type OnReady = dyn Fn(Ws) -> BoxFuture<'static, ()> + Send + Sync + 'static;
+pub type OnMessage = dyn Fn(Ws, Vec<u8>) -> BoxFuture<'static, ()> + Send + Sync + 'static;
+pub type OnPing = dyn Fn(Ws, Vec<u8>) -> BoxFuture<'static, ()> + Send + Sync + 'static;
+pub type OnPong = dyn Fn(Ws, Vec<u8>) -> BoxFuture<'static, ()> + Send + Sync + 'static;
 pub type OnClose = dyn Fn(Option<Reason>) -> BoxFuture<'static, ()> + Send + Sync + 'static;
 
 pub trait Writer {
@@ -43,6 +43,7 @@ pub struct Ws {
     pub close: Option<Box<OnClose>>,
 }
 
+// TODO: find way to nest on_message to ready...
 impl <'a>Ws {
     pub fn new() -> Self {
         return Self {
@@ -56,34 +57,34 @@ impl <'a>Ws {
 
     pub fn on_ready<F, C>(&mut self, callback: C)
     where
-        C: Fn(& mut Ws) -> F + Send + Sync + 'static,
+        C: Fn(Ws) -> F + Send + Sync + 'static,
         F: Future<Output = ()> + Send + Sync + 'static,
     {
-        self.ready = Some(Box::new(move |ws: &mut Ws| callback(ws).boxed()));
+        self.ready = Some(Box::new(move |ws: Ws| callback(ws).boxed()));
     }
 
     pub fn on_message<F, C>(&mut self, callback: C)
     where
-        C: Fn(&mut Ws, Vec<u8>) -> F + Send + Sync + 'static,
+        C: Fn(Ws, Vec<u8>) -> F + Send + Sync + 'static,
         F: Future<Output = ()> + Send + Sync + 'static,
     {
-        self.message = Some(Box::new(move |ws: &mut Ws, data: Vec<u8>| callback(ws, data).boxed()));
+        self.message = Some(Box::new(move |ws: Ws, data: Vec<u8>| callback(ws, data).boxed()));
     }
 
     pub fn on_ping<F, C>(&mut self, callback: C)
     where
-        C: Fn(&mut Ws, Vec<u8>) -> F + Send + Sync + 'static,
+        C: Fn(Ws, Vec<u8>) -> F + Send + Sync + 'static,
         F: Future<Output = ()> + Send + Sync + 'static,
     {
-        self.ping = Some(Box::new(move |ws: &mut Ws, data: Vec<u8>| callback(ws, data).boxed()));
+        self.ping = Some(Box::new(move |ws: Ws, data: Vec<u8>| callback(ws, data).boxed()));
     }
 
     pub fn on_pong<F, C>(&mut self, callback: C)
     where
-        C: Fn(&mut Ws, Vec<u8>) -> F + Send + Sync + 'static,
+        C: Fn(Ws, Vec<u8>) -> F + Send + Sync + 'static,
         F: Future<Output = ()> + Send + Sync + 'static,
     {
-        self.pong = Some(Box::new(move |ws: &mut Ws, data: Vec<u8>| callback(ws, data).boxed()));
+        self.pong = Some(Box::new(move |ws: Ws, data: Vec<u8>| callback(ws, data).boxed()));
     }
 
     pub fn on_close<F, C>(&mut self, callback: C)
