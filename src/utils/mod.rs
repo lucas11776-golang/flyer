@@ -20,4 +20,8 @@ where
     pub fn point(&mut self) -> T {
         return take(&mut self.pointer);
     }
+
+    pub fn clone(p: &mut T) -> T{
+        return take(p);
+    }
 }

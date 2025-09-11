@@ -139,9 +139,9 @@ impl <'a>Handler {
         }
     }
 
-    async fn handle_web_request<sender>(http: &mut HTTP, mut sender: Pin<&mut BufReader<sender>>, mut req: Request) -> Result<()>
+    async fn handle_web_request<R>(http: &mut HTTP, mut sender: Pin<&mut BufReader<R>>, mut req: Request) -> Result<()>
     where
-        sender: AsyncRead + AsyncWrite + Unpin + Send
+        R: AsyncRead + AsyncWrite + Unpin + Send
     {
         req.headers.insert("Connection".to_owned(), "keep-alive".to_owned());
 

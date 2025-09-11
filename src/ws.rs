@@ -24,12 +24,14 @@ use async_event_emitter::AsyncEventEmitter;
 
 use crate::request::Request;
 use crate::response::{new_response, Response};
+use crate::utils::Pointer;
 use crate::HTTP;
 
 pub const SEC_WEB_SOCKET_ACCEPT_STATIC: &str = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 
 pub type OnReady = dyn Fn(&mut Ws) -> BoxFuture<'static, ()> + Send + Sync + 'static;
 pub type OnMessage = dyn Fn(&mut Ws, Vec<u8>) -> BoxFuture<'static, ()> + Send + Sync + 'static;
+
 
 
 #[derive(Default)]
@@ -41,10 +43,10 @@ pub struct Ws {
 impl <'a>Ws {
     pub fn on_ready<F, C>(&mut self, callback: C)
     where
-        C: Fn(&mut Ws) -> F + Send + Sync + 'static,
+        C: Fn(& mut Ws) -> F + Send + Sync + 'static,
         F: Future<Output = ()> + Send + Sync + 'static,
     {
-        self.ready = Some(Box::new( move |ws: &mut Ws| callback(ws).boxed()));
+        self.ready = Some(Box::new(move |ws: &mut Ws| callback(ws).boxed()));
     }
 
     pub fn on_message<F, C>(&mut self, callback: C)
@@ -52,6 +54,10 @@ impl <'a>Ws {
         C: Fn(&mut Ws, Vec<u8>) -> F + Send + Sync + 'static,
         F: Future<Output = ()> + Send + Sync + 'static,
     {
-        self.message = Some(Box::new( move |ws: &mut Ws, data: Vec<u8>| callback(ws, data).boxed()));
+        self.message = Some(Box::new(move |ws: &mut Ws, data: Vec<u8>| callback(ws, data).boxed()));
+    }
+
+    pub async fn write(&mut self, data: Vec<u8>) -> Result<()> {
+        Ok(())
     }
 }

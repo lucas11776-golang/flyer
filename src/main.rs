@@ -6,11 +6,14 @@ pub fn ws<'a>(req: &'a mut Request, ws: &'a mut Ws) {
 
     ws.on_ready(|ws| async {
         println!("Ready...");
+
+        ws.on_message(|ws, data| async move {
+            println!("Received data: {:?}", String::from_utf8(data.to_vec()).unwrap());
+            ws.write(vec![1,2,3]).await.unwrap();
+        });
     });
 
-    ws.on_message(|ws, data| async move {
-        println!("Received data: {:?}", String::from_utf8(data.to_vec()).unwrap());
-    });
+
 }
 
 fn main() {

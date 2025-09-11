@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::io::Result;
 
-use crate::utils::Values;
+use crate::utils::{Pointer, Values};
 use crate::ws::{OnReady, Ws};
 use crate::{
     request::{Request},
@@ -134,31 +134,14 @@ impl GroupRouter {
                 }
             }
 
-
-
-            // let ws = res.ws.as_mut().unwrap();
-            // let mut ws_copy = std::mem::take(ws);
-
-            // (route.route)(req, &mut ws_copy);
-            
-            // match ws_copy.ready {
-            //     Some(ref callback) => {
-            //         callback(ws).await;
-            //     },
-            //     None => {},
-            // }
-
-            // return Some(ws);
-
-
             let ws = res.ws.as_mut().unwrap();
-            let mut ws_copy = std::mem::take(ws);
+            let ws_copy = Pointer::clone(ws);
 
             (route.route)(req, ws);
             
-            match ws.ready {
-                Some(ref callback) => {
-                    callback(&mut ws_copy).await;
+            match ws_copy.ready {
+                Some(callback) => {
+                    callback(ws).await;
                 },
                 None => {},
             }
@@ -168,9 +151,6 @@ impl GroupRouter {
 
         return None;
     }
-
-  
-
 
     fn match_route<T>(route: &mut Route<T>, req: &mut Request) -> (bool, Values) {
         let request_path: Vec<String> = url::clean_uri_to_vec(req.path.clone());
