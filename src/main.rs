@@ -1,29 +1,9 @@
-use flyer::{request::Request, server_tls, view::view_data, ws::Ws};
-
-
-pub fn ws<'a>(req: &'a mut Request, ws: &'a mut Ws) {
-    println!("Temp fix");
-
-    ws.on_ready(|ws| async {
-        println!("Ready...");
-
-        ws.on_message(|ws, data| async move {
-            println!("Received data: {:?}", String::from_utf8(data.to_vec()).unwrap());
-            ws.write(vec![1,2,3]).await.unwrap();
-        });
-    });
-
-
-}
+use flyer::{view::view_data};
 
 fn main() {
-    // let mut server = server_tls("127.0.0.1", 9999, "host.key", "host.cert");
     let mut server = flyer::server("127.0.0.1", 9999);
 
     server.view("views");
-
-
-    // server.router()
     
     server.router().get("api/users/{user}", |req, res| {
         let mut data = view_data();
@@ -36,8 +16,27 @@ fn main() {
         return res.view("index.html", Some(data))
     }, None);
 
+    server.router().ws("/", |req, ws| {
+        ws.on_ready(|ws| async {
+            println!("Websocket connection is ready");
+        });
 
-    server.router().ws("/", ws, None);
+        ws.on_message(|ws, data| async move {
+            println!("Received message: {:?}", String::from_utf8(data.to_vec()).unwrap());
+        });
+
+        ws.on_ping(|ws, data| async move {
+            println!("Received ping: {:?}", String::from_utf8(data.to_vec()).unwrap());
+        });
+
+        ws.on_pong(|ws, data| async move {
+            println!("Received pong: {:?}", String::from_utf8(data.to_vec()).unwrap());
+        });
+
+        ws.on_close(|reason| async move {
+            println!("Received close: {:?}", reason);
+        });
+    }, None);
 
     print!("\r\n\r\nRunning server: {}\r\n\r\n", server.address());
 

@@ -16,7 +16,7 @@ use crate::server::HTTP1;
 use crate::utils::url::parse_query_params;
 use crate::utils::{Pointer, Values};
 use crate::request::{Files, Headers, Request};
-use crate::ws::{Ws, SEC_WEB_SOCKET_ACCEPT_STATIC};
+use crate::ws::{Reason, Ws, SEC_WEB_SOCKET_ACCEPT_STATIC};
 use crate::HTTP;
 
 pub struct Handler { }
@@ -180,29 +180,61 @@ impl <'a>Handler {
 
         let mut stream = WebSocketStream::from_raw_socket(sender, Server, None).await;
         let mut res = new_response();
-        let mut  ws_pointer = Pointer::new(Ws {
-            ready: None,
-            message: None,
-        });
+        let mut  ws_pointer = Pointer::new(Ws::new());
 
         res.ws = Some(ws_pointer.point());
 
-        let ws = http.router().router.match_ws_routes(&mut req, &mut res).await.unwrap();
+        let ws = http.router().router.match_ws_routes(&mut req, &mut res).await;
+
+        if ws.is_none() {
+            return Ok(());
+        }
+
+        let ws = ws.unwrap();
 
         while let Some(msg) = stream.next().await {
             match msg.unwrap() {
                 Message::Text(data) => {
                     if ws.message.is_some() {
                         ws.message.as_ref().unwrap()(&mut ws_pointer.point(), data.as_bytes().to_vec()).await;
-
-                        println!("SOME {:?}:{:?}", ws.message.is_some(), ws.ready.is_some());
                     }
                 },
-                Message::Binary(bytes) => todo!(),
-                Message::Ping(bytes) => todo!(),
-                Message::Pong(bytes) => todo!(),
-                Message::Close(close_frame) => todo!(),
-                Message::Frame(frame) => todo!(),
+                Message::Binary(bytes) => {
+                    if ws.message.is_some() {
+                        ws.message.as_ref().unwrap()(&mut ws_pointer.point(), bytes.to_vec()).await;
+                    }
+                },
+                Message::Ping(bytes) => {
+                    if ws.ping.is_some() {
+                        ws.ping.as_ref().unwrap()(&mut ws_pointer.point(), bytes.to_vec()).await;
+                    }
+                },
+                Message::Pong(bytes) => {
+                    if ws.pong.is_some() {
+                        ws.pong.as_ref().unwrap()(&mut ws_pointer.point(), bytes.to_vec()).await;
+                    }
+                },
+                Message::Close(close_frame) => {
+                    if ws.close.is_some() {
+                        let callback = ws.close.as_ref().unwrap();
+
+                        if close_frame.is_none() {
+                            callback(None).await;
+
+                            continue;
+                        }
+
+                        let close = close_frame.unwrap();
+
+                        callback(Some(Reason{
+                            code: close.code.into(),
+                            message: close.reason.to_string()
+                        })).await
+                    }
+                },
+                Message::Frame(_) => {
+                    // When reading frame will not be called...
+                },
             }
         }
 

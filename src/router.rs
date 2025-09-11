@@ -75,8 +75,8 @@ impl <'a>Next<'a> {
     }
 }
 
-impl GroupRouter {
-    pub fn match_web_routes<'a>(&mut self, req: &mut Request, res: &'a mut Response) -> Option<&'a mut Response> {
+impl <'a>GroupRouter {
+    pub fn match_web_routes(&mut self, req: &mut Request, res: &'a mut Response) -> Option<&'a mut Response> {
         for route in &mut self.web {
             let (matches, parameters) = GroupRouter::match_route(route, req);
 
@@ -86,19 +86,9 @@ impl GroupRouter {
             
             req.parameters = parameters;
 
-            for middleware in  &mut route.middlewares {
-                let mut move_to_next: bool = false;
-
-                let mut next: Next = Next{
-                    is_next: &mut move_to_next,
-                    response: &mut res.clone(),
-                };
-
-                (middleware)(req, res, &mut next);
-
-                if !move_to_next {
-                    return Some(res);
-                }
+         
+            if GroupRouter::handle_middlewares(req, res, &route.middlewares).is_none() {
+                return None;
             }
 
             (route.route)(req, res);
@@ -109,7 +99,7 @@ impl GroupRouter {
         return None;
     }
 
-    pub async fn match_ws_routes<'a>(&mut self, req: &mut Request, res: &'a mut Response) -> Option<&'a mut Ws> {
+    pub async fn match_ws_routes(&mut self, req: &'a mut Request, res: &'a mut Response) -> Option<&'a mut Ws> {
         for route in &mut self.ws {
             let (matches, parameters) = GroupRouter::match_route(route, req);
 
@@ -119,31 +109,17 @@ impl GroupRouter {
             
             req.parameters = parameters;
 
-            for middleware in  &mut route.middlewares {
-                let mut move_to_next: bool = false;
-
-                let mut next: Next = Next{
-                    is_next: &mut move_to_next,
-                    response: &mut res.clone(),
-                };
-
-                (middleware)(req, res, &mut next);
-
-                if !move_to_next {
-                    return None;
-                }
+            if GroupRouter::handle_middlewares(req, res, &route.middlewares).is_none() {
+                return None;
             }
 
-            let ws = res.ws.as_mut().unwrap();
-            let ws_copy = Pointer::clone(ws);
+            let mut ws = res.ws.as_mut().unwrap();
+            let mut ws_clone = Pointer::clone(ws);
 
-            (route.route)(req, ws);
+            (route.route)(req, &mut ws);
             
-            match ws_copy.ready {
-                Some(callback) => {
-                    callback(ws).await;
-                },
-                None => {},
+            if ws.ready.is_some() {
+                ws.ready.as_ref().unwrap()(&mut ws_clone).await;
             }
 
             return Some(ws);
@@ -200,6 +176,25 @@ impl GroupRouter {
         }
 
         return (true, params)
+    }
+
+    fn handle_middlewares(req: &'a mut Request, res: &'a mut Response, middlewares: &Middlewares) -> Option<&'a mut Response> {
+        for middleware in  middlewares {
+            let mut move_to_next: bool = false;
+
+            let mut next: Next = Next{
+                is_next: &mut move_to_next,
+                response: &mut res.clone(),
+            };
+
+            middleware(req, res, &mut next);
+
+            if !move_to_next {
+                return None;
+            }
+        }
+
+        return Some(res);
     }
 }
 
