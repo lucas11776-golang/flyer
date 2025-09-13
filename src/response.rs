@@ -17,7 +17,7 @@ pub struct Response {
     pub(crate) body: Vec<u8>,
     pub(crate) session: Option<Box<dyn Session>>,
     pub(crate) view: Option<View>,
-    pub ws: Option<Ws>,
+    pub ws: Option<Box<Ws>>,
 }
 
 pub fn new_response() -> Response {

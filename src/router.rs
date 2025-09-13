@@ -1,7 +1,7 @@
 use std::io::Result;
 
-use crate::utils::{Pointer, Values};
-use crate::ws::Ws;
+use crate::utils::Values;
+use crate::ws::{Event, Ws};
 
 use crate::request::{Request};
 use crate::response::{Response};
@@ -109,13 +109,11 @@ impl <'a>GroupRouter {
             }
 
             let mut ws = res.ws.as_mut().unwrap();
-            let ws_clone = Pointer::clone(ws);
 
             (route.route)(req, &mut ws);
 
-            
-            if ws.ready.is_some() {
-                ws.ready.as_ref().unwrap()(ws_clone).await;
+            if ws.event.is_some() {
+                ws.event.as_ref().unwrap()(Event::Ready()).await;
             }
 
             return Some(ws);

@@ -3,6 +3,7 @@ use std::io::{Error as IoError};
 use std::net::SocketAddr;
 use std::pin::Pin;
 
+// use futures_util::io::Write;
 use futures_util::{StreamExt};
 use openssl::sha::{Sha1};
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader};
@@ -14,9 +15,9 @@ use crate::response::{new_response, parse};
 use crate::server::handler::{parse_request_body, RequestHandler};
 use crate::server::HTTP1;
 use crate::utils::url::parse_query_params;
-use crate::utils::{Pointer, Values};
+use crate::utils::{Values};
 use crate::request::{Files, Headers, Request};
-use crate::ws::{Reason, Ws, SEC_WEB_SOCKET_ACCEPT_STATIC};
+use crate::ws::{Event, Reason, SEC_WEB_SOCKET_ACCEPT_STATIC};
 use crate::HTTP;
 
 pub struct Handler { }
@@ -164,7 +165,7 @@ impl <'a>Handler {
         return base64::encode(&result)
     }
 
-    async fn handle_ws_request<'b, R>(http: &mut HTTP, mut sender: Pin<&mut BufReader<R>>, mut req: Request) -> Result<()>
+    async fn handle_ws_request<'b, R>(http: &mut HTTP, mut sender: Pin<&'a mut BufReader<R>>, mut req: Request) -> Result<()>
     where
         R: AsyncRead + AsyncWrite + Unpin + Send + Sync
     {
@@ -178,11 +179,8 @@ impl <'a>Handler {
 
         sender.write(parse(&mut resp).unwrap().as_bytes()).await.unwrap();
 
-        let mut stream = WebSocketStream::from_raw_socket(sender, Server, None).await;
+        let (writer, mut stream) = WebSocketStream::from_raw_socket(sender, Server, None).await.split();
         let mut res = new_response();
-        let mut  ws_pointer = Pointer::new(Ws::new());
-
-        res.ws = Some(ws_pointer.point());
 
         let ws = http.router().router.match_ws_routes(&mut req, &mut res).await;
 
@@ -195,42 +193,41 @@ impl <'a>Handler {
         while let Some(msg) = stream.next().await {
             match msg.unwrap() {
                 Message::Text(data) => {
-                    
-                    if ws.message.is_some() {
-                        ws.message.as_ref().unwrap()(ws_pointer.point(), data.as_bytes().to_vec()).await;
+                    if ws.event.is_some() {
+                        ws.event.as_deref().unwrap()(Event::Message(data.as_bytes().to_vec())).await;
                     }
                 },
                 Message::Binary(bytes) => {
-                    if ws.message.is_some() {
-                        ws.message.as_ref().unwrap()(ws_pointer.point(), bytes.to_vec()).await;
+                    if ws.event.is_some() {
+                        ws.event.as_deref().unwrap()(Event::Message(bytes.to_vec())).await;
                     }
                 },
                 Message::Ping(bytes) => {
-                    if ws.ping.is_some() {
-                        ws.ping.as_ref().unwrap()(ws_pointer.point(), bytes.to_vec()).await;
+                    if ws.event.is_some() {
+                        ws.event.as_deref().unwrap()(Event::Ping(bytes.to_vec())).await;
                     }
                 },
                 Message::Pong(bytes) => {
-                    if ws.pong.is_some() {
-                        ws.pong.as_ref().unwrap()(ws_pointer.point(), bytes.to_vec()).await;
+                    if ws.event.is_some() {
+                        ws.event.as_deref().unwrap()(Event::Pong(bytes.to_vec())).await;
                     }
                 },
                 Message::Close(close_frame) => {
-                    if ws.close.is_some() {
-                        let callback = ws.close.as_ref().unwrap();
+                    if ws.event.is_some() {
+                        let callback = ws.event.as_deref().unwrap();
 
                         if close_frame.is_none() {
-                            callback(None).await;
+                            callback(Event::Close(None)).await;
 
                             continue;
                         }
 
                         let close = close_frame.unwrap();
 
-                        callback(Some(Reason{
+                        callback(Event::Close(Some(Reason{
                             code: close.code.into(),
                             message: close.reason.to_string()
-                        })).await
+                        }))).await;
                     }
                 },
                 Message::Frame(_) => {

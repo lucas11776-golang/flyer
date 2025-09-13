@@ -15,26 +15,17 @@ fn main() {
 
         return res.view("index.html", Some(data))
     }, None);
+    
 
     server.router().ws("/", |req, ws| {
-        ws.on_ready(|mut ws| async move {
-            println!("Websocket connection is ready");
-        });
-        
-        ws.on_message(|ws, data| async move {
-            println!("Received message: {:?}", String::from_utf8(data.to_vec()).unwrap());
-        });
-
-        ws.on_ping(|ws, data| async move {
-            println!("Received ping: {:?}", String::from_utf8(data.to_vec()).unwrap());
-        });
-
-        ws.on_pong(|ws, data| async move {
-            println!("Received pong: {:?}", String::from_utf8(data.to_vec()).unwrap());
-        });
-
-        ws.on_close(|reason| async move {
-            println!("Received close: {:?}", reason);
+        ws.on(|event| async {
+            match event {
+                flyer::ws::Event::Ready()                 => println!("Websocket connection is ready"),
+                flyer::ws::Event::Message(items) => println!("Websocket connection is message: {:?}", String::from_utf8(items.to_vec()).unwrap()),
+                flyer::ws::Event::Ping(items)    => println!("Websocket connection is ping: {:?}", String::from_utf8(items.to_vec()).unwrap()),
+                flyer::ws::Event::Pong(items)    => println!("Websocket connection is pong: {:?}", String::from_utf8(items.to_vec()).unwrap()),
+                flyer::ws::Event::Close(reason)   => println!("Websocket connection is close: {:?}", reason),
+            }
         });
     }, None);
 

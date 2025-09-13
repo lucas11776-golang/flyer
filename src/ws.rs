@@ -1,10 +1,13 @@
 use std::future::Future;
-use std::io::Result;
+use std::pin::Pin;
 
 use futures_util::future::BoxFuture;
 use futures_util::{FutureExt};
 use serde::Serialize;
+use tokio::io::{AsyncRead, AsyncWrite, BufReader};
+use tokio_tungstenite::WebSocketStream;
 use tungstenite::Message;
+use futures_util::stream::SplitSink;
 
 pub const SEC_WEB_SOCKET_ACCEPT_STATIC: &str = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 
@@ -14,99 +17,55 @@ pub struct Reason {
     pub message: String,
 }
 
-pub type OnReady = dyn Fn(Ws) -> BoxFuture<'static, ()> + Send + Sync + 'static;
-pub type OnMessage = dyn Fn(Ws, Vec<u8>) -> BoxFuture<'static, ()> + Send + Sync + 'static;
-pub type OnPing = dyn Fn(Ws, Vec<u8>) -> BoxFuture<'static, ()> + Send + Sync + 'static;
-pub type OnPong = dyn Fn(Ws, Vec<u8>) -> BoxFuture<'static, ()> + Send + Sync + 'static;
-pub type OnClose = dyn Fn(Option<Reason>) -> BoxFuture<'static, ()> + Send + Sync + 'static;
-
-pub trait Writer {
-    fn write(&mut self, item: Message) -> impl std::future::Future<Output = ()> + Send;
+pub enum Event {
+    Ready(),
+    Message(Vec<u8>),
+    Ping(Vec<u8>),
+    Pong(Vec<u8>),
+    Close(Option<Reason>),
 }
 
-pub struct WsWrite {
+pub type OnEvent = dyn Fn(Event) -> BoxFuture<'static, ()> + Send + Sync + 'static;
 
+pub struct Write<'a, R> {
+    pub(crate) writer: SplitSink<WebSocketStream<Pin<&'a mut BufReader<R>>>, Message>,
 }
 
-impl Writer for WsWrite {
-    async fn write(&mut self, item: Message) {
-        todo!()
-    }
-}
-
-#[derive(Default)]
-pub struct Ws {
-    pub ready: Option<Box<OnReady>>,
-    pub message: Option<Box<OnMessage>>,
-    pub ping: Option<Box<OnPing>>,
-    pub pong: Option<Box<OnPong>>,
-    pub close: Option<Box<OnClose>>,
-}
-
-// TODO: find way to nest on_message to ready...
-impl <'a>Ws {
-    pub fn new() -> Self {
-        return Self {
-            ready: None,
-            message: None,
-            ping: None,
-            pong: None,
-            close: None,
-        }
+impl <'a, R>Write<'a, R>
+where
+    R: AsyncRead + AsyncWrite + Unpin + Send + Sync
+{
+    pub async fn write(&mut self, data: Vec<u8>) {
     }
 
-    pub fn on_ready<F, C>(&mut self, callback: C)
-    where
-        C: Fn(Ws) -> F + Send + Sync + 'static,
-        F: Future<Output = ()> + Send + Sync + 'static,
-    {
-        self.ready = Some(Box::new(move |ws: Ws| callback(ws).boxed()));
-    }
-
-    pub fn on_message<F, C>(&mut self, callback: C)
-    where
-        C: Fn(Ws, Vec<u8>) -> F + Send + Sync + 'static,
-        F: Future<Output = ()> + Send + Sync + 'static,
-    {
-        self.message = Some(Box::new(move |ws: Ws, data: Vec<u8>| callback(ws, data).boxed()));
-    }
-
-    pub fn on_ping<F, C>(&mut self, callback: C)
-    where
-        C: Fn(Ws, Vec<u8>) -> F + Send + Sync + 'static,
-        F: Future<Output = ()> + Send + Sync + 'static,
-    {
-        self.ping = Some(Box::new(move |ws: Ws, data: Vec<u8>| callback(ws, data).boxed()));
-    }
-
-    pub fn on_pong<F, C>(&mut self, callback: C)
-    where
-        C: Fn(Ws, Vec<u8>) -> F + Send + Sync + 'static,
-        F: Future<Output = ()> + Send + Sync + 'static,
-    {
-        self.pong = Some(Box::new(move |ws: Ws, data: Vec<u8>| callback(ws, data).boxed()));
-    }
-
-    pub fn on_close<F, C>(&mut self, callback: C)
-    where
-        C: Fn(Option<Reason>) -> F + Send + Sync + 'static,
-        F: Future<Output = ()> + Send + Sync + 'static,
-    {
-        self.close = Some(Box::new(move |reason: Option<Reason>| callback(reason).boxed()));
-    }
-
-    pub async fn write(&mut self, data: Vec<u8>) -> Result<()> {
-        Ok(())
-    }
-
-    pub async fn write_json<J>(&mut self, json: &J) -> Result<()>
+    pub async fn write_json<J>(&mut self, json: &J)
     where 
         J: ?Sized + Serialize
-    {
-        Ok(())
+    {   
     }
 
-    pub async fn write_binary(&mut self, data: Vec<u8>) -> Result<()> {
-        Ok(())
+    pub async fn write_binary(&mut self, data: Vec<u8>) {
+    }
+}
+
+
+pub struct Ws {
+    pub(crate) event: Option<Box<OnEvent>>,
+}
+
+impl <'a>Ws {
+    pub fn new() -> Self {
+        return Ws {
+            event: None,
+        } 
+    }
+
+    pub fn on<F, C>(&mut self, callback: C)
+    where
+        // TODO: add Fn(Write, Event)
+        C: Fn(Event) -> F + Send + Sync + 'static,
+        F: Future<Output = ()> + Send + Sync + 'static,
+    {
+        self.event = Some(Box::new(move |event: Event| callback(event).boxed()));
     }
 }
