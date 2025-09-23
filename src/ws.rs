@@ -6,7 +6,7 @@ use futures_util::{FutureExt};
 use serde::Serialize;
 use tokio::io::{AsyncRead, AsyncWrite, BufReader};
 use tokio_tungstenite::WebSocketStream;
-use tungstenite::Message;
+use tungstenite::{Message, Utf8Bytes};
 use futures_util::stream::SplitSink;
 
 pub const SEC_WEB_SOCKET_ACCEPT_STATIC: &str = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
@@ -27,15 +27,35 @@ pub enum Event {
 
 pub type OnEvent = dyn Fn(Event) -> BoxFuture<'static, ()> + Send + Sync + 'static;
 
-pub struct Write<'a, R> {
-    pub(crate) writer: SplitSink<WebSocketStream<Pin<&'a mut BufReader<R>>>, Message>,
+
+// pub type WsSend = dyn FnMut(Message) -> dyn Future<Output = ()>;
+// pub type WsSend = dyn FnMut(Message) -> dyn Future<Output = ()>;
+// pub type WsSend = dyn Fn(Message) -> BoxFuture<'static, ()> + Send + Sync + 'static;
+pub type WsSend = dyn Fn(Message) -> () + Send + Sync;
+
+pub struct Ws {
+    pub(crate) event: Option<Box<OnEvent>>,
+    pub(crate) send: Option<Box<WsSend>>
 }
 
-impl <'a, R>Write<'a, R>
-where
-    R: AsyncRead + AsyncWrite + Unpin + Send + Sync
-{
+impl Ws {
+    pub fn new() -> Self {
+        return Ws {
+            event: None,
+            send: None,
+        } 
+    }
+
+    pub fn on<'a, F, C>(&mut self, callback: C)
+    where
+        C: Fn(Event) -> F + Send + Sync + 'static,
+        F: Future<Output = ()> + Send + Sync + 'static,
+    {
+        self.event = Some(Box::new(move |event: Event| callback(event).boxed()));
+    }
+
     pub async fn write(&mut self, data: Vec<u8>) {
+        self.send.as_ref().unwrap()(Message::Text(Utf8Bytes::from(String::from_utf8(data.to_vec()).unwrap())));
     }
 
     pub async fn write_json<J>(&mut self, json: &J)
@@ -45,27 +65,5 @@ where
     }
 
     pub async fn write_binary(&mut self, data: Vec<u8>) {
-    }
-}
-
-
-pub struct Ws {
-    pub(crate) event: Option<Box<OnEvent>>,
-}
-
-impl <'a>Ws {
-    pub fn new() -> Self {
-        return Ws {
-            event: None,
-        } 
-    }
-
-    pub fn on<F, C>(&mut self, callback: C)
-    where
-        // TODO: add Fn(Write, Event)
-        C: Fn(Event) -> F + Send + Sync + 'static,
-        F: Future<Output = ()> + Send + Sync + 'static,
-    {
-        self.event = Some(Box::new(move |event: Event| callback(event).boxed()));
     }
 }

@@ -15,11 +15,8 @@ use std::sync::atomic::{
 
 use tokio::runtime::Runtime;
 
-use crate::router::{
-    new_group_router,
-    GroupRouter,
-    Router
-};
+use crate::router::group::GroupRouter;
+use crate::router::Router;
 use crate::server::udp::UdpServer;
 use crate::server::{
     TlsPathConfig,
@@ -28,6 +25,8 @@ use crate::server::{
 use crate::session::SessionManager;
 use crate::utils::Configuration;
 
+
+#[derive(Default)]
 pub struct HTTP {
     pub(crate) host: String,
     pub(crate) port: i32,
@@ -44,7 +43,7 @@ fn new_http(host: &str, port: i32, tls: Option<TlsPathConfig>) -> HTTP {
         port: port,
         tls: tls,
         request_max_size: 1024,
-        router: new_group_router(),
+        router: GroupRouter::new(),
         session_manger: None,
         configuration: Configuration::new(),
     };
@@ -117,7 +116,7 @@ impl HTTP {
             .await;
     }
 
-    pub fn router(&mut self) -> Router {
+    pub fn router(&'_ mut self) -> Router<'_> {
         return Router{
             router: &mut self.router,
             path: vec!["/".to_string()],

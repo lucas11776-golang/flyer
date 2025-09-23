@@ -9,12 +9,15 @@ use tokio::net::{TcpListener};
 use tokio_rustls::TlsAcceptor;
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, BufReader};
 
-use crate::server::handler::{http1, http2};
+use crate::server::handler::http1::Handler as Http1Handler;
+use crate::server::handler::http2::Handler as Http2Handler;
 use crate::server::handler::http2::H2_PREFACE;
 use crate::server::{get_server_config, Protocol, HTTP1, HTTP2};
 use crate::HTTP;
 
 pub struct TcpServer<'a> {
+    http_1_handler: Http1Handler,
+    http_2_handler: Http2Handler,
     listener: TcpListener,
     acceptor: Option<TlsAcceptor>,
     http: &'a mut HTTP
@@ -22,18 +25,19 @@ pub struct TcpServer<'a> {
 
 impl <'a>TcpServer<'a> {
     pub async fn new(http: &'a mut HTTP) -> TcpServer<'a> {
-        match &http.tls {
-            Some(tls) => TcpServer {
-                listener: TcpListener::bind(http.address()).await.unwrap(),
-                acceptor: Some(TlsAcceptor::from(Arc::new(get_server_config(tls).unwrap()))),
-                http: http,
-            },
-            None => TcpServer {
-                listener: TcpListener::bind(http.address()).await.unwrap(),
-                acceptor: None,
-                http: http,
-            },
+        let mut acceptor: Option<TlsAcceptor> = None;
+
+        if http.tls.is_some() {
+            acceptor = Some(TlsAcceptor::from(Arc::new(get_server_config(&http.tls.as_ref().unwrap()).unwrap())))
         }
+
+        return Self {
+            listener: TcpListener::bind(http.address()).await.unwrap(),
+            http_1_handler: Http1Handler::new(),
+            http_2_handler: Http2Handler::new(),
+            acceptor: acceptor,
+            http: http,
+        };
     }
 
     pub async fn listen(&mut self) {
@@ -56,25 +60,15 @@ impl <'a>TcpServer<'a> {
         match &self.acceptor {
             Some(acceptor) => {
                 let _ = match acceptor.accept(stream).await {
-                    Ok(stream) => self.handle_connection(stream, addr).await,
+                    Ok(stream) => self.handle_stream(pin!(BufReader::new(stream)), addr).await.unwrap(),
                     Err(_) => {}, // TODO: Log
                 };
             },
-            None => self.handle_connection(stream, addr).await,
+            None => self.handle_stream(pin!(BufReader::new(stream)), addr).await.unwrap(),
         };
     }
 
-    async fn handle_connection<RW>(&mut self, stream: RW, addr: SocketAddr)
-    where
-        RW: AsyncRead + AsyncWrite + Unpin + Send + Sync
-    {
-        match self.handle_stream(pin!(BufReader::new(stream)), addr).await {
-            Ok(_) => {},
-            Err(_) => {}, // TODO: Log
-        }
-    }
-
-    fn get_protocol(&mut self, buffer: &[u8]) -> Protocol
+    fn get_protocol(&'_ mut self, buffer: &[u8]) -> Protocol<'_>
     {
         match buffer.len() >= H2_PREFACE.len() && &buffer[..H2_PREFACE.len()] == H2_PREFACE {
             true => HTTP2,
@@ -88,12 +82,11 @@ impl <'a>TcpServer<'a> {
     {
         Ok(
             match self.get_protocol(rw.fill_buf().await?) {
-                HTTP2 => http2::Handler::handle(self.http, rw, addr).await.unwrap(),
-                _ => http1::Handler::handle(self.http, rw, addr).await.unwrap() // TODO: bad must check if is HTTP1 or HTTP2 or drop
+                HTTP2 => self.http_2_handler.handle(self.http, rw, addr).await.unwrap(),
+                _ => self.http_1_handler.handle(self.http, rw, addr).await.unwrap()
             }
         )
     }
-
 }
 
 

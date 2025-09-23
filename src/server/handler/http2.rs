@@ -13,27 +13,33 @@ use crate::utils::url::parse_query_params;
 
 pub const H2_PREFACE: &[u8] = b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n";
 
-pub struct Handler<'a> {
-    http: &'a mut HTTP,
-    addr: SocketAddr,
-}
+pub struct Handler { }
 
-impl <'a> Handler<'a> {
-    pub async fn handle<RW>(http: &'a mut HTTP, rw: Pin<&mut BufReader<RW>>, addr: SocketAddr) -> Result<()>
+impl <'a> Handler {
+    pub fn new() -> Self {
+        return Self {}
+    }
+
+    pub async fn handle<RW>(&mut self, http: &'a mut HTTP, mut rw: Pin<&mut BufReader<RW>>, addr: SocketAddr) -> Result<()>
     where
         RW: AsyncRead + AsyncWrite + Unpin + std::marker::Send
     {
-        let mut handler: Handler<'_> = Handler{
-            http: http,
-            addr: addr
-        };
+        let mut conn = server::handshake(&mut rw).await.unwrap();
 
-        handler.connect(rw).await;
+        while let Some(result) = conn.accept().await {
+            let (req, response) = result.unwrap();
+
+            tokio_scoped::scope(|scope| {
+                scope.spawn(async {
+                    let _ = self.new_request( http,req, response, addr).await;
+                });
+            });
+        }
 
         return Ok(());
     }
 
-    async fn connect<RW>(&mut self, mut rw: Pin<&mut BufReader<RW>>)
+    async fn connect<RW>(&mut self, http: &'a mut HTTP, mut rw: Pin<&mut BufReader<RW>>, addr: SocketAddr)
     where
         RW: AsyncRead + AsyncWrite + Unpin + Send
     {
@@ -44,13 +50,13 @@ impl <'a> Handler<'a> {
 
             tokio_scoped::scope(|scope| {
                 scope.spawn(async {
-                    let _ = self.new_request( req, response).await;
+                    let _ = self.new_request( http,req, response, addr).await;
                 });
             });
         }
     }
 
-    async fn new_request(&mut self , request: HttpRequest<h2::RecvStream>, send: SendResponse<Bytes>) -> std::io::Result<()> {
+    async fn new_request(&mut self, http: &'a mut HTTP, request: HttpRequest<h2::RecvStream>, send: SendResponse<Bytes>, addr: SocketAddr) -> std::io::Result<()> {
         let method = request.method().to_string();
         let path = Url::parse(request.uri().to_string().as_str()).unwrap().path().to_string();
         let query = parse_query_params(request.uri().query().unwrap_or(""))?;
@@ -69,7 +75,7 @@ impl <'a> Handler<'a> {
             .unwrap_or_default();
 
         let req = Request {
-            ip: self.addr.ip().to_string(),
+            ip: addr.ip().to_string(),
             host: host,
             method: method,
             path: path,
@@ -82,7 +88,7 @@ impl <'a> Handler<'a> {
             files: HashMap::new(),
         };
 
-        self.handle_request(req, send).await?;
+        self.handle_request(http, req, send).await?;
 
         Ok(())
     }
@@ -100,9 +106,9 @@ impl <'a> Handler<'a> {
         return headers;
     }
 
-    async fn handle_request(&mut self, mut req: Request, mut send:  SendResponse<Bytes>) -> Result<()> {
+    async fn handle_request(&mut self, http: &'a mut HTTP, mut req: Request, mut send:  SendResponse<Bytes>) -> Result<()> {
         let mut response = new_response();
-        let response = RequestHandler::web(&mut self.http, &mut req, &mut response).await?;
+        let response = RequestHandler::web(http, &mut req, &mut response).await?;
 
         let mut builder = HttpResponse::builder().status(response.status_code);
 

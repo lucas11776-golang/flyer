@@ -8,6 +8,7 @@ use std::convert::Infallible;
 use bytes::Bytes;
 
 use futures_util::stream::once;
+use futures_util::FutureExt;
 use multer::Multipart;
 
 use crate::utils::url::parse_query_params;
@@ -36,7 +37,7 @@ impl <'a>RequestHandler {
             match http.router.match_web_routes(req, res) {
                 Some(_) => res,
                 None => {
-                    match http.router.not_found_callback {
+                    match http.router.not_found_callback.as_mut() {
                         Some(route) => route(req, res),
                         None => res.status_code(404),
                     }

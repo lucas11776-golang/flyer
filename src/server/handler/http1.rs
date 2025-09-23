@@ -4,8 +4,9 @@ use std::net::SocketAddr;
 use std::pin::Pin;
 
 // use futures_util::io::Write;
-use futures_util::{StreamExt};
+use futures_util::{FutureExt, SinkExt, StreamExt};
 use openssl::sha::{Sha1};
+use rustls::crypto::hash::Output;
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader};
 use tokio_tungstenite::WebSocketStream;
 use tungstenite::protocol::Role::Server;
@@ -17,13 +18,20 @@ use crate::server::HTTP1;
 use crate::utils::url::parse_query_params;
 use crate::utils::{Values};
 use crate::request::{Files, Headers, Request};
-use crate::ws::{Event, Reason, SEC_WEB_SOCKET_ACCEPT_STATIC};
+use crate::ws::{Event, Reason, WsSend, SEC_WEB_SOCKET_ACCEPT_STATIC};
 use crate::HTTP;
 
-pub struct Handler { }
+pub struct Handler {
+}
+
+
 
 impl <'a>Handler {
-    pub async fn handle<RW>(http: &mut HTTP, mut sender: Pin<&mut BufReader<RW>>, addr: SocketAddr) -> std::io::Result<()> 
+    pub fn new() -> Self {
+        return Self{};
+    }
+    
+    pub async fn handle<RW>(&mut self, http: &'a mut HTTP, mut sender: Pin<&mut BufReader<RW>>, addr: SocketAddr) -> std::io::Result<()> 
     where
         RW: AsyncRead + AsyncWrite + Unpin + Send + Sync
     {
@@ -179,10 +187,17 @@ impl <'a>Handler {
 
         sender.write(parse(&mut resp).unwrap().as_bytes()).await.unwrap();
 
-        let (writer, mut stream) = WebSocketStream::from_raw_socket(sender, Server, None).await.split();
+        let (mut writer, mut stream) = WebSocketStream::from_raw_socket(sender, Server, None).await.split();
         let mut res = new_response();
 
         let ws = http.router().router.match_ws_routes(&mut req, &mut res).await;
+
+
+        // let send: WsSend = ;
+
+
+        // let s  = async move |message: Message| writer.send(message).await.unwrap();
+
 
         if ws.is_none() {
             return Ok(());
@@ -190,50 +205,57 @@ impl <'a>Handler {
 
         let ws = ws.unwrap();
 
+
+        // ws.send = Some(Box::new( |message: Message| message));
+
         while let Some(msg) = stream.next().await {
-            match msg.unwrap() {
-                Message::Text(data) => {
-                    if ws.event.is_some() {
-                        ws.event.as_deref().unwrap()(Event::Message(data.as_bytes().to_vec())).await;
-                    }
-                },
-                Message::Binary(bytes) => {
-                    if ws.event.is_some() {
-                        ws.event.as_deref().unwrap()(Event::Message(bytes.to_vec())).await;
-                    }
-                },
-                Message::Ping(bytes) => {
-                    if ws.event.is_some() {
-                        ws.event.as_deref().unwrap()(Event::Ping(bytes.to_vec())).await;
-                    }
-                },
-                Message::Pong(bytes) => {
-                    if ws.event.is_some() {
-                        ws.event.as_deref().unwrap()(Event::Pong(bytes.to_vec())).await;
-                    }
-                },
-                Message::Close(close_frame) => {
-                    if ws.event.is_some() {
-                        let callback = ws.event.as_deref().unwrap();
+            tokio_scoped::scope(|scope| {
+                scope.spawn(async {
+                    match msg.unwrap() {
+                        Message::Text(data) => {
+                            if ws.event.is_some() {
+                                ws.event.as_deref().unwrap()(Event::Message(data.as_bytes().to_vec())).await;
+                            }
+                        },
+                        Message::Binary(bytes) => {
+                            if ws.event.is_some() {
+                                ws.event.as_deref().unwrap()(Event::Message(bytes.to_vec())).await;
+                            }
+                        },
+                        Message::Ping(bytes) => {
+                            if ws.event.is_some() {
+                                ws.event.as_deref().unwrap()(Event::Ping(bytes.to_vec())).await;
+                            }
+                        },
+                        Message::Pong(bytes) => {
+                            if ws.event.is_some() {
+                                ws.event.as_deref().unwrap()(Event::Pong(bytes.to_vec())).await;
+                            }
+                        },
+                        Message::Close(close_frame) => {
+                            if ws.event.is_some() {
+                                let callback = ws.event.as_deref().unwrap();
 
-                        if close_frame.is_none() {
-                            callback(Event::Close(None)).await;
+                                if close_frame.is_none() {
+                                    callback(Event::Close(None)).await;
 
-                            continue;
-                        }
+                                    return;
+                                }
 
-                        let close = close_frame.unwrap();
+                                let close = close_frame.unwrap();
 
-                        callback(Event::Close(Some(Reason{
-                            code: close.code.into(),
-                            message: close.reason.to_string()
-                        }))).await;
+                                callback(Event::Close(Some(Reason{
+                                    code: close.code.into(),
+                                    message: close.reason.to_string()
+                                }))).await;
+                            }
+                        },
+                        Message::Frame(_) => {
+                            // When reading frame will not be called...
+                        },
                     }
-                },
-                Message::Frame(_) => {
-                    // When reading frame will not be called...
-                },
-            }
+                });
+            });
         }
 
         Ok(())
