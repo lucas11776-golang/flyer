@@ -13,9 +13,7 @@ use rustls::{
     }
 };
 
-use crate::{
-    request::Request, response::Response, view::new_view, ws::Ws, HTTP
-};
+use crate::HTTP;
 
 type Protocol<'a> = &'a str;
 

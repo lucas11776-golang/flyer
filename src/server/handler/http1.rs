@@ -1,12 +1,12 @@
 use std::io::{ErrorKind, Result};
 use std::io::{Error as IoError};
+use std::mem;
 use std::net::SocketAddr;
 use std::pin::Pin;
 
-// use futures_util::io::Write;
+use futures_util::stream::SplitStream;
 use futures_util::{FutureExt, SinkExt, StreamExt};
 use openssl::sha::{Sha1};
-use rustls::crypto::hash::Output;
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader};
 use tokio_tungstenite::WebSocketStream;
 use tungstenite::protocol::Role::Server;
@@ -18,13 +18,10 @@ use crate::server::HTTP1;
 use crate::utils::url::parse_query_params;
 use crate::utils::{Values};
 use crate::request::{Files, Headers, Request};
-use crate::ws::{Event, Reason, WsSend, SEC_WEB_SOCKET_ACCEPT_STATIC};
+use crate::ws::{Event, Reason, Ws, SEC_WEB_SOCKET_ACCEPT_STATIC};
 use crate::HTTP;
 
-pub struct Handler {
-}
-
-
+pub struct Handler { }
 
 impl <'a>Handler {
     pub fn new() -> Self {
@@ -133,22 +130,15 @@ impl <'a>Handler {
                 files: Files::new(),
             };
 
-            return Ok(
-                match req.headers.get("upgrade").cloned() {
-                    Some(upgrade) => {
-                        if upgrade == "websocket".to_string() {
-                            return Ok(Handler::handle_ws_request(http, sender, req).await?);
-                        }
+            if req.headers.get("upgrade").is_some() && req.headers.get("upgrade").unwrap().to_lowercase() == "websocket" {
+                return Ok(self.handle_ws_request(http, sender, req).await.unwrap());
+            }
 
-                        Handler::handle_web_request(http, sender, req).await?;
-                    },
-                    None => Handler::handle_web_request(http, sender, req).await?,
-                }
-            )
+            return Ok(self.handle_web_request(http, sender, req).await.unwrap());
         }
     }
 
-    async fn handle_web_request<R>(http: &mut HTTP, mut sender: Pin<&mut BufReader<R>>, mut req: Request) -> Result<()>
+    async fn handle_web_request<R>(&mut self, http: &mut HTTP, mut sender: Pin<&mut BufReader<R>>, mut req: Request) -> Result<()>
     where
         R: AsyncRead + AsyncWrite + Unpin + Send
     {
@@ -163,7 +153,7 @@ impl <'a>Handler {
         Ok(())
     }
 
-    fn generate_accept_key(key: String) -> String {
+    fn get_sec_web_socket_accept(&mut self, key: String) -> String {
         let mut hasher = Sha1::new();
         
         hasher.update(format!("{}{}", key, SEC_WEB_SOCKET_ACCEPT_STATIC).as_bytes());
@@ -173,7 +163,7 @@ impl <'a>Handler {
         return base64::encode(&result)
     }
 
-    async fn handle_ws_request<'b, R>(http: &mut HTTP, mut sender: Pin<&'a mut BufReader<R>>, mut req: Request) -> Result<()>
+    async fn handle_ws_request<'b, R>(&mut self, http: &mut HTTP, mut sender: Pin<&'a mut BufReader<R>>, mut req: Request) -> Result<()>
     where
         R: AsyncRead + AsyncWrite + Unpin + Send + Sync
     {
@@ -183,31 +173,29 @@ impl <'a>Handler {
         resp.status_code(101)
             .header("Upgrade".to_owned(), "websocket".to_owned())
             .header("Connection".to_owned(), "Upgrade".to_owned())
-            .header("Sec-WebSocket-Accept".to_owned(), Handler::generate_accept_key(sec_websocket_key));
+            .header("Sec-WebSocket-Accept".to_owned(), self.get_sec_web_socket_accept(sec_websocket_key));
 
         sender.write(parse(&mut resp).unwrap().as_bytes()).await.unwrap();
 
-        let (mut writer, mut stream) = WebSocketStream::from_raw_socket(sender, Server, None).await.split();
+        let (writer, stream) = WebSocketStream::from_raw_socket(sender, Server, None).await.split();
         let mut res = new_response();
 
-        let ws = http.router().router.match_ws_routes(&mut req, &mut res).await;
+        
+        // let a:  = writer.send(message).boxed();
 
+        // res.ws = Some(Ws::new(Box::new(move |item: Message| writer.send(message).boxed())).await);
 
-        // let send: WsSend = ;
+        // http.router().router.match_ws_routes(&mut req, &mut res).await.unwrap();
 
+        // Ok(self.ws_listen(&mut res.ws.unwrap(), stream).await)
 
-        // let s  = async move |message: Message| writer.send(message).await.unwrap();
+        Ok(())
+    }
 
-
-        if ws.is_none() {
-            return Ok(());
-        }
-
-        let ws = ws.unwrap();
-
-
-        // ws.send = Some(Box::new( |message: Message| message));
-
+    async fn ws_listen<R>(&mut self, ws: &'a mut Ws, mut stream: SplitStream<WebSocketStream<Pin<&'a mut BufReader<R>>>>)
+    where
+        R: AsyncRead + AsyncWrite + Unpin + Send + Sync
+    {
         while let Some(msg) = stream.next().await {
             tokio_scoped::scope(|scope| {
                 scope.spawn(async {
@@ -257,8 +245,6 @@ impl <'a>Handler {
                 });
             });
         }
-
-        Ok(())
     }
 }
 

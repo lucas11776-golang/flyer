@@ -1,10 +1,12 @@
-use bytes::Bytes;
-use h2::{server, server::{SendResponse}};
-use http::{HeaderMap, Request as HttpRequest, Response as HttpResponse};
-use reqwest::Url;
 use std::{collections::HashMap, io::Result};
 use std::net::SocketAddr;
 use std::pin::Pin;
+
+use bytes::Bytes;
+
+use h2::{server, server::{SendResponse}};
+use http::{HeaderMap, Request as HttpRequest, Response as HttpResponse};
+use reqwest::Url;
 use tokio::io::{AsyncRead, AsyncWrite, BufReader};
 
 use crate::{response::new_response, server::handler::RequestHandler, utils::Values, HTTP};

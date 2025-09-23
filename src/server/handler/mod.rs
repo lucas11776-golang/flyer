@@ -8,7 +8,6 @@ use std::convert::Infallible;
 use bytes::Bytes;
 
 use futures_util::stream::once;
-use futures_util::FutureExt;
 use multer::Multipart;
 
 use crate::utils::url::parse_query_params;

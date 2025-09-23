@@ -3,7 +3,6 @@ pub mod cookie;
 use crate::request::Request;
 use crate::response::Response;
 
-
 // TODO: remember if sending struct to thread the must me thread safe...
 pub trait Session: Send + Sync {
     fn set(&self, key: &str, value: &str);

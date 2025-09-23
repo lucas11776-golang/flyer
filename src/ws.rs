@@ -1,13 +1,16 @@
 use std::future::Future;
 use std::pin::Pin;
 
-use futures_util::future::BoxFuture;
-use futures_util::{FutureExt};
+use futures_util::{
+    FutureExt,
+    future::BoxFuture
+};
 use serde::Serialize;
-use tokio::io::{AsyncRead, AsyncWrite, BufReader};
-use tokio_tungstenite::WebSocketStream;
+use tokio::io::{
+    AsyncRead,
+    AsyncWrite
+};
 use tungstenite::{Message, Utf8Bytes};
-use futures_util::stream::SplitSink;
 
 pub const SEC_WEB_SOCKET_ACCEPT_STATIC: &str = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 
@@ -15,6 +18,10 @@ pub const SEC_WEB_SOCKET_ACCEPT_STATIC: &str = "258EAFA5-E914-47DA-95CA-C5AB0DC8
 pub struct Reason {
     pub code: u16,
     pub message: String,
+}
+
+pub trait WsSend: Send {
+    fn send(&self, message: Message) -> ();
 }
 
 pub enum Event {
@@ -25,28 +32,26 @@ pub enum Event {
     Close(Option<Reason>),
 }
 
-pub type OnEvent = dyn Fn(Event) -> BoxFuture<'static, ()> + Send + Sync + 'static;
-
-
-// pub type WsSend = dyn FnMut(Message) -> dyn Future<Output = ()>;
-// pub type WsSend = dyn FnMut(Message) -> dyn Future<Output = ()>;
-// pub type WsSend = dyn Fn(Message) -> BoxFuture<'static, ()> + Send + Sync + 'static;
-pub type WsSend = dyn Fn(Message) -> () + Send + Sync;
+pub(crate) type OnEvent = dyn Fn(Event) -> BoxFuture<'static, ()> + Send + Sync + 'static;
+pub(crate) type TSend = Box<dyn FnMut(Message) -> Pin<Box<dyn Future<Output = std::result::Result<(), tungstenite::Error>> + Send>> + Send>;
 
 pub struct Ws {
     pub(crate) event: Option<Box<OnEvent>>,
-    pub(crate) send: Option<Box<WsSend>>
+    pub(crate) writer: Box<TSend>
 }
 
-impl Ws {
-    pub fn new() -> Self {
+impl <'a>Ws {
+    pub async fn new<R>(writer: Box<TSend>) -> Self
+    where
+        R: AsyncRead + AsyncWrite+ Unpin + Send + Sync
+    {
         return Ws {
             event: None,
-            send: None,
+            writer: writer
         } 
     }
 
-    pub fn on<'a, F, C>(&mut self, callback: C)
+    pub fn on<F, C>(&mut self, callback: C)
     where
         C: Fn(Event) -> F + Send + Sync + 'static,
         F: Future<Output = ()> + Send + Sync + 'static,
@@ -55,7 +60,7 @@ impl Ws {
     }
 
     pub async fn write(&mut self, data: Vec<u8>) {
-        self.send.as_ref().unwrap()(Message::Text(Utf8Bytes::from(String::from_utf8(data.to_vec()).unwrap())));
+        self.writer.as_mut()(Message::Text(Utf8Bytes::from(String::from_utf8(data.to_vec()).unwrap()))).await.unwrap();
     }
 
     pub async fn write_json<J>(&mut self, json: &J)
