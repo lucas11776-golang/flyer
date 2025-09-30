@@ -1,14 +1,22 @@
-use std::{io::Result, pin::Pin};
+use std::{
+    io::Result, mem::take, pin::Pin, sync::Arc
+};
 
-use futures_util::{stream::SplitStream, StreamExt};
+use futures_util::{stream::{SplitSink, SplitStream}, FutureExt, SinkExt, StreamExt};
+use tokio::sync::Mutex;
 use openssl::sha::Sha1;
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt, BufReader};
 use tokio_tungstenite::WebSocketStream;
+use tracing::event;
 use tungstenite::Message;
 use tungstenite::protocol::Role::Server;
 
-use crate::{request::Request, response::{new_response, parse, Response}, ws::{Event, Reason, Ws}, HTTP};
-
+use crate::{
+    request::Request,
+    response::{new_response, parse, Response},
+    ws::{Event, Reason, Ws},
+    HTTP
+};
 
 pub const SEC_WEB_SOCKET_ACCEPT_STATIC: &str = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 
@@ -20,9 +28,12 @@ pub(crate) struct Handler<'a, R> {
 
 }
 
+
+
+
 impl <'a, R>Handler<'a, R>
 where
-    R: AsyncRead + AsyncWrite + Unpin + Send + Sync
+    R: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'a
 {
     pub fn new(http: &'a mut HTTP, writer: Pin<&'a mut BufReader<R>>, req: Request) -> Self {
         return Self{
@@ -33,10 +44,17 @@ where
         };
     }
 
-    pub async fn handle(&mut self) -> Result<()> {
+    pub async fn handle(&'a mut self) -> Result<()> {
         self.handshake().await.unwrap();
 
-        self.res.ws = Some(Ws::new());
+        let ws_stream = WebSocketStream::from_raw_socket(self.writer.as_mut(), Server, None)
+            .await;
+        let (sink, stream) = ws_stream.split();
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+        let sink = Arc::new(Mutex::new(sink));
+
+        
+        self.res.ws = Some(Ws::new(tx));
 
         self.http
             .router()
@@ -45,14 +63,23 @@ where
             .await
             .unwrap();
 
-        let (_, stream) = WebSocketStream::from_raw_socket(self.writer.as_mut(), Server, None)
-            .await
-            .split();
-
         if let Some(ws) = self.http.router().router.match_ws_routes(&mut self.req, &mut self.res).await {
-             // TODO: live time error
+
+
+
+            while let Some(message) = rx.recv().await {
+
+                println!("Message {}", message.to_text().unwrap())
+            }
+            
+
+
+            // TODO: live time error
             // self.listen(&mut self.res.ws.unwrap(), stream).await
         }
+
+        
+      
 
         return Ok(())
     }
@@ -95,7 +122,9 @@ where
                     match msg.unwrap() {
                         Message::Text(data) => {
                             if ws.event.is_some() {
-                                ws.event.as_deref().unwrap()(Event::Message(data.as_bytes().to_vec())).await;
+                                println!("MESSAGE IN EVEN LOOP ---> {}", data.to_string());
+                                // TODO: must pass ws as or not...
+                                ws.event.as_deref().unwrap()(Event::Message(data.as_bytes().to_vec())).await
                             }
                         },
                         Message::Binary(bytes) => {

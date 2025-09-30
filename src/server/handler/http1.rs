@@ -30,7 +30,7 @@ impl <'a>Handler {
 
     pub async fn handle<RW>(&mut self, http: &'a mut HTTP, mut rw: Pin<&mut BufReader<RW>>, addr: SocketAddr) -> Result<()> 
     where
-        RW: AsyncRead + AsyncWrite + Unpin + Send + Sync
+        RW: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static
     {
         let mut request_line: String = String::new();
         let n: usize = rw.read_line(&mut request_line).await?;
@@ -199,92 +199,6 @@ impl <'a>Handler {
         }
 
         return Ok(vec![]);
-    }
-
-    fn get_sec_web_socket_accept(&mut self, key: String) -> String {
-        let mut hasher = Sha1::new();
-        
-        hasher.update(format!("{}{}", key, SEC_WEB_SOCKET_ACCEPT_STATIC).as_bytes());
-
-        let result = hasher.finish();
-        
-        // TODO: use the new implementation...
-        return base64::encode(&result)
-    }
-
-    async fn handle_ws_request<'b, R>(&mut self, http: &mut HTTP, mut sender: Pin<&'a mut BufReader<R>>, mut req: Request) -> Result<()>
-    where
-        R: AsyncRead + AsyncWrite + Unpin + Send + Sync
-    {
-        let sec_websocket_key = req.header("sec-websocket-key");
-        let mut resp = new_response();
-        
-        resp.status_code(101)
-            .header("Upgrade".to_owned(), "websocket".to_owned())
-            .header("Connection".to_owned(), "Upgrade".to_owned())
-            .header("Sec-WebSocket-Accept".to_owned(), self.get_sec_web_socket_accept(sec_websocket_key));
-
-        sender.write(parse(&mut resp).unwrap().as_bytes()).await.unwrap();
-
-        let (_, stream) = WebSocketStream::from_raw_socket(sender, Server, None).await.split();
-        let mut res = new_response();
-
-        res.ws = Some(Ws::new());
-
-        let ws = http.router().router.match_ws_routes(&mut req, &mut res).await.unwrap();
-
-        Ok(self.ws_listen(&mut res.ws.unwrap(), stream).await)
-    }
-
-    async fn ws_listen<R>(&mut self, ws: &'a mut Ws, mut stream: SplitStream<WebSocketStream<Pin<&'a mut BufReader<R>>>>)
-    where
-        R: AsyncRead + AsyncWrite + Unpin + Send + Sync
-    {
-        while let Some(msg) = stream.next().await {
-            tokio_scoped::scope(|scope| {
-                scope.spawn(async {
-                    match msg.unwrap() {
-                        Message::Text(data) => {
-                            if ws.event.is_some() {
-                                ws.event.as_deref().unwrap()(Event::Message(data.as_bytes().to_vec())).await;
-                            }
-                        },
-                        Message::Binary(bytes) => {
-                            if ws.event.is_some() {
-                                ws.event.as_deref().unwrap()(Event::Message(bytes.to_vec())).await;
-                            }
-                        },
-                        Message::Ping(bytes) => {
-                            if ws.event.is_some() {
-                                ws.event.as_deref().unwrap()(Event::Ping(bytes.to_vec())).await;
-                            }
-                        },
-                        Message::Pong(bytes) => {
-                            if ws.event.is_some() {
-                                ws.event.as_deref().unwrap()(Event::Pong(bytes.to_vec())).await;
-                            }
-                        },
-                        Message::Close(close_frame) => {
-                            if ws.event.is_some() {
-                                let callback = ws.event.as_deref().unwrap();
-
-                                if close_frame.is_none() {
-                                    return callback(Event::Close(None)).await;
-                                }
-
-                                let close = close_frame.unwrap();
-
-                                callback(Event::Close(Some(Reason{
-                                    code: close.code.into(),
-                                    message: close.reason.to_string()
-                                }))).await;
-                            }
-                        },
-                        Message::Frame(_) => {/* When reading frame will not be called... */},
-                    }
-                });
-            });
-        }
     }
 }
 

@@ -26,10 +26,20 @@ fn main() {
     
 
     server.router().ws("/", |req, ws| {
-        ws.on(|event| async {
+        tokio_scoped::scope(|scope| {
+            scope.spawn(async {
+                ws.write("Hello World".into()).await;
+            });
+        });
+
+        ws.on(|event| async move {
+
+
             match event {
                 flyer::ws::Event::Ready()                 => println!("Websocket connection is ready"),
                 flyer::ws::Event::Message(items) => {
+
+
                     println!("Websocket connection is message: {:?}", String::from_utf8(items.to_vec()).unwrap())
                 },
                 flyer::ws::Event::Ping(items)    => println!("Websocket connection is ping: {:?}", String::from_utf8(items.to_vec()).unwrap()),
