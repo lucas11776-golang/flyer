@@ -1,3 +1,5 @@
+use std::{fs::File, io::Write};
+
 use flyer::{view::view_data};
 
 // TODO: take rest must make controller route to support async operation...
@@ -15,8 +17,11 @@ fn main() {
         data.insert("email", "jeo@doe.com");
         data.insert("age", &23);
 
-        return res.view("index.html", Some(data));
-            
+        if let Some(image) =  req.file("image") {
+            File::create(format!("test.png")).unwrap().write(&image.content).unwrap();
+        }
+
+        return res.view("index.html", Some(data));   
     }, None);
     
 

@@ -1,11 +1,10 @@
 use std::io::{ErrorKind, Result};
 use std::io::{Error as IoError};
-use std::mem;
 use std::net::SocketAddr;
 use std::pin::Pin;
 
 use futures_util::stream::SplitStream;
-use futures_util::{FutureExt, SinkExt, StreamExt};
+use futures_util::StreamExt;
 use openssl::sha::{Sha1};
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader};
 use tokio_tungstenite::WebSocketStream;
@@ -13,12 +12,13 @@ use tungstenite::protocol::Role::Server;
 use tungstenite::{Message};
 
 use crate::response::{new_response, parse};
-use crate::server::handler::{parse_request_body, RequestHandler};
+use crate::server::handler::ws::SEC_WEB_SOCKET_ACCEPT_STATIC;
+use crate::server::handler::{parse_request_body, ws, RequestHandler};
 use crate::server::HTTP1;
 use crate::utils::url::parse_query_params;
 use crate::utils::{Values};
 use crate::request::{Files, Headers, Request};
-use crate::ws::{Event, Reason, Ws, SEC_WEB_SOCKET_ACCEPT_STATIC};
+use crate::ws::{Event, Reason, Ws};
 use crate::HTTP;
 
 pub struct Handler { }
@@ -27,115 +27,64 @@ impl <'a>Handler {
     pub fn new() -> Self {
         return Self{};
     }
-    
-    pub async fn handle<RW>(&mut self, http: &'a mut HTTP, mut sender: Pin<&mut BufReader<RW>>, addr: SocketAddr) -> std::io::Result<()> 
+
+    pub async fn handle<RW>(&mut self, http: &'a mut HTTP, mut rw: Pin<&mut BufReader<RW>>, addr: SocketAddr) -> Result<()> 
     where
         RW: AsyncRead + AsyncWrite + Unpin + Send + Sync
     {
-        loop {
-            let mut request_line: String = String::new();
-            let n: usize = sender.read_line(&mut request_line).await?;
+        let mut request_line: String = String::new();
+        let n: usize = rw.read_line(&mut request_line).await?;
 
-            if n == 0 {
-                return Ok(());
-            }
-
-            if request_line.trim().is_empty() {
-                continue;
-            }
-
-            let parts: Vec<&str> = request_line.trim_end().split_whitespace().collect();
-
-            if parts.len() != 3 {
-                return Err(IoError::new(ErrorKind::InvalidData, "bad request"));
-            }
-
-            let method: String = parts[0].to_string();
-            let target: String = parts[1].to_string();
-            let mut headers: Headers = Headers::new();
-
-            loop {
-                let mut line: String = String::new();
-                let n: usize = sender.read_line(&mut line).await?;
-                
-                if n == 0 {
-                    return Err(IoError::new(ErrorKind::UnexpectedEof, "eof in headers"));
-                }
-                
-                let line_trim: &str = line.trim_end();
-                
-                if line_trim.is_empty() {
-                    break;
-                }
-
-                if let Some((k, v)) = line_trim.split_once(':') {
-                    headers.insert(k.trim().to_string().to_lowercase(), v.trim().to_string());
-                }
-            }
-
-            let mut body: Vec<u8> = Vec::new();
-
-            if let Some(te) = headers.get("transfer-encoding") {
-                if te.eq_ignore_ascii_case("chunked") {
-                    loop {
-                        let mut size_line = String::new();
-                        sender.read_line(&mut size_line).await?;
-                        let size_str: &str = size_line.trim_end();
-                        let size: usize = usize::from_str_radix(size_str, 16)
-                            .map_err(|_| IoError::new(ErrorKind::InvalidData, "bad chunk size"))?;
-                        if size == 0 {
-                            // read trailing CRLF and optional trailers
-                            let mut crlf = String::new();
-                            sender.read_line(&mut crlf).await?;
-                            break;
-                        }
-                        let mut chunk: Vec<u8> = vec![0u8; size];
-                        tokio::io::AsyncReadExt::read_exact(&mut sender, &mut chunk).await?;
-                        body.extend_from_slice(&chunk);
-                        // consume CRLF
-                        let mut crlf: [u8; 2] = [0u8; 2];
-                        tokio::io::AsyncReadExt::read_exact(&mut sender, &mut crlf).await?;
-                    }
-                }
-            } else if let Some(cl) = headers.get("content-length") {
-                let size = cl.parse::<usize>().map_err(|_| IoError::new(ErrorKind::InvalidData, "bad content-length"))?;
-                let mut buffer = vec![0u8; size];
-                tokio::io::AsyncReadExt::read_exact(&mut sender, &mut buffer).await?;
-                body = buffer;
-            }
-
-            let (path, query) = if let Some(i) = target.find('?') {
-                (target[..i].to_string(), target[i + 1..].to_string())
-            } else {
-                (target.clone(), String::new())
-            };
-             
-            let host: String = headers
-                .get("host")
-                .cloned()
-                .or_else(|| headers.get("host").cloned())
-                .unwrap_or_default();
-
-            let req = Request {
-                ip: addr.ip().to_string(),
-                host: host,
-                method: method,
-                path: path,
-                parameters: Values::new(),
-                query: parse_query_params(&query)?,
-                protocol: HTTP1.to_string(),
-                headers: headers,
-                body: body,
-                values: Values::new(),
-                files: Files::new(),
-            };
-
-            if req.headers.get("upgrade").is_some() && req.headers.get("upgrade").unwrap().to_lowercase() == "websocket" {
-                return Ok(self.handle_ws_request(http, sender, req).await.unwrap());
-            }
-
-            return Ok(self.handle_web_request(http, sender, req).await.unwrap());
+        if n == 0 {
+            return Ok(());
         }
+
+        if request_line.trim().is_empty() {
+            return Ok(());
+        }
+
+        let parts: Vec<&str> = request_line.trim_end().split_whitespace().collect();
+
+        if parts.len() != 3 {
+            return Err(IoError::new(ErrorKind::InvalidData, "bad request"));
+        }
+
+        let method: String = parts[0].to_string();
+        let target: String = parts[1].to_string();
+        let mut headers: Headers = self.get_headers(&mut rw).await?;
+        let body: Vec<u8> = self.get_body(&mut rw, &mut headers).await?;
+
+        let (path, query) = if let Some(i) = target.find('?') {
+            (target[..i].to_string(), target[i + 1..].to_string())
+        } else {
+            (target.clone(), String::new())
+        };
+            
+        let host: String = headers
+            .get("host")
+            .cloned()
+            .or_else(|| headers.get("host").cloned())
+            .unwrap_or_default();
+
+        let req = Request {
+            ip: addr.ip().to_string(),
+            host: host,
+            method: method,
+            path: path,
+            parameters: Values::new(),
+            query: parse_query_params(&query)?,
+            protocol: HTTP1.to_string(),
+            headers: headers,
+            body: body,
+            values: Values::new(),
+            files: Files::new(),
+        };
+
+        if req.headers.get("upgrade").is_some() && req.headers.get("upgrade").unwrap().to_lowercase() == "websocket" {
+            return ws::Handler::new(http, rw, req).handle().await;
+        }
+
+        return Ok(self.handle_web_request(http, rw, req).await.unwrap());
     }
 
     async fn handle_web_request<R>(&mut self, http: &mut HTTP, mut sender: Pin<&mut BufReader<R>>, mut req: Request) -> Result<()>
@@ -153,6 +102,105 @@ impl <'a>Handler {
         Ok(())
     }
 
+    async fn get_headers<RW>(&mut self, sender: &'a mut Pin<&mut BufReader<RW>>) -> Result<Headers>
+    where
+        RW: AsyncRead + AsyncWrite + Unpin + Send + Sync
+    {
+        let mut headers: Headers = Headers::new();
+
+        loop {
+            let mut line: String = String::new();
+            let n: usize = sender.read_line(&mut line).await?;
+            
+            if n == 0 {
+                return Err(IoError::new(ErrorKind::UnexpectedEof, "eof in headers"));
+            }
+            
+            let line_trim: &str = line.trim_end();
+            
+            if line_trim.is_empty() {
+                break;
+            }
+
+            if let Some((k, v)) = line_trim.split_once(':') {
+                headers.insert(k.trim().to_string().to_lowercase(), v.trim().to_string());
+            }
+        }
+
+        return Ok(headers)
+    }
+
+
+    async fn get_body_transfer_encoding<RW>(&mut self, mut sender: &'a mut Pin<&mut BufReader<RW>>) -> Result<Vec<u8>>
+    where
+        RW: AsyncRead + AsyncWrite + Unpin + Send + Sync
+    {
+        let mut body: Vec<u8> = Vec::new();
+
+        loop {
+            let mut size_line = String::new();
+
+            sender.read_line(&mut size_line).await?;
+
+            let size_str: &str = size_line.trim_end();
+            let size: usize = usize::from_str_radix(size_str, 16)
+                .map_err(|_| IoError::new(ErrorKind::InvalidData, "bad chunk size"))?;
+
+            if size == 0 {
+                // read trailing CRLF and optional trailers
+                let mut crlf = String::new();
+                
+                sender.read_line(&mut crlf).await?;
+
+                break;
+            }
+
+            let mut chunk: Vec<u8> = vec![0u8; size];
+
+            tokio::io::AsyncReadExt::read_exact(&mut sender, &mut chunk).await?;
+
+            body.extend_from_slice(&chunk);
+
+            // consume CRLF
+            let mut crlf: [u8; 2] = [0u8; 2];
+
+            tokio::io::AsyncReadExt::read_exact(&mut sender, &mut crlf).await?;
+        }
+
+        return Ok(body);
+    }
+
+
+    async fn get_body_content_length<RW>(&mut self, mut sender: &'a mut Pin<&mut BufReader<RW>>, size: usize) -> Result<Vec<u8>>
+    where
+        RW: AsyncRead + AsyncWrite + Unpin + Send + Sync
+
+    {
+        let mut body = vec![0u8; size];
+
+        tokio::io::AsyncReadExt::read_exact(&mut sender, &mut body).await?;
+
+        return Ok(body)
+    }
+
+    async fn get_body<RW>(&mut self, sender: &'a mut Pin<&mut BufReader<RW>>, headers: &mut Headers) -> Result<Vec<u8>>
+    where
+        RW: AsyncRead + AsyncWrite + Unpin + Send + Sync
+    {
+        if let Some(te) = headers.get("transfer-encoding") && te.eq_ignore_ascii_case("chunked") {
+            return self.get_body_transfer_encoding(sender).await;
+        } 
+        
+        if let Some(cl) = headers.get("content-length") {
+            let size = cl.parse::<usize>()
+                .map_err(|_| IoError::new(ErrorKind::InvalidData, "bad content-length"))?;
+
+            return self.get_body_content_length(sender, size).await;
+        }
+
+        return Ok(vec![]);
+    }
+
     fn get_sec_web_socket_accept(&mut self, key: String) -> String {
         let mut hasher = Sha1::new();
         
@@ -160,6 +208,7 @@ impl <'a>Handler {
 
         let result = hasher.finish();
         
+        // TODO: use the new implementation...
         return base64::encode(&result)
     }
 
@@ -177,19 +226,14 @@ impl <'a>Handler {
 
         sender.write(parse(&mut resp).unwrap().as_bytes()).await.unwrap();
 
-        let (writer, stream) = WebSocketStream::from_raw_socket(sender, Server, None).await.split();
+        let (_, stream) = WebSocketStream::from_raw_socket(sender, Server, None).await.split();
         let mut res = new_response();
 
-        
-        // let a:  = writer.send(message).boxed();
+        res.ws = Some(Ws::new());
 
-        // res.ws = Some(Ws::new(Box::new(move |item: Message| writer.send(message).boxed())).await);
+        let ws = http.router().router.match_ws_routes(&mut req, &mut res).await.unwrap();
 
-        // http.router().router.match_ws_routes(&mut req, &mut res).await.unwrap();
-
-        // Ok(self.ws_listen(&mut res.ws.unwrap(), stream).await)
-
-        Ok(())
+        Ok(self.ws_listen(&mut res.ws.unwrap(), stream).await)
     }
 
     async fn ws_listen<R>(&mut self, ws: &'a mut Ws, mut stream: SplitStream<WebSocketStream<Pin<&'a mut BufReader<R>>>>)
@@ -225,9 +269,7 @@ impl <'a>Handler {
                                 let callback = ws.event.as_deref().unwrap();
 
                                 if close_frame.is_none() {
-                                    callback(Event::Close(None)).await;
-
-                                    return;
+                                    return callback(Event::Close(None)).await;
                                 }
 
                                 let close = close_frame.unwrap();
@@ -238,9 +280,7 @@ impl <'a>Handler {
                                 }))).await;
                             }
                         },
-                        Message::Frame(_) => {
-                            // When reading frame will not be called...
-                        },
+                        Message::Frame(_) => {/* When reading frame will not be called... */},
                     }
                 });
             });

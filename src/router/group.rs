@@ -3,7 +3,7 @@ use once_cell::sync::Lazy;
 
 use crate::{
     request::Request,
-    response::Response,
+    response::{new_response, Response},
     router::{
         Middlewares,
         Next,
@@ -48,7 +48,6 @@ impl <'a>GroupRouter {
             
             req.parameters = parameters;
 
-         
             if GroupRouter::handle_middlewares(req, res, &route.middlewares).is_none() {
                 return None;
             }
@@ -145,7 +144,7 @@ impl <'a>GroupRouter {
 
             let mut next: Next = Next{
                 is_next: &mut move_to_next,
-                response: &mut res.clone(),
+                response: &mut new_response(),
             };
 
             middleware(req, res, &mut next);

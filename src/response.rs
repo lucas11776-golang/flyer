@@ -5,10 +5,11 @@ use serde::Serialize;
 use crate::{
     request::Headers,
     session::Session,
+    ws::Ws,
     view::{
         View,
         ViewData
-    }, ws::Ws
+    }
 };
 
 pub struct Response {

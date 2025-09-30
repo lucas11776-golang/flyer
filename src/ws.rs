@@ -12,8 +12,6 @@ use tokio::io::{
 };
 use tungstenite::{Message, Utf8Bytes};
 
-pub const SEC_WEB_SOCKET_ACCEPT_STATIC: &str = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
-
 #[derive(Debug)]
 pub struct Reason {
     pub code: u16,
@@ -33,21 +31,15 @@ pub enum Event {
 }
 
 pub(crate) type OnEvent = dyn Fn(Event) -> BoxFuture<'static, ()> + Send + Sync + 'static;
-pub(crate) type TSend = Box<dyn FnMut(Message) -> Pin<Box<dyn Future<Output = std::result::Result<(), tungstenite::Error>> + Send>> + Send>;
 
 pub struct Ws {
     pub(crate) event: Option<Box<OnEvent>>,
-    pub(crate) writer: Box<TSend>
 }
 
 impl <'a>Ws {
-    pub async fn new<R>(writer: Box<TSend>) -> Self
-    where
-        R: AsyncRead + AsyncWrite+ Unpin + Send + Sync
-    {
+    pub fn new() -> Self {
         return Ws {
             event: None,
-            writer: writer
         } 
     }
 
@@ -60,7 +52,7 @@ impl <'a>Ws {
     }
 
     pub async fn write(&mut self, data: Vec<u8>) {
-        self.writer.as_mut()(Message::Text(Utf8Bytes::from(String::from_utf8(data.to_vec()).unwrap()))).await.unwrap();
+        // self.writer.as_mut()(Message::Text(Utf8Bytes::from(String::from_utf8(data.to_vec()).unwrap()))).await.unwrap();
     }
 
     pub async fn write_json<J>(&mut self, json: &J)

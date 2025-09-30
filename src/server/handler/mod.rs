@@ -1,6 +1,7 @@
 pub mod http1;
 pub mod http2;
 pub mod http3;
+pub mod ws;
 
 use std::io::{Result as IOResult};
 use std::convert::Infallible;
