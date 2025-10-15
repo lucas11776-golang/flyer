@@ -5,11 +5,7 @@ use crate::{
     request::Request,
     response::{new_response, Response},
     router::{
-        Middlewares,
-        Next,
-        Route,
-        WebRoute,
-        WsRoute
+        Middlewares, Next, Route, TRoute, WebRoute, WsRoute
     },
     utils::{
         url::clean_uri_to_vec,
@@ -23,13 +19,13 @@ static PARAM_REGEX: Lazy<Regex> = Lazy::new(|| {
 });
 
 #[derive(Default)]
-pub struct GroupRouter {
-    pub(crate) web: Vec<Route<WebRoute>>,
+pub struct GroupRouter<'a> {
+    pub(crate) web: Vec<Route<Box<TRoute<'a>>>>,
     pub(crate) ws: Vec<Route<WsRoute>>,
     pub(crate) not_found_callback: Option<Box<WebRoute>>,
 }
 
-impl <'a>GroupRouter {
+impl <'a>GroupRouter<'a> {
     pub fn new() -> Self {
         return GroupRouter {
             web: vec![],
@@ -38,7 +34,7 @@ impl <'a>GroupRouter {
         }
     }
 
-    pub fn match_web_routes(&mut self, req: &mut Request, res: &'a mut Response) -> Option<&'a mut Response> {
+    pub async fn match_web_routes(&mut self, req: &'a mut Request, res: &'a mut Response) -> Option<&'a mut Response> {
         for route in &mut self.web {
             let (matches, parameters) = GroupRouter::match_route(route, req);
 
@@ -52,9 +48,7 @@ impl <'a>GroupRouter {
                 return None;
             }
 
-            (route.route)(req, res);
-
-            return Some(res);
+            return Some((route.route)(req, res).await);
         }
 
         return None;

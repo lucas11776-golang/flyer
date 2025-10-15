@@ -27,12 +27,12 @@ use crate::utils::Configuration;
 
 
 #[derive(Default)]
-pub struct HTTP {
+pub struct HTTP<'a> {
     pub(crate) host: String,
     pub(crate) port: i32,
     pub(crate) tls: Option<TlsPathConfig>,
     pub(crate) request_max_size: i64,
-    pub(crate) router: GroupRouter,
+    pub(crate) router: GroupRouter<'a>,
     pub(crate) session_manger: Option<Box<dyn SessionManager>>,
     pub(crate) configuration: Configuration,
 }
@@ -53,14 +53,14 @@ pub fn server<'a>(host: &str, port: i32) -> HTTP {
     return new_http(host, port, None);
 }
 
-pub fn server_tls<'a>(host: &str, port: i32, key: &str, cert: &str) -> HTTP {
+pub fn server_tls<'a>(host: &'a str, port: i32, key: &str, cert: &str) -> HTTP<'a> {
     return new_http(host, port, Some(TlsPathConfig {
         key_path: key.to_owned(),
         cert_path: cert.to_owned()
     }));
 }
 
-impl HTTP {
+impl <'a>HTTP<'a> {
     pub fn host(&self) -> String {
         return self.host.to_owned();
     }
@@ -77,13 +77,13 @@ impl HTTP {
         self.request_max_size = size;    
     }
 
-    pub fn view(&mut self, path: &str) -> &mut HTTP {
+    pub fn view(&mut self, path: &str) -> &mut HTTP<'a> {
         self.configuration.insert("view_path".to_owned(), path.to_owned());
 
         return self;
     }
 
-    pub fn session(&mut self, manager: Box<dyn SessionManager>) -> &mut HTTP {
+    pub fn session(&mut self, manager: Box<dyn SessionManager>) -> &mut HTTP<'a> {
         self.session_manger = Some(manager);
 
         return self;
@@ -116,11 +116,12 @@ impl HTTP {
             .await;
     }
 
-    pub fn router(&'_ mut self) -> Router<'_> {
+    pub fn router<'b>(&'a mut self) -> Router<'_> {
         return Router{
             router: &mut self.router,
             path: vec!["/".to_string()],
             middleware: vec![],
+            get: None
         };
     }
 

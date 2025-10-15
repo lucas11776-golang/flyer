@@ -1,4 +1,4 @@
-use std::{io::Result};
+use std::{io::Result, pin::Pin};
 
 use serde::Serialize;
 
@@ -94,6 +94,11 @@ impl Response {
     pub fn session<'a>(&self) -> Option<&Box<dyn Session>> {
         return self.session.as_ref();
     }
+
+
+    pub fn send<'a>(&'a mut self) -> Pin<Box<&'a mut Response>> {
+        return Box::pin(self);
+    } 
 
     pub fn clone(&self) -> Response {
         return Response {

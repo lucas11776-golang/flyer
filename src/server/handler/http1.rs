@@ -3,22 +3,14 @@ use std::io::{Error as IoError};
 use std::net::SocketAddr;
 use std::pin::Pin;
 
-use futures_util::stream::SplitStream;
-use futures_util::StreamExt;
-use openssl::sha::{Sha1};
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader};
-use tokio_tungstenite::WebSocketStream;
-use tungstenite::protocol::Role::Server;
-use tungstenite::{Message};
 
 use crate::response::{new_response, parse};
-use crate::server::handler::ws::SEC_WEB_SOCKET_ACCEPT_STATIC;
 use crate::server::handler::{parse_request_body, ws, RequestHandler};
 use crate::server::HTTP1;
 use crate::utils::url::parse_query_params;
 use crate::utils::{Values};
 use crate::request::{Files, Headers, Request};
-use crate::ws::{Event, Reason, Ws};
 use crate::HTTP;
 
 pub struct Handler { }
@@ -28,7 +20,7 @@ impl <'a>Handler {
         return Self{};
     }
 
-    pub async fn handle<RW>(&mut self, http: &'a mut HTTP, mut rw: Pin<&mut BufReader<RW>>, addr: SocketAddr) -> Result<()> 
+    pub async fn handle<RW>(&mut self, http: &'a mut HTTP<'a>, mut rw: Pin<&'a mut BufReader<RW>>, addr: SocketAddr) -> Result<()> 
     where
         RW: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static
     {
@@ -81,13 +73,15 @@ impl <'a>Handler {
         };
 
         if req.headers.get("upgrade").is_some() && req.headers.get("upgrade").unwrap().to_lowercase() == "websocket" {
-            return ws::Handler::new(http, rw, req).handle().await;
+            let res= new_response();
+
+            return ws::Handler::new(http, rw).handle(req, res).await;
         }
 
         return Ok(self.handle_web_request(http, rw, req).await.unwrap());
     }
 
-    async fn handle_web_request<R>(&mut self, http: &mut HTTP, mut sender: Pin<&mut BufReader<R>>, mut req: Request) -> Result<()>
+    async fn handle_web_request<R>(&mut self, http: &mut HTTP<'a>, mut sender: Pin<&mut BufReader<R>>, mut req: Request) -> Result<()>
     where
         R: AsyncRead + AsyncWrite + Unpin + Send
     {
@@ -98,6 +92,13 @@ impl <'a>Handler {
 
         let res = RequestHandler::web(http, req, res).await?;
         let _ = sender.write(parse(res)?.as_bytes()).await;
+
+
+
+        // let emitter = async_event_emitter::AsyncEventEmitter::new();
+
+
+        // emitter.on("request", callback);
 
         Ok(())
     }
@@ -129,7 +130,6 @@ impl <'a>Handler {
 
         return Ok(headers)
     }
-
 
     async fn get_body_transfer_encoding<RW>(&mut self, mut sender: &'a mut Pin<&mut BufReader<RW>>) -> Result<Vec<u8>>
     where

@@ -10,6 +10,12 @@ use crate::request::Request;
 use crate::response::Response;
 use crate::utils::url::clean_url;
 
+
+use futures::future::{BoxFuture, Future, FutureExt};
+
+
+
+
 // TODO: route must be async...
 pub type WebRoute = for<'a> fn (req: &'a mut Request, res: &'a mut Response) -> &'a mut Response;
 pub type Middleware = for<'a>  fn (req: &'a mut Request, res: &'a mut Response, next: &'a mut Next<'a>) -> &'a mut Response;
@@ -22,10 +28,13 @@ pub struct Next<'a> {
     response: &'a mut Response,
 }
 
+pub type TRoute<'a> = dyn Fn(&'a mut Request, &'a mut Response) -> BoxFuture<'a, &'a mut Response> + Send + Sync + 'a;
+
 pub struct Router<'a> {
-    pub(crate) router: &'a mut GroupRouter,
+    pub(crate) router: &'a mut GroupRouter<'a>,
     pub(crate) path: Vec<String>,
     pub(crate) middleware: Middlewares,
+    pub(crate) get: Option<Box<TRoute<'a>>>
 }
 
 pub struct Route<R> {
@@ -44,8 +53,28 @@ impl <'a>Next<'a> {
 }
 
 impl <'a>Router<'a> {
-    pub fn get(&mut self, path: &str, callback: WebRoute, middleware: Option<Middlewares>) {
-        self.route("GET", path, callback, middleware);
+    pub fn get<C, F>(&mut self, path: &str, callback: C, middleware: Option<Middlewares>)
+    where
+        C: Fn(&'a mut Request, &'a mut Response) -> F + Send + Sync + 'a,
+        F: Future<Output = &'a mut Response> + Send + Sync + 'a,
+     {
+
+
+        // let c: Box<dyn Fn(&'a mut Request, &'a mut Response) -> dyn Future<Output = &'a mut Response>> = Box::new(callback);
+
+
+
+        let parsed_callback = move |req: &'a mut Request, res: &'a mut Response| {
+            return callback(req, res).boxed();
+        };
+
+
+        self.get = Some(Box::new(parsed_callback))
+
+
+
+
+        // self.route("GET", path, callback, middleware);
     }   
  
     pub fn post(&mut self, path: &str, callback: WebRoute, middleware: Option<Middlewares>) {
@@ -98,14 +127,15 @@ impl <'a>Router<'a> {
         });
     }
 
-    pub fn group(&mut self , path: &str, group: Group, middleware: Option<Middlewares>) {
+    pub fn group(&'a mut self , path: &str, group: Group, middleware: Option<Middlewares>) {
         let middlewares = self.get_middlewares(middleware);
 
         group(&mut Router{
             // TODO: fix
             path: Router::get_path(self.path.clone(), vec![path.to_string()]),
             router: self.router,
-            middleware: middlewares
+            middleware: middlewares,
+            get: None
         });
     }
 
@@ -123,13 +153,13 @@ impl <'a>Router<'a> {
     fn add_web_route(&mut self, method: &str, path: &str, callback: WebRoute, middleware: Option<Middlewares>) -> Result<()> {
         let middlewares = self.get_middlewares(middleware);
 
-        self.router.web.push(Route{
-            // TODO: fix
-            path: Router::get_path(self.path.clone(), vec![path.to_string()]).join("/"),
-            method: method.to_string(),
-            route: callback,
-            middlewares: middlewares,
-        });
+        // self.router.web.push(Route{
+        //     // TODO: fix
+        //     path: Router::get_path(self.path.clone(), vec![path.to_string()]).join("/"),
+        //     method: method.to_string(),
+        //     route: callback,
+        //     middlewares: middlewares,
+        // });
 
         Ok(())
     }
