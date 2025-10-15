@@ -22,7 +22,7 @@ use crate::response::Response;
 pub struct RequestHandler {}
 
 impl <'a>RequestHandler {
-    pub async fn web(http: &'a mut HTTP, req: &'a mut Request, res: &'a mut Response) -> IOResult<&'a mut Response> {
+    pub async fn web(http: &'a mut HTTP<'a>, req: &'a mut Request, res: &'a mut Response) -> IOResult<&'a mut Response> {
         let req = parse_request_body(req).await?;
 
         if http.configuration.get("view_path").is_some() {
@@ -33,17 +33,19 @@ impl <'a>RequestHandler {
             http.session_manger.as_mut().unwrap().handle(req, res);
         }
 
-        Ok(
-            match http.router.match_web_routes(req, res) {
-                Some(_) => res,
-                None => {
-                    match http.router.not_found_callback.as_mut() {
-                        Some(route) => route(req, res),
-                        None => res.status_code(404),
-                    }
-                },
-            }
-        )
+        Ok(res)
+
+        // Ok(
+        //     match http.router.match_web_routes(req, res) {
+        //         Some(_) => res,
+        //         None => {
+        //             match http.router.not_found_callback.as_mut() {
+        //                 Some(route) => route(req, res),
+        //                 None => res.status_code(404),
+        //             }
+        //         },
+        //     }
+        // )
     }
 
     pub fn ws(http: &'a mut HTTP, req: &'a mut Request, ws: &'a mut Ws) -> IOResult<()> {

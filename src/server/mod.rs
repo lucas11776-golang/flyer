@@ -4,6 +4,7 @@ pub mod handler;
 
 use std::{io::Result as IOResult};
 
+use futures::future::BoxFuture;
 use rustls::{
     ServerConfig,
     pki_types::{
@@ -13,13 +14,17 @@ use rustls::{
     }
 };
 
-use crate::HTTP;
+use crate::{request::Request, response::Response, HTTP};
 
-type Protocol<'a> = &'a str;
+type Protocol = i32;
 
-const HTTP1: Protocol = "HTTP/1.1";
-const HTTP2: Protocol = "HTTP/2.0";
-const HTTP3: Protocol = "HTTP/3.0";
+
+pub(crate) type RequestCallback =  dyn for<'a> Fn(Request, Response) -> BoxFuture<'static, ()> + Send + Sync;
+
+
+const HTTP1: Protocol = 1;
+const HTTP2: Protocol = 2;
+const HTTP3: Protocol = 3;
 
 pub trait Server<'a> {
     fn new(http: &'a mut HTTP) -> &'a mut Self;

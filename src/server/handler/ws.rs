@@ -21,85 +21,83 @@ use crate::{
 pub const SEC_WEB_SOCKET_ACCEPT_STATIC: &str = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 
 pub(crate) struct Handler<'a, R> {
-    pub(crate) http: &'a mut HTTP,
+    pub(crate) http: &'a mut HTTP<'a>,
     pub(crate) writer: Pin<&'a mut BufReader<R>>,
-    pub(crate) req: Request,
-    pub(crate) res: Response,
-
 }
-
-
-
 
 impl <'a, R>Handler<'a, R>
 where
     R: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'a
 {
-    pub fn new(http: &'a mut HTTP, writer: Pin<&'a mut BufReader<R>>, req: Request) -> Self {
+    pub fn new(http: &'a mut HTTP<'a>, writer: Pin<&'a mut BufReader<R>>) -> Self {
         return Self{
             http: http,
             writer: writer,
-            req: req,
-            res: new_response()
         };
     }
 
-    pub async fn handle(&'a mut self) -> Result<()> {
-        self.handshake().await.unwrap();
+    pub async fn handle(&mut self, req: &'a mut Request, res: &'a mut Response) -> Result<()> {
+        // TODO: handshake...
+        let sec_websocket_key = self.get_sec_web_socket_accept(req.header("sec-websocket-key"));
 
-        let ws_stream = WebSocketStream::from_raw_socket(self.writer.as_mut(), Server, None)
-            .await;
-        let (sink, stream) = ws_stream.split();
-        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
-        let sink = Arc::new(Mutex::new(sink));
-
-        
-        self.res.ws = Some(Ws::new(tx));
-
-        self.http
-            .router()
-            .router
-            .match_ws_routes(&mut self.req, &mut self.res)
-            .await
-            .unwrap();
-
-        if let Some(ws) = self.http.router().router.match_ws_routes(&mut self.req, &mut self.res).await {
-
-
-
-            while let Some(message) = rx.recv().await {
-
-                println!("Message {}", message.to_text().unwrap())
-            }
-            
-
-
-            // TODO: live time error
-            // self.listen(&mut self.res.ws.unwrap(), stream).await
-        }
-
-        
-      
-
-        return Ok(())
-    }
-
-    async fn handshake(&mut self) -> Result<()> {
-        let sec_websocket_key = self.get_sec_web_socket_accept(self.req.header("sec-websocket-key"));
-
-        self.res.status_code(101)
+        res.status_code(101)
             .header("Upgrade".to_owned(), "websocket".to_owned())
             .header("Connection".to_owned(), "Upgrade".to_owned())
             .header("Sec-WebSocket-Accept".to_owned(), sec_websocket_key);
 
+        println!("{:?}", parse(res).unwrap());
+
         self.writer
-            .write(parse(&mut self.res)
-            .unwrap().as_bytes())
+            .write(parse(res).unwrap().as_bytes())
             .await
             .unwrap();
 
-        return Ok(());
+        let ws_stream = WebSocketStream::from_raw_socket(self.writer.as_mut(), Server, None)
+            .await;
+        let (mut sink, mut stream) = ws_stream.split();
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+
+
+        
+
+        res.ws = Some(Ws::new(tx));
+
+        // if self.http.router().router.match_ws_routes(req, res).await.is_none() {
+        //     return Ok(());
+        // }
+
+        // tokio_scoped::scope(|scope| {
+        //     scope.spawn(async {
+        
+
+
+        // while let Some(item) = rx.recv().await {
+        //     sink.send(item).await.unwrap();
+        // }
+        //     });
+        // });
+
+
+        // while let Some(item) = stream.next().await {
+        //     println!("Message {:?}", item.unwrap().to_text())
+        // }
+
+
+        // stream.
+
+
+                while let Some(item) = stream.next().await {
+                    println!("Message {:?}", item.unwrap().to_text())
+                }
+
+
+
+
+        println!("QUITTING");
+
+        return Ok(())
     }
+
 
     fn get_sec_web_socket_accept(&mut self, key: String) -> String {
         let mut hasher = Sha1::new();

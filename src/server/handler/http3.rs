@@ -19,7 +19,7 @@ use crate::HTTP;
 pub struct Handler { }
 
 impl <'a>Handler {
-    pub async fn handle(http: &'a mut HTTP, resolver: RequestResolver<h3_quinn::Connection, Bytes>) -> Result<()> {
+    pub async fn handle(http: &'a mut HTTP<'a>, resolver: RequestResolver<h3_quinn::Connection, Bytes>) -> Result<()> {
         let (req, stream) = resolver.resolve_request().await.unwrap();
         let mut headers = Values::new();
 
@@ -47,27 +47,28 @@ impl <'a>Handler {
             files: Files::new(),
         };
 
-        Handler::handle_request(http, &mut request, stream).await?;
+        // TODO: move
+        // Handler::handle_request(http, &mut request, stream).await?;
 
         Ok(())
     }
 
-    async fn handle_request<'s>(http: &'a mut HTTP, req: &'s mut Request, mut stream: RequestStream<BidiStream<Bytes>, Bytes>) -> Result<()> {
-        let mut res = new_response();
-        let res = RequestHandler::web(http, req, &mut res).await.unwrap();
-        let mut builder = http::Response::builder()
-            .status(res.status_code)
-            .header("content-length", format!("{}", res.body.len()));
+    async fn handle_request<'s>(http: &'a mut HTTP<'a>, req: &'a mut Request, mut stream: RequestStream<BidiStream<Bytes>, Bytes>) -> Result<()> {
+        // let mut res = new_response();
+        // let res = RequestHandler::web(http, req, &mut res).await.unwrap();
+        // let mut builder = http::Response::builder()
+        //     .status(res.status_code)
+        //     .header("content-length", format!("{}", res.body.len()));
 
-        for (k, v) in &mut res.headers {
-            builder = builder.header(k.clone(), v.clone());
-        }
+        // for (k, v) in &mut res.headers {
+        //     builder = builder.header(k.clone(), v.clone());
+        // }
 
-        let response = builder.body(()).unwrap();
+        // let response = builder.body(()).unwrap();
 
-        stream.send_response(response).await.unwrap();
-        stream.send_data(Bytes::from(res.body.to_owned()).clone()).await.unwrap();
-        stream.finish().await.unwrap();
+        // stream.send_response(response).await.unwrap();
+        // stream.send_data(Bytes::from(res.body.to_owned()).clone()).await.unwrap();
+        // stream.finish().await.unwrap();
 
         Ok(())
     }

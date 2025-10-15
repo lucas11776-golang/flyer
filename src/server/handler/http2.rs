@@ -22,26 +22,26 @@ impl <'a> Handler {
         return Self {}
     }
 
-    pub async fn handle<RW>(&mut self, http: &'a mut HTTP, mut rw: Pin<&mut BufReader<RW>>, addr: SocketAddr) -> Result<()>
+    pub async fn handle<RW>(&mut self, http: &'a mut HTTP<'a>, mut rw: Pin<&mut BufReader<RW>>, addr: SocketAddr) -> Result<()>
     where
         RW: AsyncRead + AsyncWrite + Unpin + std::marker::Send
     {
-        let mut conn = server::handshake(&mut rw).await.unwrap();
+        // let mut conn = server::handshake(&mut rw).await.unwrap();
 
-        while let Some(result) = conn.accept().await {
-            let (req, response) = result.unwrap();
+        // while let Some(result) = conn.accept().await {
+        //     let (req, response) = result.unwrap();
 
-            tokio_scoped::scope(|scope| {
-                scope.spawn(async {
-                    let _ = self.new_request( http,req, response, addr).await;
-                });
-            });
-        }
+        //     tokio_scoped::scope(|scope| {
+        //         scope.spawn(async {
+        //             let _ = self.new_request( http,req, response, addr).await;
+        //         });
+        //     });
+        // }
 
         return Ok(());
     }
 
-    async fn connect<RW>(&mut self, http: &'a mut HTTP, mut rw: Pin<&mut BufReader<RW>>, addr: SocketAddr)
+    async fn connect<RW>(&mut self, http: &'a mut HTTP<'a>, mut rw: Pin<&mut BufReader<RW>>, addr: SocketAddr)
     where
         RW: AsyncRead + AsyncWrite + Unpin + Send
     {
@@ -50,15 +50,15 @@ impl <'a> Handler {
         while let Some(result) = conn.accept().await {
             let (req, response) = result.unwrap();
 
-            tokio_scoped::scope(|scope| {
-                scope.spawn(async {
-                    let _ = self.new_request( http,req, response, addr).await;
-                });
-            });
+            // tokio_scoped::scope(|scope| {
+            //     scope.spawn(async {
+            //         let _ = self.new_request( http,req, response, addr).await;
+            //     });
+            // });
         }
     }
 
-    async fn new_request(&mut self, http: &'a mut HTTP, request: HttpRequest<h2::RecvStream>, send: SendResponse<Bytes>, addr: SocketAddr) -> std::io::Result<()> {
+    async fn new_request(&mut self, http: &'a mut HTTP<'a>, request: HttpRequest<h2::RecvStream>, send: SendResponse<Bytes>, addr: SocketAddr) -> std::io::Result<()> {
         let method = request.method().to_string();
         let path = Url::parse(request.uri().to_string().as_str()).unwrap().path().to_string();
         let query = parse_query_params(request.uri().query().unwrap_or(""))?;
@@ -108,21 +108,24 @@ impl <'a> Handler {
         return headers;
     }
 
-    async fn handle_request(&mut self, http: &'a mut HTTP, mut req: Request, mut send:  SendResponse<Bytes>) -> Result<()> {
-        let mut response = new_response();
-        let response = RequestHandler::web(http, &mut req, &mut response).await?;
+    async fn handle_request(&mut self, http: &'a mut HTTP<'a>, mut req: Request, mut send:  SendResponse<Bytes>) -> Result<()> {
+        // let mut response = new_response();
+        // let response = RequestHandler::web(http, &mut req, &mut response).await?;
 
-        let mut builder = HttpResponse::builder().status(response.status_code);
+        // let mut builder = HttpResponse::builder().status(response.status_code);
 
-        for (k, v) in &mut response.headers {
-            builder = builder.header(k.clone(), v.clone());
-        }
+        // for (k, v) in &mut response.headers {
+        //     builder = builder.header(k.clone(), v.clone());
+        // }
 
-        return Ok(
-            send.send_response(builder.body(()).unwrap(), false)
-                .unwrap()
-                .send_data(Bytes::from(response.body.clone()), true)
-                .unwrap()
-        )
+        // return Ok(
+        //     send.send_response(builder.body(()).unwrap(), false)
+        //         .unwrap()
+        //         .send_data(Bytes::from(response.body.clone()), true)
+        //         .unwrap()
+        // )
+
+
+        Ok(())
     }
 }
