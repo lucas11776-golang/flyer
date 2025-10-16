@@ -11,23 +11,23 @@ use quinn::{
 };
 
 use crate::server::handler::http3;
-use crate::server::{get_server_config, RequestCallback};
+use crate::server::{get_server_config, HttpRequestCallback};
 use crate::HTTP;
 
-pub struct UdpServer<'a> {
+pub struct UdpServer {
     listener: Pin<Box<Endpoint>>,
-    http: Pin<Box<&'a mut HTTP<'a>>>,
-    callback: Option<Box<RequestCallback>>,
+    // http: Pin<Box<&'a mut HTTP<'a>>>,
+    callback: Option<Box<HttpRequestCallback>>,
 }
 
-impl<'a> UdpServer<'a> {
-    pub async fn new(http: &'a mut HTTP<'a>) -> UdpServer<'a> {
-        return UdpServer {
-            listener: Box::pin(Endpoint::server(UdpServer::get_config(http).unwrap(), http.address().parse().unwrap()).unwrap()),
-            http: Box::pin(http),
-            callback: None
-        }
-    }
+impl<'a> UdpServer {
+    // pub async fn new(http: &'a mut HTTP<'a>) -> UdpServer<'a> {
+    //     return UdpServer {
+    //         listener: Box::pin(Endpoint::server(UdpServer::get_config(http).unwrap(), http.address().parse().unwrap()).unwrap()),
+    //         http: Box::pin(http),
+    //         callback: None
+    //     }
+    // }
 
     fn get_config(http: &'a mut HTTP) -> IOResult<ServerConfig> {
         let mut config = get_server_config(&http.tls.as_ref().unwrap())?;
@@ -58,7 +58,7 @@ impl<'a> UdpServer<'a> {
     }
 
 
-    pub async fn on_request(&'a mut self, callback: Box<RequestCallback>) {
+    pub async fn on_request(&'a mut self, callback: Box<HttpRequestCallback>) {
         self.callback = Some(callback);
     }
     

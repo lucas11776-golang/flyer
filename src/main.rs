@@ -9,20 +9,22 @@ fn main() {
 
     server.view("views");
     
-    server.router().get("/",   async |req, res| {
-        let mut data = view_data();
+    server.router();
 
-        data.insert("first_name", "Jeo");
-        data.insert("last_name", "Doe");
-        data.insert("email", "jeo@doe.com");
-        data.insert("age", &23);
+    // .get("/",   async|req, res| {
+    //     let mut data = view_data();
 
-        if let Some(image) =  req.file("image") {
-            File::create(format!("test.png")).unwrap().write(&image.content).unwrap();
-        }
+    //     data.insert("first_name", "Jeo");
+    //     data.insert("last_name", "Doe");
+    //     data.insert("email", "jeo@doe.com");
+    //     data.insert("age", &23);
 
-        return res.view("index.html", Some(data));   
-    }, None);
+    //     if let Some(image) =  req.file("image") {
+    //         File::create(format!("test.png")).unwrap().write(&image.content).unwrap();
+    //     }
+
+    //     return res.view("index.html", Some(data));   
+    // }, None);
     
 
     // server.router().ws("/", |req, ws| {
@@ -49,7 +51,7 @@ fn main() {
     //     });
     // }, None);
 
-    print!("\r\n\r\nRunning server: {}\r\n\r\n", server.address());
+    // print!("\r\n\r\nRunning server: {}\r\n\r\n", server.address());
 
-    server.listen();
+    // server.listen();
 }

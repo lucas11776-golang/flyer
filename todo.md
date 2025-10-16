@@ -1,3 +1,6 @@
+# TODO
+- Bad arch...
+
 # HTTP
 
 * Add Route Subdomain...

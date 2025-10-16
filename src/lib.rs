@@ -7,6 +7,7 @@ pub mod session;
 pub mod view;
 pub mod server;
 
+use std::io::Result;
 use std::sync::Arc;
 use std::sync::atomic::{
     AtomicBool,
@@ -20,8 +21,8 @@ use tokio_rustls::TlsAcceptor;
 use crate::request::Request;
 use crate::response::Response;
 use crate::router::group::GroupRouter;
-use crate::router::Router;
-use crate::server::{get_server_config, RequestCallback};
+use crate::router::{Route, Router, WebRoute, WsRoute};
+use crate::server::{get_server_config, HttpRequestCallback};
 use crate::server::tcp::NewTcpServer;
 use crate::server::udp::UdpServer;
 use crate::server::{
@@ -38,44 +39,44 @@ pub(crate) struct HttpConfig {
 }
 
 #[derive(Default)]
-pub struct HTTP<'a> {
+pub struct HTTP {
     pub(crate) host: String,
     pub(crate) port: i32,
     pub(crate) tls: Option<TlsPathConfig>,
-
-
     // acceptor: Option<TlsAcceptor>,
     pub(crate) request_max_size: i64,
-    pub(crate) router: GroupRouter<'a>,
+    // pub(crate) router: GroupRouter<'a>,
     pub(crate) session_manger: Option<Box<dyn SessionManager>>,
     pub(crate) configuration: Configuration,
 }
 
-fn new_http<'a>(host: &str, port: i32, tls: Option<TlsPathConfig>) -> HTTP<'a> {
-
+fn new_http(host: &str, port: i32, tls: Option<TlsPathConfig>) -> HTTP {
     return HTTP {
         host: host.to_owned(),
         port: port,
         tls: tls,
+        // acceptor: acceptor,
         request_max_size: 1024,
-        router: GroupRouter::new(),
+        // router: GroupRouter::new(),
         session_manger: None,
         configuration: Configuration::new(),
     };
 }
 
-pub fn server<'a>(host: &'a str, port: i32) -> HTTP<'a> {
+pub fn server<'a>(host: &str, port: i32) -> HTTP {
     return new_http(host, port, None);
 }
 
-pub fn server_tls<'a>(host: &'a str, port: i32, key: &str, cert: &str) -> HTTP<'a> {
+pub fn server_tls<'a>(host: &'a str, port: i32, key: &str, cert: &str) -> HTTP {
     return new_http(host, port, Some(TlsPathConfig {
         key_path: key.to_owned(),
         cert_path: cert.to_owned()
     }));
 }
 
-impl <'a>HTTP<'a> {
+
+
+impl <'a>HTTP {
     pub fn host(&self) -> String {
         return self.host.to_owned();
     }
@@ -92,13 +93,13 @@ impl <'a>HTTP<'a> {
         self.request_max_size = size;    
     }
 
-    pub fn view(&'a mut self, path: &str) -> &mut HTTP {
+    pub fn view(&mut self, path: &str) -> &mut HTTP {
         self.configuration.insert("view_path".to_owned(), path.to_owned());
 
         return self;
     }
 
-    pub fn session(&'a mut self, manager: Box<dyn SessionManager>) -> &mut HTTP {
+    pub fn session(&mut self, manager: Box<dyn SessionManager>) -> &mut HTTP {
         self.session_manger = Some(manager);
 
         return self;
@@ -127,48 +128,57 @@ impl <'a>HTTP<'a> {
         });
 
         // // TODO: check if the is no better way...
-        // self.block_main_thread();
+        HTTP::block_main_thread();
     }
 
 
-    async fn handle_request(&mut self, req: Request, res: Response) {
+    pub async fn ws_request(&mut self, req: &mut Request, res: &mut Response) -> Option<&mut Route<WsRoute>>
+    where
+    {
 
+        return None
     }
 
-    async fn tcp_server(&'a mut self) {
 
-            
-        let mut acceptor: Option<TlsAcceptor> = None;
+    fn get_tls_acceptor(&mut self) -> Result<Option<TlsAcceptor>> {
+        Ok(
+            match self.tls.as_mut() {
+                Some(tls) => Some(TlsAcceptor::from(Arc::new(get_server_config(tls).unwrap()))),
+                None => None,
+            }
+        )
+    }
 
-        if self.tls.is_some() {
-            acceptor = Some(TlsAcceptor::from(Arc::new(get_server_config(self.tls.as_ref().unwrap()).unwrap())));
-        }
+    async fn tcp_server<'s>(&'a mut self)
+    where 
+        'a: 's
+     {
+        let mut server = NewTcpServer::new(self.host.to_string(), self.port, self.get_tls_acceptor().unwrap()).await.unwrap();
 
-        NewTcpServer::new(self.host.to_string(), self.port, acceptor.clone()).await.unwrap()
-            .on_request(async |req, res| self.handle_request(req, res).await)
-            .await;
+        // {
+        //     server.http_request(async |req, res| self.router.match_web_routes(req, res).await).await;
+        // }
 
-        // TcpServer::new(self).await
+        server.listen().await;
+    }
+
+    async fn udp_server(&'a mut self) {
+        // UdpServer::new(self).await
         //     .listen()
         //     .await;
     }
 
-    async fn udp_server(&'a mut self) {
-        UdpServer::new(self).await
-            .listen()
-            .await;
-    }
-
-    pub fn router(&'a mut self) -> Router<'a> {
-        return Router{
-            router: &mut self.router,
+    pub fn router(&'a mut self) -> Router<'a>
+    {
+        return Router {
+            // router: &mut self.router,
             path: vec!["/".to_string()],
             middleware: vec![],
             get: None,
         };
     }
 
-    fn block_main_thread(&mut self) {
+    fn block_main_thread() {
         let running = Arc::new(AtomicBool::new(true));
         let running_clone: Arc<AtomicBool> = running.clone();
 

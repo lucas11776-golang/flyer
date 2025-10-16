@@ -2,6 +2,8 @@ use std::{io::Result};
 
 use serde::Serialize;
 
+use futures::future::{BoxFuture, Future, FutureExt};
+
 use crate::{
     request::Headers,
     session::Session,
@@ -12,6 +14,16 @@ use crate::{
     }
 };
 
+
+
+pub trait Writer: Send + Sync {
+    fn write(self, res: &mut Response) -> impl Future<Output = Result<()>> + Sync + Send where Self: Sized;
+}
+
+
+
+// pub type HttpWriter = dyn FnOnce(&mut Response) -> dyn Future<Output = Result<()>>;
+
 pub struct Response {
     pub(crate) status_code: u16,
     pub(crate) headers: Headers,
@@ -19,16 +31,18 @@ pub struct Response {
     pub(crate) session: Option<Box<dyn Session>>,
     pub(crate) view: Option<View>,
     pub ws: Option<Ws>,
+    // pub(crate) writer: Box<dyn Writer + 'static>,
 }
 
-pub fn new_response() -> Response {
+pub fn new_response(writer: Option<Box<dyn Writer>>) -> Response {
     return Response {
         status_code: 200,
         headers: Headers::new(),
         body: vec![],
         session: None,
         view: None,
-        ws: None
+        ws: None,
+        // writer: writer
     };
 }
 
@@ -93,17 +107,6 @@ impl Response {
 
     pub fn session<'a>(&self) -> Option<&Box<dyn Session>> {
         return self.session.as_ref();
-    }
-
-    pub fn clone(&self) -> Response {
-        return Response {
-            status_code: self.status_code,
-            headers: self.headers.clone(),
-            body: self.body.clone(),
-            session: None,
-            view: None,
-            ws: None
-        };
     }
 }
 

@@ -21,7 +21,7 @@ use crate::{
 pub const SEC_WEB_SOCKET_ACCEPT_STATIC: &str = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 
 pub(crate) struct Handler<'a, R> {
-    pub(crate) http: &'a mut HTTP<'a>,
+    // pub(crate) http: &'a mut HTTP<'a>,
     pub(crate) writer: Pin<&'a mut BufReader<R>>,
 }
 
@@ -29,12 +29,12 @@ impl <'a, R>Handler<'a, R>
 where
     R: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'a
 {
-    pub fn new(http: &'a mut HTTP<'a>, writer: Pin<&'a mut BufReader<R>>) -> Self {
-        return Self{
-            http: http,
-            writer: writer,
-        };
-    }
+    // pub fn new(http: &'a mut HTTP<'a>, writer: Pin<&'a mut BufReader<R>>) -> Self {
+    //     return Self{
+    //         http: http,
+    //         writer: writer,
+    //     };
+    // }
 
     pub async fn handle(&mut self, req: &'a mut Request, res: &'a mut Response) -> Result<()> {
         // TODO: handshake...
