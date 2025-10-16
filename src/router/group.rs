@@ -5,7 +5,7 @@ use crate::{
     request::Request,
     response::{new_response, Response},
     router::{
-        Middlewares, Next, Route, WebRoute, WsRoute
+        Middlewares, Next, Route, TRoute, WebRoute, WsRoute
     },
     utils::{
         url::clean_uri_to_vec,
@@ -19,10 +19,10 @@ static PARAM_REGEX: Lazy<Regex> = Lazy::new(|| {
 });
 
 #[derive(Default)]
-pub struct GroupRouter<'a> {
-    pub(crate) web: Vec<Route<Box<WebRoute<'a>>>>,
+pub struct GroupRouter {
+    pub(crate) web: Vec<Route<Box<TRoute>>>,
     pub(crate) ws: Vec<Route<WsRoute>>,
-    pub(crate) not_found_callback: Option<Box<WebRoute<'a>>>,
+    pub(crate) not_found_callback: Option<Box<WebRoute>>,
 }
 
 
@@ -30,7 +30,7 @@ pub trait Group<'a> {
     fn match_web_routes<'s>(&'a mut self, req: &'a mut Request, res: &'a mut Response) -> impl std::future::Future<Output = &'a mut Response> + Send;
 }  
 
-impl <'a>GroupRouter<'a> {
+impl <'a>GroupRouter {
     pub fn new() -> Self {
         return GroupRouter {
             web: vec![],
@@ -39,10 +39,13 @@ impl <'a>GroupRouter<'a> {
         }
     }
 
-    pub async fn match_web_routes<'s>(&'a mut self, req: &'a mut Request, res: &'a mut Response) -> &'a mut Response
+    pub async fn match_web_routes<'s>(&'a mut self, req: &'a mut Request, res: &'a mut Response) 
     where
         'a: 's
      {
+
+        println!("REQUEST HERE");
+
         for route in &mut self.web {
             let (matches, parameters) = GroupRouter::match_route(route, req);
 
@@ -53,11 +56,11 @@ impl <'a>GroupRouter<'a> {
             req.parameters = parameters;
 
             if GroupRouter::handle_middlewares(req, res, &route.middlewares).is_none() {
-                return res
+                // return res
             }
 
 
-            return (route.route)(req, res).await
+            // return (route.route)(req, res).await
         }
 
         // if self.not_found_callback.is_some() {
@@ -66,7 +69,7 @@ impl <'a>GroupRouter<'a> {
 
         res.status_code = 404;
 
-        return res
+        // return res
     }
 
     // pub async fn match_ws_routes(&mut self, req: &'a mut Request, res: &'a mut Response) -> Option<&'a mut Ws> {

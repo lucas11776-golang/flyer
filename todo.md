@@ -1,5 +1,7 @@
 # TODO
 - Bad arch...
+- find better way to store routes...
+
 
 # HTTP
 

@@ -4,27 +4,28 @@ use flyer::{view::view_data};
 
 // TODO: take rest must make controller route to support async operation...
 
+
+// start: 'static
 fn main() {
     let mut server = flyer::server("127.0.0.1", 9999);
 
     server.view("views");
-    
-    server.router();
 
-    // .get("/",   async|req, res| {
-    //     let mut data = view_data();
 
-    //     data.insert("first_name", "Jeo");
-    //     data.insert("last_name", "Doe");
-    //     data.insert("email", "jeo@doe.com");
-    //     data.insert("age", &23);
+    server.router().get("/",   async|req, res| {
+        let mut data = view_data();
 
-    //     if let Some(image) =  req.file("image") {
-    //         File::create(format!("test.png")).unwrap().write(&image.content).unwrap();
-    //     }
+        data.insert("first_name", "Jeo");
+        data.insert("last_name", "Doe");
+        data.insert("email", "jeo@doe.com");
+        data.insert("age", &23);
 
-    //     return res.view("index.html", Some(data));   
-    // }, None);
+        if let Some(image) =  req.file("image") {
+            File::create(format!("test.png")).unwrap().write(&image.content).unwrap();
+        }
+
+        return res.view("index.html", Some(data));   
+    }, None);
     
 
     // server.router().ws("/", |req, ws| {
@@ -55,3 +56,4 @@ fn main() {
 
     // server.listen();
 }
+// end: 'static

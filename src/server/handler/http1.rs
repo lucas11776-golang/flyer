@@ -302,6 +302,11 @@ impl <'a>NewHandler
             files: Files::new(),
         };
 
+        let mut res = new_response(None);
+
+
+        callback(&mut req, &mut res).await;
+
 
         let a = rw.as_ref().get_ref();
 

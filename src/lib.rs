@@ -45,7 +45,7 @@ pub struct HTTP {
     pub(crate) tls: Option<TlsPathConfig>,
     // acceptor: Option<TlsAcceptor>,
     pub(crate) request_max_size: i64,
-    // pub(crate) router: GroupRouter<'a>,
+    pub(crate) router: GroupRouter,
     pub(crate) session_manger: Option<Box<dyn SessionManager>>,
     pub(crate) configuration: Configuration,
 }
@@ -57,7 +57,7 @@ fn new_http(host: &str, port: i32, tls: Option<TlsPathConfig>) -> HTTP {
         tls: tls,
         // acceptor: acceptor,
         request_max_size: 1024,
-        // router: GroupRouter::new(),
+        router: GroupRouter::new(),
         session_manger: None,
         configuration: Configuration::new(),
     };
@@ -73,6 +73,8 @@ pub fn server_tls<'a>(host: &'a str, port: i32, key: &str, cert: &str) -> HTTP {
         cert_path: cert.to_owned()
     }));
 }
+
+
 
 
 
@@ -150,8 +152,8 @@ impl <'a>HTTP {
     }
 
     async fn tcp_server<'s>(&'a mut self)
-    where 
-        'a: 's
+    // where 
+    //     'a: 's
      {
         let mut server = NewTcpServer::new(self.host.to_string(), self.port, self.get_tls_acceptor().unwrap()).await.unwrap();
 
@@ -169,12 +171,13 @@ impl <'a>HTTP {
     }
 
     pub fn router(&'a mut self) -> Router<'a>
+
     {
         return Router {
-            // router: &mut self.router,
+            router: &mut self.router,
             path: vec!["/".to_string()],
             middleware: vec![],
-            get: None,
+            // get: None,
         };
     }
 

@@ -2,7 +2,7 @@ pub mod group;
 
 use std::io::Result;
 
-// use futures_util::future::BoxFuture;
+use futures_util::future::BoxFuture;
 
 use crate::router::group::GroupRouter;
 use crate::utils::merge;
@@ -14,19 +14,20 @@ use crate::utils::url::clean_url;
 
 
 
-use futures::future::{BoxFuture, Future, FutureExt};
-use structopt::clap;
+use futures::future::{Future, FutureExt};
 
 
+pub type TRoute  = dyn for<'a> Fn(&'a mut Request, &'a mut Response) -> BoxFuture<'a, &'a mut Response> + Send + Sync + 'static; // TODO: 'a - not in scope
 
 
-pub type WebRoute<'a> = dyn Fn(&'a mut Request, &'a mut Response) -> BoxFuture<'a, &'a mut Response> + Send + Sync + 'a;
+// TODO: current option
+// pub type TRoute<'a> = dyn Fn(&'a mut Request, &'a mut Response) -> BoxFuture<'a, &'a mut Response> + Send + Sync;
 
 // TODO: route must be async...
-// pub type WebRoute = for<'a> fn (req: &'a mut Request, res: &'a mut Response) -> &'a mut Response;
+pub type WebRoute = for<'a> fn (req: &'a mut Request, res: &'a mut Response) -> &'a mut Response;
 pub type Middleware = for<'a>  fn (req: &'a mut Request, res: &'a mut Response, next: &'a mut Next<'a>) -> &'a mut Response;
 pub type Middlewares = Vec<Middleware>;
-pub type WsRoute = for<'a> fn (req: &'a mut Request, ws: &'a mut Ws);
+pub type WsRoute = for<'a> fn (req: &'a mut Request, res: &'a mut Ws);
 pub type Group = fn (router: &mut Router);
 
 pub struct Next<'a> {
@@ -35,10 +36,10 @@ pub struct Next<'a> {
 }
 
 pub struct Router<'a> {
-    // pub(crate) router: &'a GroupRouter<'a>,
+    pub(crate) router: &'a mut GroupRouter,
     pub(crate) path: Vec<String>,
     pub(crate) middleware: Middlewares,
-    pub(crate) get: Option<Box<WebRoute<'a>>>
+    // pub(crate) get: Option<Box<TRoute<'a>>>
 }
 
 pub struct Route<R> {
@@ -57,7 +58,7 @@ impl <'a>Next<'a> {
 }
 
 impl <'a>Router<'a> {
-    pub fn get<C, F>(&mut self, path: &str, callback: C, middleware: Option<Middlewares>)
+    pub fn get<C, F>(&'a mut self, path: &str, callback: C, middleware: Option<Middlewares>)
     where
         C: Fn(&'a mut Request, &'a mut Response) -> F + Send + Sync + 'a,
         F: Future<Output = &'a mut Response> + Send + Sync + 'a,
@@ -68,39 +69,48 @@ impl <'a>Router<'a> {
         };
 
 
-        self.get = Some(Box::new(parsed))
+        self.router.web.push(Route{
+            path: "/".to_string(),
+            method: "GET".to_string(),
+            route: Box::new(parsed),
+            middlewares: vec![],
+        });
+
+
+        
+        // self.get = Some(Box::new(parsed));
 
 
         // self.route("GET", path, callback, middleware);
     }   
  
-    // pub fn post(&mut self, path: &str, callback: WebRoute, middleware: Option<Middlewares>) {
-    //     self.route("POST", path, callback, middleware);
-    // }
+    pub fn post(&mut self, path: &str, callback: WebRoute, middleware: Option<Middlewares>) {
+        self.route("POST", path, callback, middleware);
+    }
 
-    // pub fn patch(&mut self, path: &str, callback: WebRoute, middleware: Option<Middlewares>) {
-    //     self.route("PATCH", path, callback, middleware);
-    // }
+    pub fn patch(&mut self, path: &str, callback: WebRoute, middleware: Option<Middlewares>) {
+        self.route("PATCH", path, callback, middleware);
+    }
 
-    // pub fn put(&mut self, path: &str, callback: WebRoute, middleware: Option<Middlewares>) {
-    //     self.route("PUT", path, callback, middleware);
-    // }
+    pub fn put(&mut self, path: &str, callback: WebRoute, middleware: Option<Middlewares>) {
+        self.route("PUT", path, callback, middleware);
+    }
 
-    // pub fn delete(&mut self, path: &str, callback: WebRoute, middleware: Option<Middlewares>) {
-    //     self.route("DELETE", path, callback, middleware);
-    // }
+    pub fn delete(&mut self, path: &str, callback: WebRoute, middleware: Option<Middlewares>) {
+        self.route("DELETE", path, callback, middleware);
+    }
 
-    // pub fn head(&mut self, path: &str, callback: WebRoute, middleware: Option<Middlewares>) {
-    //     self.route("CONNECT", path, callback, middleware);
-    // }
+    pub fn head(&mut self, path: &str, callback: WebRoute, middleware: Option<Middlewares>) {
+        self.route("CONNECT", path, callback, middleware);
+    }
 
-    // pub fn options(&mut self, path: &str, callback: WebRoute, middleware: Option<Middlewares>) {
-    //     self.route("OPTIONS", path, callback, middleware);
-    // }
+    pub fn options(&mut self, path: &str, callback: WebRoute, middleware: Option<Middlewares>) {
+        self.route("OPTIONS", path, callback, middleware);
+    }
 
-    // pub fn route(&mut self, method: &str, path: &str, callback: WebRoute, middleware: Option<Middlewares>) {
-    //     self.add_web_route(method, path, callback, middleware).unwrap();
-    // }
+    pub fn route(&mut self, method: &str, path: &str, callback: WebRoute, middleware: Option<Middlewares>) {
+        self.add_web_route(method, path, callback, middleware).unwrap();
+    }
 
     fn get_middlewares(&mut self, middleware: Option<Middlewares>) -> Middlewares {
         let mut middlewares: Middlewares = self.middleware.clone();
@@ -115,31 +125,28 @@ impl <'a>Router<'a> {
     pub fn ws(&mut self, path: &str, callback: WsRoute, middleware: Option<Middlewares>) {
         let middlewares = self.get_middlewares(middleware);
 
-        // self.router.ws.push(Route{
-        //     // TODO: fix
-        //     path: Router::get_path(self.path.clone(), vec![path.to_string()]).join("/"),
-        //     method: "GET".to_owned(),
-        //     route: callback,
-        //     middlewares: middlewares,
-        // });
+        self.router.ws.push(Route{
+            // TODO: fix
+            path: Router::get_path(self.path.clone(), vec![path.to_string()]).join("/"),
+            method: "GET".to_owned(),
+            route: callback,
+            middlewares: middlewares,
+        });
     }
 
-    pub fn group(&'a mut self , path: &str, group: Group, middleware: Option<Middlewares>) {
+    pub fn group(&mut self , path: &str, group: Group, middleware: Option<Middlewares>) {
         let middlewares = self.get_middlewares(middleware);
 
         // group(&mut Router{
         //     // TODO: fix
         //     path: Router::get_path(self.path.clone(), vec![path.to_string()]),
         //     router: self.router,
-        //     middleware: middlewares,
-        //     get: None
+        //     middleware: middlewares
         // });
     }
 
-    pub fn not_found(&mut self, callback: Box<WebRoute<'a>>) {
-        // self.router.not_found_callback = Some(callback);
-
-
+    pub fn not_found(&mut self, callback: Box<WebRoute>) {
+        self.router.not_found_callback = Some(callback);
     }
 
     fn get_path(old: Vec<String>, new: Vec<String>) -> Vec<String> {
@@ -149,17 +156,17 @@ impl <'a>Router<'a> {
             .collect();
     }
 
-    // fn add_web_route(&mut self, method: &str, path: &str, callback: WebRoute, middleware: Option<Middlewares>) -> Result<()> {
-    //     let middlewares = self.get_middlewares(middleware);
+    fn add_web_route(&mut self, method: &str, path: &str, callback: WebRoute, middleware: Option<Middlewares>) -> Result<()> {
+        let middlewares = self.get_middlewares(middleware);
 
-    //     // self.router.web.push(Route{
-    //     //     // TODO: fix
-    //     //     path: Router::get_path(self.path.clone(), vec![path.to_string()]).join("/"),
-    //     //     method: method.to_string(),
-    //     //     route: callback,
-    //     //     middlewares: middlewares,
-    //     // });
+        // self.router.web.push(Route{
+        //     // TODO: fix
+        //     path: Router::get_path(self.path.clone(), vec![path.to_string()]).join("/"),
+        //     method: method.to_string(),
+        //     route: callback,
+        //     middlewares: middlewares,
+        // });
 
-    //     Ok(())
-    // }
+        Ok(())
+    }
 }

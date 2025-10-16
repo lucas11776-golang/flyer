@@ -57,12 +57,19 @@ impl <'a>NewTcpServer {
 
 
 
-    pub async fn http_request<C, F>(&mut self, future: C) -> & mut Self
+    pub async fn http_request<C, F>(&'a mut self, callback: C) -> & mut Self
     where
         C: FnOnce(&'a mut Request, &'a mut Response) -> F + Send + Sync + 'a,
-        F: Future<Output = &'a mut Response> + Send + 'a,
+        F: Future<Output = ()> + Send + Sync + 'a,
+        // 'a: 's
     {
 
+        let parsed_callback = move |req: &'a mut Request, res: &'a mut Response| {
+            return callback(req, res).boxed();
+        };
+
+
+        // self.callback = Some(Box::new(parsed));
 
 
         return self;
@@ -76,6 +83,8 @@ impl <'a>NewTcpServer {
         'a: 's
     {
 
+
+        
         return self;
     }
 
