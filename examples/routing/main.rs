@@ -1,22 +1,22 @@
 use flyer::{server, request::Request, response::Response};
 
-fn index<'a>(req: &'a mut Request, res: &'a mut Response) -> &'a mut Response {
+pub async fn index(req: Request, res: Response) -> Response {
     return res
 }
 
-fn store<'a>(req: &'a mut Request, res: &'a mut Response) -> &'a mut Response {
+pub async fn store(req: Request, res: Response) -> Response {
     return res
 }
 
-fn view<'a>(req: &'a mut Request, res: &'a mut Response) -> &'a mut Response {
+pub async fn view(req: Request, res: Response) -> Response {
     return res
 }
 
-fn update<'a>(req: &'a mut Request, res: &'a mut Response) -> &'a mut Response {
+pub async fn update(req: Request, res: Response) -> Response {
     return res
 }
 
-fn destroy<'a>(req: &'a mut Request, res: &'a mut Response) -> &'a mut Response {
+pub async fn destroy(req: Request, res: Response) -> Response {
     return res
 }
 
@@ -25,10 +25,10 @@ fn main() {
     
     server.router().group("api", |router| {
         router.group("users", |router| {
-            router.get("/", index, None);
+            // router.get("/", index, None);
             router.post("/", store, None);
             router.group("{user}", |router| {
-                router.get("/", view, None);
+                // router.get("/", view, None);
                 router.patch("/", update, None);
                 router.delete("/", destroy, None);
             }, None);

@@ -2,6 +2,8 @@ pub mod group;
 
 use std::io::Result;
 
+use futures_util::future::BoxFuture;
+
 use crate::router::group::GroupRouter;
 use crate::utils::merge;
 use crate::ws::Ws;
@@ -10,9 +12,22 @@ use crate::request::Request;
 use crate::response::Response;
 use crate::utils::url::clean_url;
 
+
+
+
+use futures::future::{Future, FutureExt};
+
+
+
+pub type TRoute = dyn for<'a> Fn(Request, Response) -> BoxFuture<'static, Response> + Send + Sync; // TODO: 'a --
+
+
+// TODO: current option
+// pub type TRoute<'a> = dyn Fn(&'a mut Request, &'a mut Response) -> BoxFuture<'a, &'a mut Response> + Send + Sync;
+
 // TODO: route must be async...
 pub type WebRoute = for<'a> fn (req: &'a mut Request, res: &'a mut Response) -> &'a mut Response;
-pub type Middleware = for<'a>  fn (req: &'a mut Request, res: &'a mut Response, next: &'a mut Next<'a>) -> &'a mut Response;
+pub type Middleware = for<'a>  fn (req: Request, res: Response, next: Next<'a>) -> Response;
 pub type Middlewares = Vec<Middleware>;
 pub type WsRoute = for<'a> fn (req: &'a mut Request, res: &'a mut Ws);
 pub type Group = fn (router: &mut Router);
@@ -26,6 +41,7 @@ pub struct Router<'a> {
     pub(crate) router: &'a mut GroupRouter,
     pub(crate) path: Vec<String>,
     pub(crate) middleware: Middlewares,
+    // pub(crate) get: Option<Box<TRoute<'a>>>
 }
 
 pub struct Route<R> {
@@ -44,36 +60,60 @@ impl <'a>Next<'a> {
 }
 
 impl <'a>Router<'a> {
-    pub fn get(&mut self, path: &str, callback: WebRoute, middleware: Option<Middlewares>) {
-        self.route("GET", path, callback, middleware);
+    pub fn get<R, F>(&mut self, path: &str, callback: R, middleware: Option<Middlewares>)
+    where
+        R: Fn(Request, Response) -> F + Send + Sync + 'static,
+        F: Future<Output = Response> + Send + Sync + 'static,
+    {
+        self.add_web_route("GET", path, callback, middleware);
     }   
  
-    pub fn post(&mut self, path: &str, callback: WebRoute, middleware: Option<Middlewares>) {
-        self.route("POST", path, callback, middleware);
+    pub fn post<R, F>(&mut self, path: &str, callback: R, middleware: Option<Middlewares>)
+    where
+        R: Fn(Request, Response) -> F + Send + Sync + 'static,
+        F: Future<Output = Response> + Send + Sync + 'static,
+    {
+        self.add_web_route("POST", path, callback, middleware);
     }
 
-    pub fn patch(&mut self, path: &str, callback: WebRoute, middleware: Option<Middlewares>) {
-        self.route("PATCH", path, callback, middleware);
+    pub fn patch<R, F>(&mut self, path: &str, callback: R, middleware: Option<Middlewares>)
+    where
+        R: Fn(Request, Response) -> F + Send + Sync + 'static,
+        F: Future<Output = Response> + Send + Sync + 'static,
+    {
+        self.add_web_route("PATCH", path, callback, middleware);
     }
 
-    pub fn put(&mut self, path: &str, callback: WebRoute, middleware: Option<Middlewares>) {
-        self.route("PUT", path, callback, middleware);
+    pub fn put<R, F>(&mut self, path: &str, callback: R, middleware: Option<Middlewares>)
+    where
+        R: Fn(Request, Response) -> F + Send + Sync + 'static,
+        F: Future<Output = Response> + Send + Sync + 'static,
+    {
+        self.add_web_route("PUT", path, callback, middleware);
     }
 
-    pub fn delete(&mut self, path: &str, callback: WebRoute, middleware: Option<Middlewares>) {
-        self.route("DELETE", path, callback, middleware);
+    pub fn delete<R, F>(&mut self, path: &str, callback: R, middleware: Option<Middlewares>)
+    where
+        R: Fn(Request, Response) -> F + Send + Sync + 'static,
+        F: Future<Output = Response> + Send + Sync + 'static,
+    {
+        self.add_web_route("DELETE", path, callback, middleware);
     }
 
-    pub fn head(&mut self, path: &str, callback: WebRoute, middleware: Option<Middlewares>) {
-        self.route("CONNECT", path, callback, middleware);
+    pub fn head<R, F>(&mut self, path: &str, callback: R, middleware: Option<Middlewares>)
+    where
+        R: Fn(Request, Response) -> F + Send + Sync + 'static,
+        F: Future<Output = Response> + Send + Sync + 'static,
+    {
+        self.add_web_route("CONNECT", path, callback, middleware);
     }
 
-    pub fn options(&mut self, path: &str, callback: WebRoute, middleware: Option<Middlewares>) {
-        self.route("OPTIONS", path, callback, middleware);
-    }
-
-    pub fn route(&mut self, method: &str, path: &str, callback: WebRoute, middleware: Option<Middlewares>) {
-        self.add_web_route(method, path, callback, middleware).unwrap();
+    pub fn options<R, F>(&mut self, path: &str, callback: R, middleware: Option<Middlewares>)
+    where
+        R: Fn(Request, Response) -> F + Send + Sync + 'static,
+        F: Future<Output = Response> + Send + Sync + 'static,
+    {
+        self.add_web_route("OPTIONS", path, callback, middleware);
     }
 
     fn get_middlewares(&mut self, middleware: Option<Middlewares>) -> Middlewares {
@@ -99,13 +139,11 @@ impl <'a>Router<'a> {
     }
 
     pub fn group(&mut self , path: &str, group: Group, middleware: Option<Middlewares>) {
-        let middlewares = self.get_middlewares(middleware);
-
         group(&mut Router{
             // TODO: fix
             path: Router::get_path(self.path.clone(), vec![path.to_string()]),
+            middleware: self.get_middlewares(middleware),
             router: self.router,
-            middleware: middlewares
         });
     }
 
@@ -120,17 +158,20 @@ impl <'a>Router<'a> {
             .collect();
     }
 
-    fn add_web_route(&mut self, method: &str, path: &str, callback: WebRoute, middleware: Option<Middlewares>) -> Result<()> {
+    fn add_web_route<C, F>(&mut self, method: &str, path: &str, callback: C, middleware: Option<Middlewares>)
+    where
+        C: Fn(Request, Response) -> F + Send + Sync + 'static,
+        F: Future<Output = Response> + Send + Sync + 'static,
+    {
         let middlewares = self.get_middlewares(middleware);
 
         self.router.web.push(Route{
             // TODO: fix
             path: Router::get_path(self.path.clone(), vec![path.to_string()]).join("/"),
             method: method.to_string(),
-            route: callback,
+            route: Box::new(move |req: Request, res: Response|  callback(req, res).boxed()),
             middlewares: middlewares,
         });
 
-        Ok(())
     }
 }

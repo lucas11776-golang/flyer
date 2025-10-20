@@ -9,13 +9,17 @@ use http::{HeaderMap, Request as HttpRequest, Response as HttpResponse};
 use reqwest::Url;
 use tokio::io::{AsyncRead, AsyncWrite, BufReader};
 
-use crate::{response::new_response, server::handler::RequestHandler, utils::Values, HTTP};
+use crate::response::{Response};
+// use crate::{response::new_response, server::handler::RequestHandler, utils::Values, HTTP};
 use crate::request::{Headers, Request};
 use crate::utils::url::parse_query_params;
+use crate::utils::Values;
+use crate::HTTP;
 
 pub const H2_PREFACE: &[u8] = b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n";
 
 pub struct Handler { }
+
 
 impl <'a> Handler {
     pub fn new() -> Self {
@@ -50,11 +54,11 @@ impl <'a> Handler {
         while let Some(result) = conn.accept().await {
             let (req, response) = result.unwrap();
 
-            tokio_scoped::scope(|scope| {
-                scope.spawn(async {
-                    let _ = self.new_request( http,req, response, addr).await;
-                });
-            });
+            // tokio_scoped::scope(|scope| {
+            //     scope.spawn(async {
+            //         let _ = self.new_request( http,req, response, addr).await;
+            //     });
+            // });
         }
     }
 
@@ -109,20 +113,29 @@ impl <'a> Handler {
     }
 
     async fn handle_request(&mut self, http: &'a mut HTTP, mut req: Request, mut send:  SendResponse<Bytes>) -> Result<()> {
-        let mut response = new_response();
-        let response = RequestHandler::web(http, &mut req, &mut response).await?;
+        // let mut response = new_response();
+        // let response = RequestHandler::web(http, &mut req, &mut response).await?;
 
-        let mut builder = HttpResponse::builder().status(response.status_code);
+        // let mut builder = HttpResponse::builder().status(response.status_code);
 
-        for (k, v) in &mut response.headers {
-            builder = builder.header(k.clone(), v.clone());
-        }
+        // for (k, v) in &mut response.headers {
+        //     builder = builder.header(k.clone(), v.clone());
+        // }
 
-        return Ok(
-            send.send_response(builder.body(()).unwrap(), false)
-                .unwrap()
-                .send_data(Bytes::from(response.body.clone()), true)
-                .unwrap()
-        )
+        // return Ok(
+        //     send.send_response(builder.body(()).unwrap(), false)
+        //         .unwrap()
+        //         .send_data(Bytes::from(response.body.clone()), true)
+        //         .unwrap()
+        // )
+
+
+        Ok(())
     }
 }
+
+
+use futures::future::{BoxFuture, Future, FutureExt};
+
+
+

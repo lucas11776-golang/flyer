@@ -11,21 +11,23 @@ use quinn::{
 };
 
 use crate::server::handler::http3;
-use crate::server::get_server_config;
+use crate::server::{get_server_config, HttpRequestCallback};
 use crate::HTTP;
 
-pub struct UdpServer<'a> {
+pub struct UdpServer {
     listener: Pin<Box<Endpoint>>,
-    http: Pin<Box<&'a mut HTTP>>,
+    // http: Pin<Box<&'a mut HTTP<'a>>>,
+    callback: Option<Box<HttpRequestCallback>>,
 }
 
-impl<'a> UdpServer<'a> {
-    pub async fn new(http: &'a mut HTTP) -> UdpServer<'a> {
-        return UdpServer {
-            listener: Box::pin(Endpoint::server(UdpServer::get_config(http).unwrap(), http.address().parse().unwrap()).unwrap()),
-            http: Box::pin(http),
-        }
-    }
+impl<'a> UdpServer {
+    // pub async fn new(http: &'a mut HTTP<'a>) -> UdpServer<'a> {
+    //     return UdpServer {
+    //         listener: Box::pin(Endpoint::server(UdpServer::get_config(http).unwrap(), http.address().parse().unwrap()).unwrap()),
+    //         http: Box::pin(http),
+    //         callback: None
+    //     }
+    // }
 
     fn get_config(http: &'a mut HTTP) -> IOResult<ServerConfig> {
         let mut config = get_server_config(&http.tls.as_ref().unwrap())?;
@@ -54,19 +56,24 @@ impl<'a> UdpServer<'a> {
 
         self.listener.wait_idle().await;
     }
+
+
+    pub async fn on_request(&'a mut self, callback: Box<HttpRequestCallback>) {
+        self.callback = Some(callback);
+    }
     
     async fn new_connection(&mut self, conn: Connection) {
-        let mut connection: h3::server::Connection<h3_quinn::Connection, Bytes> = h3::server::Connection::new(h3_quinn::Connection::new(conn))
-            .await
-            .unwrap();
+        // let mut connection: h3::server::Connection<h3_quinn::Connection, Bytes> = h3::server::Connection::new(h3_quinn::Connection::new(conn))
+        //     .await
+        //     .unwrap();
 
-        while let Ok(Some(resolver)) = connection.accept().await {
-            tokio_scoped::scope(|scope| {
-                scope.spawn(async {
-                    // TODO: fix - curl: (18) HTTP/3 stream 0 reset by server
-                    http3::Handler::handle(&mut self.http, resolver).await.unwrap()
-                });
-            });
-        }
+        // while let Ok(Some(resolver)) = connection.accept().await {
+        //     tokio_scoped::scope(|scope| {
+        //         scope.spawn(async {
+        //             // TODO: fix - curl: (18) HTTP/3 stream 0 reset by server
+        //             http3::Handler::handle(&mut self.http, resolver).await.unwrap()
+        //         });
+        //     });
+        // }
     }
 }

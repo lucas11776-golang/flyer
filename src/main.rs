@@ -4,12 +4,38 @@ use flyer::{view::view_data};
 
 // TODO: take rest must make controller route to support async operation...
 
+
+struct Response {
+    pub(crate) status: i32
+}
+
+
+impl Response {
+    pub fn set_status(mut self, status: i32) -> Self {
+        self.status = status;
+        return self;
+    }
+}
+
+
+fn request_handler(res: Response) -> Response {
+    res.set_status(500)
+}
+
+
+// start: 'static
 fn main() {
     let mut server = flyer::server("127.0.0.1", 9999);
 
     server.view("views");
-    
-    server.router().get("/",   |req, res| {
+
+
+    server.router().get("/",   async|req, res| {
+
+
+
+        println!("YEs.... calling it...");
+
         let mut data = view_data();
 
         data.insert("first_name", "Jeo");
@@ -25,31 +51,32 @@ fn main() {
     }, None);
     
 
-    server.router().ws("/", |req, ws| {
-        tokio_scoped::scope(|scope| {
-            scope.spawn(async {
-                ws.write("Hello World".into()).await;
-            });
-        });
+    // server.router().ws("/", |req, ws| {
+    //     tokio_scoped::scope(|scope| {
+    //         scope.spawn(async {
+    //             ws.write("Hello World".into()).await;
+    //         });
+    //     });
 
-        ws.on(|event| async move {
-
-
-            match event {
-                flyer::ws::Event::Ready()                 => println!("Websocket connection is ready"),
-                flyer::ws::Event::Message(items) => {
+    //     ws.on(|event| async move {
 
 
-                    println!("Websocket connection is message: {:?}", String::from_utf8(items.to_vec()).unwrap())
-                },
-                flyer::ws::Event::Ping(items)    => println!("Websocket connection is ping: {:?}", String::from_utf8(items.to_vec()).unwrap()),
-                flyer::ws::Event::Pong(items)    => println!("Websocket connection is pong: {:?}", String::from_utf8(items.to_vec()).unwrap()),
-                flyer::ws::Event::Close(reason)   => println!("Websocket connection is close: {:?}", reason),
-            }
-        });
-    }, None);
+    //         match event {
+    //             flyer::ws::Event::Ready()                 => println!("Websocket connection is ready"),
+    //             flyer::ws::Event::Message(items) => {
+
+
+    //                 println!("Websocket connection is message: {:?}", String::from_utf8(items.to_vec()).unwrap())
+    //             },
+    //             flyer::ws::Event::Ping(items)    => println!("Websocket connection is ping: {:?}", String::from_utf8(items.to_vec()).unwrap()),
+    //             flyer::ws::Event::Pong(items)    => println!("Websocket connection is pong: {:?}", String::from_utf8(items.to_vec()).unwrap()),
+    //             flyer::ws::Event::Close(reason)   => println!("Websocket connection is close: {:?}", reason),
+    //         }
+    //     });
+    // }, None);
 
     print!("\r\n\r\nRunning server: {}\r\n\r\n", server.address());
 
     server.listen();
 }
+// end: 'static

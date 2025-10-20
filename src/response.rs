@@ -1,5 +1,4 @@
-use std::{io::Result};
-
+use std::{collections::HashMap, io::Result};
 use serde::Serialize;
 
 use crate::{
@@ -21,14 +20,14 @@ pub struct Response {
     pub ws: Option<Ws>,
 }
 
-pub fn new_response() -> Response {
+pub fn new_response(view: Option<View>) -> Response {
     return Response {
         status_code: 200,
         headers: Headers::new(),
         body: vec![],
         session: None,
-        view: None,
-        ws: None
+        view: view,
+        ws: None,
     };
 }
 
@@ -46,33 +45,31 @@ pub fn parse(response: &mut Response) -> Result<String> {
 }
 
 impl Response {
-    pub fn status_code(&mut self, code: u16) -> &mut Response {
+    pub fn status_code(mut self, code: u16) -> Response {
         self.status_code = code;
         
         return self;
     }
 
-    pub fn header(&mut self, key: String, value: String) -> &mut Response {
+    pub fn header(mut self, key: String, value: String) -> Response {
         self.headers.insert(key, value);
 
         return self;
     }
 
-    pub fn headers(&mut self, headers: Headers) -> &mut Response {
-        for ele in headers {
-            self.header(ele.0, ele.1);
-        }
+    pub fn headers(mut self, headers: Headers) -> Response {
+        self.headers.extend(headers);
 
         return self;
     }
 
-    pub fn body(&mut self, body: &[u8]) -> &mut Response {
+    pub fn body(mut self, body: &[u8]) -> Response {
         self.body = body.to_vec();
 
         return self;
     }
 
-    pub fn json<J>(&mut self, object: &J) -> &mut Response
+    pub fn json<J>(self, object: &J) -> Response
     where 
         J: ?Sized + Serialize
     {
@@ -80,12 +77,12 @@ impl Response {
             .body(serde_json::to_string(object).unwrap().as_bytes());
     }
 
-    pub fn html(&mut self, html: &str) -> &mut Response {
+    pub fn html(self, html: &str) -> Response {
         return self.header("Content-Type".to_string(), "text/html".to_owned())
             .body(html.as_bytes());
     }
 
-    pub fn view(&mut self, view: &str, data: Option<ViewData>) -> &mut Response {
+    pub fn view(mut self, view: &str, data: Option<ViewData>) -> Response {
         let html = self.view.as_mut().unwrap().render(view, data);
 
         return self.html(&html);
@@ -93,17 +90,6 @@ impl Response {
 
     pub fn session<'a>(&self) -> Option<&Box<dyn Session>> {
         return self.session.as_ref();
-    }
-
-    pub fn clone(&self) -> Response {
-        return Response {
-            status_code: self.status_code,
-            headers: self.headers.clone(),
-            body: self.body.clone(),
-            session: None,
-            view: None,
-            ws: None
-        };
     }
 }
 

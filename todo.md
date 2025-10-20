@@ -1,3 +1,10 @@
+# DO MORE LIFETIMES....
+
+# TODO
+- Bad arch...
+- find better way to store routes...
+
+
 # HTTP
 
 * Add Route Subdomain...
@@ -24,3 +31,7 @@
 // where
 //     for<'b> C: Fn(&'b mut Request, &'b mut Response) -> F + Send + Sync + 'static,
 //     F: FutureExt<Output =  Response> + Send + Sync + 'static,
+
+
+# This lookout for understand...
+- &mut self | &'{{lifetime}} mut | mut self - in `impl`

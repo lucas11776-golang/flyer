@@ -12,7 +12,7 @@ pub struct JsonMessage {
     message: String
 }
 
-pub fn auth<'a>(req: &'a mut Request, res: &'a mut Response, next: &'a mut Next<'a>) -> &'a mut Response {
+pub fn auth<'a>(req: Request, res: Response, next: Next<'a>) ->  Response {
     return res.status_code(401).json(&JsonMessage{
         message: "unauthorized access".to_string()
     });
@@ -21,7 +21,7 @@ pub fn auth<'a>(req: &'a mut Request, res: &'a mut Response, next: &'a mut Next<
 fn main() {
     let mut server = server("127.0.0.1", 9999);
     
-    server.router().get("api/users/{user}", |req, res| {
+    server.router().get("api/users/{user}", async |req, res| {
         return res.json(&User{
             id: req.parameter("user").parse().unwrap(),
             email: "joe@deo.com".to_owned()
