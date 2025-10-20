@@ -36,21 +36,36 @@ where
     //     };
     // }
 
-    pub async fn handle(&mut self, req: &'a mut Request, res: &'a mut Response) -> Result<()> {
+    fn websocket_handle_shake_headers(&mut self, sec_websocket_key: String, res: Response) -> Response {
         // TODO: handshake...
-        let sec_websocket_key = self.get_sec_web_socket_accept(req.header("sec-websocket-key"));
-
-        res.status_code(101)
+        return res.status_code(101)
             .header("Upgrade".to_owned(), "websocket".to_owned())
             .header("Connection".to_owned(), "Upgrade".to_owned())
-            .header("Sec-WebSocket-Accept".to_owned(), sec_websocket_key);
+            .header("Sec-WebSocket-Accept".to_owned(), self.get_sec_web_socket_accept(sec_websocket_key));
+    }
 
-        println!("{:?}", parse(res).unwrap());
+    async fn handshake(&mut self, mut req: Request, mut res: Response) -> Result<(Request, Response)> {
+        res = self.websocket_handle_shake_headers(req.header("sec-websocket-key"), res);
 
-        self.writer
-            .write(parse(res).unwrap().as_bytes())
-            .await
-            .unwrap();
+
+        // self.writer
+        //     .write(parse(res).unwrap().as_bytes())
+        //     .await
+        //     .unwrap();
+
+
+
+        Ok((req, res))
+    }
+
+    pub async fn handle(&mut self, req: Request, mut res: Response) -> Result<()> {
+
+        // println!("{:?}", parse(res).unwrap());
+
+
+        (_, res) = self.handshake(req, res).await.unwrap();
+
+        
 
         let ws_stream = WebSocketStream::from_raw_socket(self.writer.as_mut(), Server, None)
             .await;

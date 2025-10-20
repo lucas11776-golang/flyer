@@ -20,7 +20,7 @@ use tokio_rustls::TlsAcceptor;
 
 use crate::request::Request;
 use crate::response::Response;
-use crate::router::group::GroupRouter;
+use crate::router::group::{Group, GroupRouter};
 use crate::router::{Route, Router, WebRoute, WsRoute};
 use crate::server::{get_server_config, HttpRequestCallback};
 use crate::server::tcp::NewTcpServer;
@@ -95,38 +95,23 @@ impl <'a>HTTP {
         self.request_max_size = size;    
     }
 
-    pub fn view(&mut self, path: &str) -> &mut HTTP {
+    pub fn view(&mut self, path: &str) -> &mut Self {
         self.configuration.insert("view_path".to_owned(), path.to_owned());
 
         return self;
     }
 
-    pub fn session(&mut self, manager: Box<dyn SessionManager>) -> &mut HTTP {
+    pub fn session(&mut self, manager: Box<dyn SessionManager>) -> &mut Self {
         self.session_manger = Some(manager);
 
         return self;
     }
 
-    pub fn listen(&'a mut self) {
-        // Runtime::new().unwrap().block_on(async {
-        //     tokio_scoped::scope(|scope| {
-        //         scope.spawn(self.tcp_server());
-        //     });
-
-        //     tokio_scoped::scope(|scope| {
-        //         scope.spawn(self.udp_server());
-        //     });
-        // });
-
-
+    pub fn listen(self) {
         Runtime::new().unwrap().block_on(async {
             tokio_scoped::scope(|scope| {
                 scope.spawn(self.tcp_server());
             });
-
-            // tokio_scoped::scope(|scope| {
-            //     scope.spawn(self.udp_server());
-            // });
         });
 
         // // TODO: check if the is no better way...
@@ -151,28 +136,35 @@ impl <'a>HTTP {
         )
     }
 
-    async fn tcp_server<'s>(&'a mut self)
+    async fn call(&mut self, req: Request, res: Response) -> Response {
+        return self.router.match_web_routes(req, res).await.unwrap();
+    }
+
+    async fn tcp_server<'s>(mut self)
     // where 
     //     'a: 's
      {
-        let mut server = NewTcpServer::new(self.host.to_string(), self.port, self.get_tls_acceptor().unwrap()).await.unwrap();
+        // let mut server = NewTcpServer::new(self.host.to_string(), self.port, self.get_tls_acceptor().unwrap()).await.unwrap();
+        let mut server = NewTcpServer::new(&mut self).await.unwrap();
 
         // {
-        //     server.http_request(async |req, res| self.router.match_web_routes(req, res).await).await;
+        //     // TODO: temp fix...
+        //     server.http_request( async move |req, res| self.router.match_web_routes(req, res).await.unwrap()).await;
         // }
 
         server.listen().await;
     }
 
-    async fn udp_server(&'a mut self) {
+    async fn udp_server(mut self) {
         // UdpServer::new(self).await
         //     .listen()
         //     .await;
     }
 
-    pub fn router(&'a mut self) -> Router<'a>
-
+    pub fn router<'s>(&'_ mut self) -> Router<'_>
     {
+
+        // TODO: find way to have
         return Router {
             router: &mut self.router,
             path: vec!["/".to_string()],

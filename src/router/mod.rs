@@ -14,10 +14,12 @@ use crate::utils::url::clean_url;
 
 
 
+
 use futures::future::{Future, FutureExt};
 
 
-pub type TRoute  = dyn for<'a> Fn(&'a mut Request, &'a mut Response) -> BoxFuture<'a, &'a mut Response> + Send + Sync + 'static; // TODO: 'a - not in scope
+
+pub type TRoute = dyn for<'a> Fn(Request, Response) -> BoxFuture<'static, Response> + Send + Sync; // TODO: 'a --
 
 
 // TODO: current option
@@ -25,7 +27,7 @@ pub type TRoute  = dyn for<'a> Fn(&'a mut Request, &'a mut Response) -> BoxFutur
 
 // TODO: route must be async...
 pub type WebRoute = for<'a> fn (req: &'a mut Request, res: &'a mut Response) -> &'a mut Response;
-pub type Middleware = for<'a>  fn (req: &'a mut Request, res: &'a mut Response, next: &'a mut Next<'a>) -> &'a mut Response;
+pub type Middleware = for<'a>  fn (req: Request, res: Response, next: Next<'a>) -> Response;
 pub type Middlewares = Vec<Middleware>;
 pub type WsRoute = for<'a> fn (req: &'a mut Request, res: &'a mut Ws);
 pub type Group = fn (router: &mut Router);
@@ -58,58 +60,60 @@ impl <'a>Next<'a> {
 }
 
 impl <'a>Router<'a> {
-    pub fn get<C, F>(&'a mut self, path: &str, callback: C, middleware: Option<Middlewares>)
+    pub fn get<R, F>(&mut self, path: &str, callback: R, middleware: Option<Middlewares>)
     where
-        C: Fn(&'a mut Request, &'a mut Response) -> F + Send + Sync + 'a,
-        F: Future<Output = &'a mut Response> + Send + Sync + 'a,
+        R: Fn(Request, Response) -> F + Send + Sync + 'static,
+        F: Future<Output = Response> + Send + Sync + 'static,
     {
-
-        let parsed = move |req: &'a mut Request, res: &'a mut Response| {
-            return callback(req, res).boxed();
-        };
-
-
-        self.router.web.push(Route{
-            path: "/".to_string(),
-            method: "GET".to_string(),
-            route: Box::new(parsed),
-            middlewares: vec![],
-        });
-
-
-        
-        // self.get = Some(Box::new(parsed));
-
-
-        // self.route("GET", path, callback, middleware);
+        self.add_web_route("GET", path, callback, middleware);
     }   
  
-    pub fn post(&mut self, path: &str, callback: WebRoute, middleware: Option<Middlewares>) {
-        self.route("POST", path, callback, middleware);
+    pub fn post<R, F>(&mut self, path: &str, callback: R, middleware: Option<Middlewares>)
+    where
+        R: Fn(Request, Response) -> F + Send + Sync + 'static,
+        F: Future<Output = Response> + Send + Sync + 'static,
+    {
+        self.add_web_route("POST", path, callback, middleware);
     }
 
-    pub fn patch(&mut self, path: &str, callback: WebRoute, middleware: Option<Middlewares>) {
-        self.route("PATCH", path, callback, middleware);
+    pub fn patch<R, F>(&mut self, path: &str, callback: R, middleware: Option<Middlewares>)
+    where
+        R: Fn(Request, Response) -> F + Send + Sync + 'static,
+        F: Future<Output = Response> + Send + Sync + 'static,
+    {
+        self.add_web_route("PATCH", path, callback, middleware);
     }
 
-    pub fn put(&mut self, path: &str, callback: WebRoute, middleware: Option<Middlewares>) {
-        self.route("PUT", path, callback, middleware);
+    pub fn put<R, F>(&mut self, path: &str, callback: R, middleware: Option<Middlewares>)
+    where
+        R: Fn(Request, Response) -> F + Send + Sync + 'static,
+        F: Future<Output = Response> + Send + Sync + 'static,
+    {
+        self.add_web_route("PUT", path, callback, middleware);
     }
 
-    pub fn delete(&mut self, path: &str, callback: WebRoute, middleware: Option<Middlewares>) {
-        self.route("DELETE", path, callback, middleware);
+    pub fn delete<R, F>(&mut self, path: &str, callback: R, middleware: Option<Middlewares>)
+    where
+        R: Fn(Request, Response) -> F + Send + Sync + 'static,
+        F: Future<Output = Response> + Send + Sync + 'static,
+    {
+        self.add_web_route("DELETE", path, callback, middleware);
     }
 
-    pub fn head(&mut self, path: &str, callback: WebRoute, middleware: Option<Middlewares>) {
-        self.route("CONNECT", path, callback, middleware);
+    pub fn head<R, F>(&mut self, path: &str, callback: R, middleware: Option<Middlewares>)
+    where
+        R: Fn(Request, Response) -> F + Send + Sync + 'static,
+        F: Future<Output = Response> + Send + Sync + 'static,
+    {
+        self.add_web_route("CONNECT", path, callback, middleware);
     }
 
-    pub fn options(&mut self, path: &str, callback: WebRoute, middleware: Option<Middlewares>) {
-        self.route("OPTIONS", path, callback, middleware);
-    }
-
-    pub fn route(&mut self, method: &str, path: &str, callback: WebRoute, middleware: Option<Middlewares>) {
-        self.add_web_route(method, path, callback, middleware).unwrap();
+    pub fn options<R, F>(&mut self, path: &str, callback: R, middleware: Option<Middlewares>)
+    where
+        R: Fn(Request, Response) -> F + Send + Sync + 'static,
+        F: Future<Output = Response> + Send + Sync + 'static,
+    {
+        self.add_web_route("OPTIONS", path, callback, middleware);
     }
 
     fn get_middlewares(&mut self, middleware: Option<Middlewares>) -> Middlewares {
@@ -135,14 +139,12 @@ impl <'a>Router<'a> {
     }
 
     pub fn group(&mut self , path: &str, group: Group, middleware: Option<Middlewares>) {
-        let middlewares = self.get_middlewares(middleware);
-
-        // group(&mut Router{
-        //     // TODO: fix
-        //     path: Router::get_path(self.path.clone(), vec![path.to_string()]),
-        //     router: self.router,
-        //     middleware: middlewares
-        // });
+        group(&mut Router{
+            // TODO: fix
+            path: Router::get_path(self.path.clone(), vec![path.to_string()]),
+            middleware: self.get_middlewares(middleware),
+            router: self.router,
+        });
     }
 
     pub fn not_found(&mut self, callback: Box<WebRoute>) {
@@ -156,17 +158,20 @@ impl <'a>Router<'a> {
             .collect();
     }
 
-    fn add_web_route(&mut self, method: &str, path: &str, callback: WebRoute, middleware: Option<Middlewares>) -> Result<()> {
+    fn add_web_route<C, F>(&mut self, method: &str, path: &str, callback: C, middleware: Option<Middlewares>)
+    where
+        C: Fn(Request, Response) -> F + Send + Sync + 'static,
+        F: Future<Output = Response> + Send + Sync + 'static,
+    {
         let middlewares = self.get_middlewares(middleware);
 
-        // self.router.web.push(Route{
-        //     // TODO: fix
-        //     path: Router::get_path(self.path.clone(), vec![path.to_string()]).join("/"),
-        //     method: method.to_string(),
-        //     route: callback,
-        //     middlewares: middlewares,
-        // });
+        self.router.web.push(Route{
+            // TODO: fix
+            path: Router::get_path(self.path.clone(), vec![path.to_string()]).join("/"),
+            method: method.to_string(),
+            route: Box::new(move |req: Request, res: Response|  callback(req, res).boxed()),
+            middlewares: middlewares,
+        });
 
-        Ok(())
     }
 }

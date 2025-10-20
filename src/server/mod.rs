@@ -19,7 +19,7 @@ use crate::{request::Request, response::Response, HTTP};
 type Protocol = i32;
 
 
-pub(crate) type HttpRequestCallback =  dyn for<'a> Fn(&mut Request, &mut Response) -> BoxFuture<'static, ()> + Send + Sync;
+pub(crate) type HttpRequestCallback =  dyn for<'a> FnOnce(Request, Response) -> BoxFuture<'static, Response> + Send + Sync;
 
 
 const HTTP1: Protocol = 1;

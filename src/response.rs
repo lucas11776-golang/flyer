@@ -1,8 +1,5 @@
-use std::{io::Result};
-
+use std::{collections::HashMap, io::Result};
 use serde::Serialize;
-
-use futures::future::{BoxFuture, Future, FutureExt};
 
 use crate::{
     request::Headers,
@@ -14,16 +11,6 @@ use crate::{
     }
 };
 
-
-
-pub trait Writer: Send + Sync {
-    fn write(self, res: &mut Response) -> impl Future<Output = Result<()>> + Sync + Send where Self: Sized;
-}
-
-
-
-// pub type HttpWriter = dyn FnOnce(&mut Response) -> dyn Future<Output = Result<()>>;
-
 pub struct Response {
     pub(crate) status_code: u16,
     pub(crate) headers: Headers,
@@ -31,18 +18,16 @@ pub struct Response {
     pub(crate) session: Option<Box<dyn Session>>,
     pub(crate) view: Option<View>,
     pub ws: Option<Ws>,
-    // pub(crate) writer: Box<dyn Writer + 'static>,
 }
 
-pub fn new_response(writer: Option<Box<dyn Writer>>) -> Response {
+pub fn new_response(view: Option<View>) -> Response {
     return Response {
         status_code: 200,
         headers: Headers::new(),
         body: vec![],
         session: None,
-        view: None,
+        view: view,
         ws: None,
-        // writer: writer
     };
 }
 
@@ -60,33 +45,31 @@ pub fn parse(response: &mut Response) -> Result<String> {
 }
 
 impl Response {
-    pub fn status_code(&mut self, code: u16) -> &mut Response {
+    pub fn status_code(mut self, code: u16) -> Response {
         self.status_code = code;
         
         return self;
     }
 
-    pub fn header(&mut self, key: String, value: String) -> &mut Response {
+    pub fn header(mut self, key: String, value: String) -> Response {
         self.headers.insert(key, value);
 
         return self;
     }
 
-    pub fn headers(&mut self, headers: Headers) -> &mut Response {
-        for ele in headers {
-            self.header(ele.0, ele.1);
-        }
+    pub fn headers(mut self, headers: Headers) -> Response {
+        self.headers.extend(headers);
 
         return self;
     }
 
-    pub fn body(&mut self, body: &[u8]) -> &mut Response {
+    pub fn body(mut self, body: &[u8]) -> Response {
         self.body = body.to_vec();
 
         return self;
     }
 
-    pub fn json<J>(&mut self, object: &J) -> &mut Response
+    pub fn json<J>(self, object: &J) -> Response
     where 
         J: ?Sized + Serialize
     {
@@ -94,12 +77,12 @@ impl Response {
             .body(serde_json::to_string(object).unwrap().as_bytes());
     }
 
-    pub fn html(&mut self, html: &str) -> &mut Response {
+    pub fn html(self, html: &str) -> Response {
         return self.header("Content-Type".to_string(), "text/html".to_owned())
             .body(html.as_bytes());
     }
 
-    pub fn view(&mut self, view: &str, data: Option<ViewData>) -> &mut Response {
+    pub fn view(mut self, view: &str, data: Option<ViewData>) -> Response {
         let html = self.view.as_mut().unwrap().render(view, data);
 
         return self.html(&html);

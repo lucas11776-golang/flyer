@@ -5,6 +5,24 @@ use flyer::{view::view_data};
 // TODO: take rest must make controller route to support async operation...
 
 
+struct Response {
+    pub(crate) status: i32
+}
+
+
+impl Response {
+    pub fn set_status(mut self, status: i32) -> Self {
+        self.status = status;
+        return self;
+    }
+}
+
+
+fn request_handler(res: Response) -> Response {
+    res.set_status(500)
+}
+
+
 // start: 'static
 fn main() {
     let mut server = flyer::server("127.0.0.1", 9999);
@@ -13,6 +31,11 @@ fn main() {
 
 
     server.router().get("/",   async|req, res| {
+
+
+
+        println!("YEs.... calling it...");
+
         let mut data = view_data();
 
         data.insert("first_name", "Jeo");
@@ -52,8 +75,8 @@ fn main() {
     //     });
     // }, None);
 
-    // print!("\r\n\r\nRunning server: {}\r\n\r\n", server.address());
+    print!("\r\n\r\nRunning server: {}\r\n\r\n", server.address());
 
-    // server.listen();
+    server.listen();
 }
 // end: 'static
