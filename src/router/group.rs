@@ -27,7 +27,8 @@ use std::{io::Result, marker::PhantomData};
 
 #[derive(Default)]
 pub struct GroupRouter {
-    pub(crate) web: Vec<Route<Box<TRoute>>>,
+    pub(crate) name: &'static str,
+    pub(crate) web: Vec<Route<Box<TRoute<'static>>>>,
     pub(crate) ws: Vec<Route<WsRoute>>,
     pub(crate) not_found_callback: Option<Box<WebRoute>>,
 }
@@ -49,9 +50,10 @@ pub trait Group {
 impl <'a>GroupRouter {
     pub fn new() -> Self {
         return GroupRouter {
+            name: "",
             web: vec![],
             ws: vec![],
-            not_found_callback: None
+            not_found_callback: None,
         }
     }
 

@@ -1,25 +1,16 @@
 use std::{fs::File, io::Write};
 
 use flyer::{view::view_data};
+use serde::{Deserialize, Serialize};
 
 // TODO: take rest must make controller route to support async operation...
 
-
-struct Response {
-    pub(crate) status: i32
-}
-
-
-impl Response {
-    pub fn set_status(mut self, status: i32) -> Self {
-        self.status = status;
-        return self;
-    }
-}
-
-
-fn request_handler(res: Response) -> Response {
-    res.set_status(500)
+#[derive(Serialize, Deserialize)]
+pub struct User<'a> {
+    id: i64,
+    first_name: &'a str,
+    last_name: &'a str,
+    email: &'a str
 }
 
 
@@ -31,9 +22,6 @@ fn main() {
 
 
     server.router().get("/",   async|req, res| {
-
-
-
         println!("YEs.... calling it...");
 
         let mut data = view_data();
@@ -49,6 +37,18 @@ fn main() {
 
         return res.view("index.html", Some(data));   
     }, None);
+
+
+    server.router().group("users", |mut router| {
+        router.get("{id}", async |req, res| {
+            return res.json(&User {
+                id: req.parameters.get("id").unwrap().parse().unwrap(),
+                first_name: "Joe",
+                last_name: "Doe",
+                email: "jeo@doe.com",
+            })
+        }, Some(vec![]));
+    }, Some(vec![]));
     
 
     // server.router().ws("/", |req, ws| {

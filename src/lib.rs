@@ -15,6 +15,7 @@ use std::sync::atomic::{
 };
 
 use futures::FutureExt;
+use serde::ser;
 use tokio::runtime::Runtime;
 use tokio_rustls::TlsAcceptor;
 
@@ -63,7 +64,7 @@ fn new_http(host: &str, port: i32, tls: Option<TlsPathConfig>) -> HTTP {
     };
 }
 
-pub fn server<'a>(host: &str, port: i32) -> HTTP {
+pub fn server<'a>(host: &'a str, port: i32) -> HTTP {
     return new_http(host, port, None);
 }
 
@@ -73,10 +74,6 @@ pub fn server_tls<'a>(host: &'a str, port: i32, key: &str, cert: &str) -> HTTP {
         cert_path: cert.to_owned()
     }));
 }
-
-
-
-
 
 impl <'a>HTTP {
     pub fn host(&self) -> String {
@@ -140,7 +137,7 @@ impl <'a>HTTP {
         return self.router.match_web_routes(req, res).await.unwrap();
     }
 
-    async fn tcp_server<'s>(mut self)
+    async fn tcp_server(mut self)
     // where 
     //     'a: 's
      {
@@ -161,7 +158,7 @@ impl <'a>HTTP {
         //     .await;
     }
 
-    pub fn router<'s>(&'_ mut self) -> Router<'_>
+    pub fn router<'s>(&'a mut self) -> Router<'a>
     {
 
         // TODO: find way to have

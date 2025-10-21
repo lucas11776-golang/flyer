@@ -7,7 +7,7 @@ fn main() {
     // Create view folder in base project directory.
     server.view("views");
     
-    server.router().get("/", async |req, res| {
+    server.router().get("/", async |_req, res| {
         let mut data = view_data();
 
         data.insert("first_name", "Jeo");
