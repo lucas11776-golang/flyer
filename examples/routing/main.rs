@@ -23,11 +23,16 @@ pub async fn destroy(req: Request, res: Response) -> Response {
 fn main() {
     let mut server = server("127.0.0.1", 9999);
     
-    server.router().group("api", |router| {
-        router.group("users", |router| {
-            // router.get("/", index, None);
+    server.router().group("api", |mut router| {
+
+        // router.get("/", async |req, res| {
+        //     return res
+        // }, Some(vec![]));
+
+        router.group("users", |mut router| {
+            router.get("/", index, None);
             router.post("/", store, None);
-            router.group("{user}", |router| {
+            router.group("{user}", |mut router| {
                 // router.get("/", view, None);
                 router.patch("/", update, None);
                 router.delete("/", destroy, None);

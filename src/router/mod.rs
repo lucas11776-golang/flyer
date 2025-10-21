@@ -4,7 +4,7 @@ use std::io::Result;
 
 use futures_util::future::BoxFuture;
 
-use crate::router::group::GroupRouter;
+use crate::{router::group::GroupRouter, HTTP};
 use crate::utils::merge;
 use crate::ws::Ws;
 
@@ -19,7 +19,7 @@ use futures::future::{Future, FutureExt};
 
 
 
-pub type TRoute = dyn for<'a> Fn(Request, Response) -> BoxFuture<'static, Response> + Send + Sync; // TODO: 'a --
+pub type TRoute<'a> = dyn Fn(Request, Response) -> BoxFuture<'static, Response> + Send + Sync; // TODO: 'a --
 
 
 // TODO: current option
@@ -30,7 +30,7 @@ pub type WebRoute = for<'a> fn (req: &'a mut Request, res: &'a mut Response) -> 
 pub type Middleware = for<'a>  fn (req: Request, res: Response, next: Next<'a>) -> Response;
 pub type Middlewares = Vec<Middleware>;
 pub type WsRoute = for<'a> fn (req: &'a mut Request, res: &'a mut Ws);
-pub type Group = fn (router: &mut Router);
+pub type Group<'s> = fn (router: Router);
 
 pub struct Next<'a> {
     is_next: &'a mut bool,
@@ -38,6 +38,7 @@ pub struct Next<'a> {
 }
 
 pub struct Router<'a> {
+    // pub(crate) http: &'a mut HTTP<'a>,
     pub(crate) router: &'a mut GroupRouter,
     pub(crate) path: Vec<String>,
     pub(crate) middleware: Middlewares,
@@ -138,8 +139,11 @@ impl <'a>Router<'a> {
         });
     }
 
-    pub fn group(&mut self , path: &str, group: Group, middleware: Option<Middlewares>) {
-        group(&mut Router{
+    pub fn group<'s>(&'s mut self , path: &str, group: Group<'s>, middleware: Option<Middlewares>)
+    where
+        // 's: 'a
+    {
+        group(Router{
             // TODO: fix
             path: Router::get_path(self.path.clone(), vec![path.to_string()]),
             middleware: self.get_middlewares(middleware),

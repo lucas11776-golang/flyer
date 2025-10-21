@@ -241,12 +241,12 @@ pub struct TcpServer {
     http_2_handler: Http2Handler,
     listener: TcpListener,
     acceptor: Option<TlsAcceptor>,
-    // http: &'a mut HTTP<'a>,
+    // http: &'a mut HTTP,
     callback: Option<Box<HttpRequestCallback>>,
 }
 
 impl <'a>TcpServer {
-    // pub async fn new(http: &'a mut HTTP<'a>) -> TcpServer<'a> {
+    // pub async fn new(http: &'a mut HTTP) -> TcpServer<'a> {
     //     let mut acceptor: Option<TlsAcceptor> = None;
 
     //     if http.tls.is_some() {
