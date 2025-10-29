@@ -1,4 +1,4 @@
-use std::{collections::HashMap, io::Result};
+use std::{clone, collections::HashMap, io::Result};
 use serde::Serialize;
 
 use crate::{
@@ -11,23 +11,33 @@ use crate::{
     }
 };
 
+#[derive(Clone)]
 pub struct Response {
     pub(crate) status_code: u16,
     pub(crate) headers: Headers,
     pub(crate) body: Vec<u8>,
-    pub(crate) session: Option<Box<dyn Session>>,
-    pub(crate) view: Option<View>,
-    pub ws: Option<Ws>,
+    // pub(crate) session: Option<Box<dyn Session>>,
+    // pub(crate) view: Option<View>,
+
+    pub(crate) view: Option<ViewBag>,
+    // pub ws: Option<Ws>,
 }
 
-pub fn new_response(view: Option<View>) -> Response {
+#[derive(Clone)]
+pub struct ViewBag {
+    pub(crate) view: String,
+    pub(crate) data: Option<ViewData>,
+}
+
+pub fn new_response() -> Response {
     return Response {
         status_code: 200,
         headers: Headers::new(),
         body: vec![],
-        session: None,
-        view: view,
-        ws: None,
+        // session: None,
+        // view: view,
+        view: None,
+        // ws: None,
     };
 }
 
@@ -83,15 +93,16 @@ impl Response {
     }
 
     pub fn view(mut self, view: &str, data: Option<ViewData>) -> Response {
-        let html = self.view.as_mut().unwrap().render(view, data);
+        self.view = Some(ViewBag {
+            view: view.to_string(),
+            data: data
+        });
 
-        return self.html(&html);
+        return self;
     }
 
-    pub fn session<'a>(&self) -> Option<&Box<dyn Session>> {
-        return self.session.as_ref();
-    }
+    // pub fn session<'a>(&self) -> Option<&Box<dyn Session>> {
+    //     return self.session.as_ref();
+    // }
 }
-
-
 

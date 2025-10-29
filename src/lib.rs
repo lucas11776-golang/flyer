@@ -28,10 +28,10 @@ use crate::server::tcp::NewTcpServer;
 use crate::server::udp::UdpServer;
 use crate::server::{
     TlsPathConfig,
-    tcp::{TcpServer}
 };
 use crate::session::SessionManager;
 use crate::utils::Configuration;
+use crate::view::View;
 
 
 
@@ -48,6 +48,7 @@ pub struct HTTP {
     pub(crate) request_max_size: i64,
     pub(crate) router: GroupRouter,
     pub(crate) session_manger: Option<Box<dyn SessionManager>>,
+    pub(crate) view: Option<View>,
     pub(crate) configuration: Configuration,
 }
 
@@ -59,6 +60,7 @@ fn new_http(host: &str, port: i32, tls: Option<TlsPathConfig>) -> HTTP {
         // acceptor: acceptor,
         request_max_size: 1024,
         router: GroupRouter::new(),
+        view: None,
         session_manger: None,
         configuration: Configuration::new(),
     };
@@ -93,7 +95,7 @@ impl <'a>HTTP {
     }
 
     pub fn view(&mut self, path: &str) -> &mut Self {
-        self.configuration.insert("view_path".to_owned(), path.to_owned());
+        self.view = Some(View::new(path));
 
         return self;
     }

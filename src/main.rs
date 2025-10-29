@@ -21,7 +21,7 @@ fn main() {
     server.view("views");
 
 
-    server.router().get("/",   async|req, res| {
+    server.router().get("/",   async |req, res| {
         println!("YEs.... calling it...");
 
         let mut data = view_data();

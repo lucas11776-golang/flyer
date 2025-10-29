@@ -74,7 +74,7 @@ impl <'a>Router<'a> {
         R: Fn(Request, Response) -> F + Send + Sync + 'static,
         F: Future<Output = Response> + Send + Sync + 'static,
     {
-        self.add_web_route("POST", path, callback, middleware);
+        // self.add_web_route("POST", path, callback, middleware);
     }
 
     pub fn patch<R, F>(&mut self, path: &str, callback: R, middleware: Option<Middlewares>)
@@ -82,7 +82,7 @@ impl <'a>Router<'a> {
         R: Fn(Request, Response) -> F + Send + Sync + 'static,
         F: Future<Output = Response> + Send + Sync + 'static,
     {
-        self.add_web_route("PATCH", path, callback, middleware);
+        // self.add_web_route("PATCH", path, callback, middleware);
     }
 
     pub fn put<R, F>(&mut self, path: &str, callback: R, middleware: Option<Middlewares>)
@@ -90,7 +90,7 @@ impl <'a>Router<'a> {
         R: Fn(Request, Response) -> F + Send + Sync + 'static,
         F: Future<Output = Response> + Send + Sync + 'static,
     {
-        self.add_web_route("PUT", path, callback, middleware);
+        // self.add_web_route("PUT", path, callback, middleware);
     }
 
     pub fn delete<R, F>(&mut self, path: &str, callback: R, middleware: Option<Middlewares>)
@@ -98,7 +98,7 @@ impl <'a>Router<'a> {
         R: Fn(Request, Response) -> F + Send + Sync + 'static,
         F: Future<Output = Response> + Send + Sync + 'static,
     {
-        self.add_web_route("DELETE", path, callback, middleware);
+        // self.add_web_route("DELETE", path, callback, middleware);
     }
 
     pub fn head<R, F>(&mut self, path: &str, callback: R, middleware: Option<Middlewares>)
@@ -106,7 +106,7 @@ impl <'a>Router<'a> {
         R: Fn(Request, Response) -> F + Send + Sync + 'static,
         F: Future<Output = Response> + Send + Sync + 'static,
     {
-        self.add_web_route("CONNECT", path, callback, middleware);
+        // self.add_web_route("CONNECT", path, callback, middleware);
     }
 
     pub fn options<R, F>(&mut self, path: &str, callback: R, middleware: Option<Middlewares>)
@@ -114,7 +114,7 @@ impl <'a>Router<'a> {
         R: Fn(Request, Response) -> F + Send + Sync + 'static,
         F: Future<Output = Response> + Send + Sync + 'static,
     {
-        self.add_web_route("OPTIONS", path, callback, middleware);
+        // self.add_web_route("OPTIONS", path, callback, middleware);
     }
 
     fn get_middlewares(&mut self, middleware: Option<Middlewares>) -> Middlewares {
@@ -141,7 +141,6 @@ impl <'a>Router<'a> {
 
     pub fn group<'s>(&'s mut self , path: &str, group: Group<'s>, middleware: Option<Middlewares>)
     where
-        // 's: 'a
     {
         group(Router{
             // TODO: fix
@@ -170,10 +169,9 @@ impl <'a>Router<'a> {
         let middlewares = self.get_middlewares(middleware);
 
         self.router.web.push(Route{
-            // TODO: fix
             path: Router::get_path(self.path.clone(), vec![path.to_string()]).join("/"),
             method: method.to_string(),
-            route: Box::new(move |req: Request, res: Response|  callback(req, res).boxed()),
+            route: Box::new(move |req: Request, res: Response| callback(req, res).boxed()),
             middlewares: middlewares,
         });
 

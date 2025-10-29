@@ -63,19 +63,19 @@ where
         // println!("{:?}", parse(res).unwrap());
 
 
-        (_, res) = self.handshake(req, res).await.unwrap();
+        // (_, res) = self.handshake(req, res).await.unwrap();
 
         
 
-        let ws_stream = WebSocketStream::from_raw_socket(self.writer.as_mut(), Server, None)
-            .await;
-        let (mut sink, mut stream) = ws_stream.split();
-        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+        // let ws_stream = WebSocketStream::from_raw_socket(self.writer.as_mut(), Server, None)
+        //     .await;
+        // let (mut sink, mut stream) = ws_stream.split();
+        // let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
 
 
         
 
-        res.ws = Some(Ws::new(tx));
+        // res.ws = Some(Ws::new(tx));
 
         // if self.http.router().router.match_ws_routes(req, res).await.is_none() {
         //     return Ok(());
@@ -101,9 +101,9 @@ where
         // stream.
 
 
-                while let Some(item) = stream.next().await {
-                    println!("Message {:?}", item.unwrap().to_text())
-                }
+                // while let Some(item) = stream.next().await {
+                //     println!("Message {:?}", item.unwrap().to_text())
+                // }
 
 
 

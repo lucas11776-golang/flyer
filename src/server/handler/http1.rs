@@ -25,7 +25,7 @@ impl <'a, RW>NewHandler<'a, RW>
 where
     RW: AsyncRead + AsyncWrite + Unpin + Send + Sync,
 {
-    pub fn new(mut rw: Pin<&'a mut BufReader<RW>>, addr: SocketAddr) -> Self {
+    pub fn new(rw: Pin<&'a mut BufReader<RW>>, addr: SocketAddr) -> Self {
         return Self{
             rw: rw,
             addr: addr
@@ -92,9 +92,9 @@ where
         return Some(Ok(req));
     }
 
-    pub async fn write(&mut self, mut res: Response) -> Result<()>
+    pub async fn write(&mut self, res: &mut Response) -> Result<()>
     {
-        let _ = self.rw.write(parse(&mut res)?.as_bytes()).await;
+        let _ = self.rw.write(parse(res)?.as_bytes()).await;
 
         Ok(())
     }

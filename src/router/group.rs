@@ -87,7 +87,8 @@ impl <'a>GroupRouter {
         'a: 's
      {
 
-        println!("REQUEST HERE");
+
+            println!("REQUEST HERE {:?}", self.web.len());
 
         for route in &mut self.web {
             let (matches, parameters) = GroupRouter::match_route(route, &mut req);
@@ -104,6 +105,10 @@ impl <'a>GroupRouter {
 
 
             // let a = (route.route)(req, res).await;
+
+
+
+
 
 
             return Ok((route.route)(req, res).await)

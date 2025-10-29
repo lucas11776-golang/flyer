@@ -13,7 +13,6 @@ use multer::Multipart;
 
 use crate::utils::url::parse_query_params;
 use crate::utils::{url, Values};
-use crate::view::new_view;
 use crate::ws::Ws;
 use crate::{HTTP};
 use crate::request::{File, Files, MultipartForm, Request};

@@ -3,17 +3,24 @@ use std::io::Result;
 use serde::Serialize;
 use tera::{Context, Tera};
 
-pub fn new_view(path: String) -> View {
-    return View{
-        render: Tera::new(&format!("{}/**/*", path.trim_end_matches("/"))).unwrap()
-    };
-}
+// pub fn new_view(path: String) -> View {
+//     return View{
+//         render: Tera::new(&format!("{}/**/*", path.trim_end_matches("/"))).unwrap()
+//     };
+// }
 
 pub struct View {
+
     pub(crate) render: Tera
 }
 
 impl View {
+    pub fn new(path: &str) -> Self {
+        return Self {
+            render: Tera::new(&format!("{}/**/*", path.trim_end_matches("/"))).unwrap()
+        }
+    }
+
     pub fn render(&mut self, view: &str, data: Option<ViewData>) -> String {
         match data {
             Some(data) => self.build(view, &data.context).unwrap(),
@@ -32,6 +39,7 @@ pub fn view_data() -> ViewData {
     };
 }
 
+#[derive(Clone)]
 pub struct ViewData {
     pub(crate) context: Context, 
 }
