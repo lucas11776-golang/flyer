@@ -23,32 +23,24 @@ pub struct NewHandler<'a, RW> {
 
 impl <'a, RW>NewHandler<'a, RW>
 where
-    RW: AsyncRead + AsyncWrite + Unpin + Send + Sync,
+    RW: AsyncRead + AsyncWrite + Unpin + Send + Sync
 {
     pub fn new(rw: Pin<&'a mut BufReader<RW>>, addr: SocketAddr) -> Self {
-        return Self{
+        return Self {
             rw: rw,
             addr: addr
         };
     }
 
-    pub async fn handle<'s>(&'s mut self) -> Option<Result<Request>>
-    where
-        RW: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'a,
-        'a: 's
-    {
+    pub async fn handle<'s>(&'s mut self) -> Option<Result<Request>> {
         let mut request_line: String = String::new();
         let n: usize = self.rw.read_line(&mut request_line).await.unwrap();
 
         if n == 0 {
-            // return Ok(());
-
             return None
         }
 
         if request_line.trim().is_empty() {
-            // return Ok(());
-
             return None
         }
 
@@ -92,17 +84,13 @@ where
         return Some(Ok(req));
     }
 
-    pub async fn write(&mut self, res: &mut Response) -> Result<()>
-    {
+    pub async fn write(&mut self, res: &mut Response) -> Result<()> {
         let _ = self.rw.write(parse(res)?.as_bytes()).await;
 
         Ok(())
     }
 
-    async fn get_headers(&mut self) -> Result<Headers>
-    where
-        RW: AsyncRead + AsyncWrite + Unpin + Send + Sync
-    {
+    async fn get_headers(&mut self) -> Result<Headers> {
         let mut headers: Headers = Headers::new();
 
         loop {
@@ -127,8 +115,7 @@ where
         return Ok(headers)
     }
 
-    async fn get_body_transfer_encoding(&mut self) -> Result<Vec<u8>>
-    {
+    async fn get_body_transfer_encoding(&mut self) -> Result<Vec<u8>> {
         let mut body: Vec<u8> = Vec::new();
 
         loop {
@@ -165,11 +152,7 @@ where
     }
 
 
-    async fn get_body_content_length(&mut self, size: usize) -> Result<Vec<u8>>
-    where
-        RW: AsyncRead + AsyncWrite + Unpin + Send + Sync
-
-    {
+    async fn get_body_content_length(&mut self, size: usize) -> Result<Vec<u8>> {
         let mut body = vec![0u8; size];
 
         tokio::io::AsyncReadExt::read_exact(&mut self.rw, &mut body).await?;
@@ -177,10 +160,7 @@ where
         return Ok(body)
     }
 
-    async fn get_body(&mut self, headers: &mut Headers) -> Result<Vec<u8>>
-    where
-        RW: AsyncRead + AsyncWrite + Unpin + Send + Sync
-    {
+    async fn get_body(&mut self, headers: &mut Headers) -> Result<Vec<u8>> {
         if let Some(te) = headers.get("transfer-encoding") && te.eq_ignore_ascii_case("chunked") {
             return self.get_body_transfer_encoding().await;
         } 

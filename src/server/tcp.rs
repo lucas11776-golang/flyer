@@ -78,6 +78,7 @@ impl <'a>TcpServer<'a> {
         }
     }
 
+
     // TODO: refactor to best module.
     fn render_view(&mut self, mut res: Response) -> Response {
         return match res.view  {
