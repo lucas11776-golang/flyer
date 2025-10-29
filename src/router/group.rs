@@ -4,7 +4,7 @@ use sha1::digest::typenum::Gr;
 
 use crate::{
     request::Request,
-    response::{new_response, Response},
+    response::{Response},
     router::{
         Middlewares, Next, Route, TRoute, WebRoute, WsRoute
     },

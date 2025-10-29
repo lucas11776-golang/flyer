@@ -14,10 +14,9 @@ use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, BufReader};
 use futures::future::{BoxFuture, Future, FutureExt};
 
 use crate::request::Request;
-use crate::response::{new_response, Response};
+use crate::response::Response;
 use crate::router::{Route, WebRoute, WsRoute};
 use crate::server::handler::http1::NewHandler;
-// use crate::server::handler::http1::{Handler as Http1Handler, NewHandler};
 use crate::server::handler::http2::Handler as Http2Handler;
 use crate::server::handler::http2::H2_PREFACE;
 use crate::server::{get_server_config, Protocol, HttpRequestCallback, HTTP1, HTTP2};
@@ -26,68 +25,20 @@ use crate::HTTP;
 
 
 
-pub struct NewTcpServer<'a> {
-    // http_1_handler: Option<NewHandler<'a, RW>>,
-    // http_2_handler: Http2Handler,
+pub struct TcpServer<'a> {
     listener: TcpListener,
     acceptor: Option<TlsAcceptor>,
-    // callback: Option<Box<HttpRequestCallback>>,
     http: &'a mut HTTP
 }
 
 
-impl <'a>NewTcpServer<'a> {
-    // pub async fn new(host: String, port: i32, tls: Option<TlsAcceptor>) -> Result<NewTcpServer> {
-    //     return Ok(NewTcpServer{
-    //         // http_1_handler: NewHandler::new(),
-    //         listener: TcpListener::bind(format!("{}:{}", host, port)).await.unwrap(),
-    //         acceptor: tls,
-    //         callback: None
-    //     });
-    // }
-
-    pub async fn new(http: &'a mut HTTP) -> Result<NewTcpServer<'a>> {
-        return Ok(NewTcpServer{
+impl <'a>TcpServer<'a> {
+    pub async fn new(http: &'a mut HTTP) -> Result<TcpServer<'a>> {
+        return Ok(TcpServer{
             listener: TcpListener::bind(format!("{}", http.address())).await.unwrap(),
             acceptor: http.get_tls_acceptor().unwrap(),
             http: http,
         });
-        // return new_tcp_server;
-    }
-
-    // pub fn on_request<C, F>(&mut self, callback: C)
-    // where
-    //     C: FnOnce(Request, Response) -> F + Send + Sync + 'static,
-    //     F: Future<Output = ()> + Send + Sync + 'static
-    // {
-    //     // self.callback = Some(Box::new(move |req: Request, res: Response| {
-    //     //     return callback(req, res).boxed();
-    //     // }));
-    // }
-
-
-
-    pub async fn http_request<C, F>(&'a mut self, callback: C) -> & mut Self
-    where
-        C: FnOnce(Request, Response) -> F + Send + Sync + 'static,
-        F: Future<Output = Response> + Send + Sync + 'static
-    {
-        // self.callback = Some(Box::new(move |req: Request, res: Response| callback(req, res).boxed()));
-
-        return self;
-    }
-
-
-    pub async fn ws_request<'s, C, F>(&'s mut self, future: C) -> &mut Self
-    where
-        C: FnOnce(&'s mut Request, &'s mut Response) -> F + Send + Sync + 'a,
-        F: Future<Output = Option<&'a mut Route<WsRoute>>> + Send + 'a,
-        'a: 's
-    {
-
-
-        
-        return self;
     }
 
     pub async fn listen(&mut self) {
@@ -127,16 +78,6 @@ impl <'a>NewTcpServer<'a> {
         }
     }
 
-    fn new_response(&mut self) -> Response {
-        let mut res = new_response(); 
-
-        // if let Some(path) = self.http.configuration.get("view_path") {
-        //     res.view = Some(new_view(path.to_string()))
-        // }
-
-        return res;
-    }
-
     // TODO: refactor to best module.
     fn render_view(&mut self, mut res: Response) -> Response {
         return match res.view  {
@@ -172,7 +113,7 @@ impl <'a>NewTcpServer<'a> {
             .await
             .unwrap()
             .unwrap();
-        let res = self.new_response();
+        let res = Response::new();
         let res = self.http.router.match_web_routes(req, res).await.unwrap();
     
         handler.write(&mut self.render_view(res)).await.unwrap();

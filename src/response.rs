@@ -16,11 +16,7 @@ pub struct Response {
     pub(crate) status_code: u16,
     pub(crate) headers: Headers,
     pub(crate) body: Vec<u8>,
-    // pub(crate) session: Option<Box<dyn Session>>,
-    // pub(crate) view: Option<View>,
-
     pub(crate) view: Option<ViewBag>,
-    // pub ws: Option<Ws>,
 }
 
 #[derive(Clone)]
@@ -29,17 +25,6 @@ pub struct ViewBag {
     pub(crate) data: Option<ViewData>,
 }
 
-pub fn new_response() -> Response {
-    return Response {
-        status_code: 200,
-        headers: Headers::new(),
-        body: vec![],
-        // session: None,
-        // view: view,
-        view: None,
-        // ws: None,
-    };
-}
 
 pub fn parse(response: &mut Response) -> Result<String> {
     let mut res: Vec<String> = vec![format!("HTTP/1.0 {} {}", response.status_code, "OK")];
@@ -55,6 +40,15 @@ pub fn parse(response: &mut Response) -> Result<String> {
 }
 
 impl Response {
+    pub fn new() -> Self {
+        return Self {
+            status_code: 200,
+            headers: Headers::new(),
+            body: vec![],
+            view: None,
+        };
+    }
+
     pub fn status_code(mut self, code: u16) -> Response {
         self.status_code = code;
         

@@ -13,7 +13,7 @@ use tungstenite::protocol::Role::Server;
 
 use crate::{
     request::Request,
-    response::{new_response, parse, Response},
+    response::{parse, Response},
     ws::{Event, Reason, Ws},
     HTTP
 };

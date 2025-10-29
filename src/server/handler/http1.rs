@@ -5,7 +5,7 @@ use std::pin::Pin;
 
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader};
 
-use crate::response::{new_response, parse, Response};
+use crate::response::{parse, Response};
 // use crate::server::handler::{parse_request_body, ws, RequestHandler};
 use crate::server::{HTTP1};
 use crate::utils::url::parse_query_params;

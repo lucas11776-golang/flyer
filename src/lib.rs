@@ -24,7 +24,7 @@ use crate::response::Response;
 use crate::router::group::{Group, GroupRouter};
 use crate::router::{Route, Router, WebRoute, WsRoute};
 use crate::server::{get_server_config, HttpRequestCallback};
-use crate::server::tcp::NewTcpServer;
+use crate::server::tcp::TcpServer;
 use crate::server::udp::UdpServer;
 use crate::server::{
     TlsPathConfig,
@@ -144,7 +144,7 @@ impl <'a>HTTP {
     //     'a: 's
      {
         // let mut server = NewTcpServer::new(self.host.to_string(), self.port, self.get_tls_acceptor().unwrap()).await.unwrap();
-        let mut server = NewTcpServer::new(&mut self).await.unwrap();
+        let mut server = TcpServer::new(&mut self).await.unwrap();
 
         // {
         //     // TODO: temp fix...
