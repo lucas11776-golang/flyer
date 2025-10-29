@@ -3,25 +3,27 @@ use std::io::{Error as IoError};
 use std::net::SocketAddr;
 use std::pin::Pin;
 
-use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader};
+use tokio::io::{
+    AsyncBufReadExt,
+    AsyncRead,
+    AsyncWrite,
+    AsyncWriteExt,
+    BufReader
+};
 
 use crate::response::{parse, Response};
-// use crate::server::handler::{parse_request_body, ws, RequestHandler};
 use crate::server::{HTTP1};
 use crate::utils::url::parse_query_params;
 use crate::utils::{Values};
 use crate::request::{Files, Headers, Request};
 
-
-
-
-pub struct NewHandler<'a, RW> {
+pub struct Handler<'a, RW> {
     rw: Pin<&'a mut BufReader<RW>>,
     addr: SocketAddr,
 
 }
 
-impl <'a, RW>NewHandler<'a, RW>
+impl <'a, RW>Handler<'a, RW>
 where
     RW: AsyncRead + AsyncWrite + Unpin + Send + Sync
 {
@@ -150,7 +152,6 @@ where
 
         return Ok(body);
     }
-
 
     async fn get_body_content_length(&mut self, size: usize) -> Result<Vec<u8>> {
         let mut body = vec![0u8; size];

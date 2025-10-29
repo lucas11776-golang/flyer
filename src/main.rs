@@ -16,7 +16,7 @@ pub struct User<'a> {
 
 // start: 'static
 fn main() {
-    let mut server = flyer::server("127.0.0.1", 9999);
+    let mut server = flyer::server_tls("127.0.0.1", 9999, "host.key", "host.cert");
 
     server.view("views");
 

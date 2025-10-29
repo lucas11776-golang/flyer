@@ -25,7 +25,6 @@ pub struct ViewBag {
     pub(crate) data: Option<ViewData>,
 }
 
-
 pub fn parse(response: &mut Response) -> Result<String> {
     let mut res: Vec<String> = vec![format!("HTTP/1.0 {} {}", response.status_code, "OK")];
 
