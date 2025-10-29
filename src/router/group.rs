@@ -30,7 +30,7 @@ pub struct GroupRouter {
     pub(crate) name: &'static str,
     pub(crate) web: Vec<Route<Box<TRoute<'static>>>>,
     pub(crate) ws: Vec<Route<WsRoute>>,
-    pub(crate) not_found_callback: Option<Box<WebRoute>>,
+    pub(crate) not_found_callback: Option<Box<TRoute<'static>>>,
 }
 
 // pub trait Group {
@@ -103,20 +103,12 @@ impl <'a>GroupRouter {
             //     return Ok(res)
             // }
 
-
-            // let a = (route.route)(req, res).await;
-
-
-
-
-
-
             return Ok((route.route)(req, res).await)
         }
 
-        // if self.not_found_callback.is_some() {
-        //     return self.not_found_callback.as_ref() .unwrap()(req, res).await;
-        // }
+        if self.not_found_callback.is_some() {
+            return Ok(self.not_found_callback.as_ref() .unwrap()(req, res).await);
+        }
 
         res.status_code = 404;
 
