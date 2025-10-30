@@ -1,9 +1,6 @@
-use std::{fs::File, io::Write};
-
-use flyer::{view::view_data};
 use serde::{Deserialize, Serialize};
 
-// TODO: take rest must make controller route to support async operation...
+use flyer::ws::Event;
 
 #[derive(Serialize, Deserialize)]
 pub struct User<'a> {
@@ -17,41 +14,18 @@ fn main() {
     let mut server = flyer::server_tls("127.0.0.1", 9999, "host.key", "host.cert")
         .view("views");
 
-    server.router().get("/",   async |req, res| {
-        let mut data = view_data();
+    server.router().ws("/", async |req, mut ws| {
+        ws.on(async |event, mut writer| {
+            match event {
+                Event::Ready() => writer.write("Ready".as_bytes().to_vec()).await,
+                Event::Message(items) => writer.write("Message".as_bytes().to_vec()).await,
+                Event::Ping(items) => writer.write("Ping".as_bytes().to_vec()).await,
+                Event::Pong(items) => writer.write("Pong".as_bytes().to_vec()).await,
+                Event::Close(reason) => todo!(),
+            }
+        });
 
-        let user = User {
-            id: 1,
-            first_name: "Jeo",
-            last_name: "Deo",
-            email: "jeo@doe.com",
-        };
-
-        data.insert("user", &user);
-
-        if let Some(image) =  req.file("image") {
-            File::create(format!("test.png")).unwrap().write(&image.content).unwrap();
-        }
-
-        return res.view("index.html", Some(data));   
     }, None);
-
-    server.router().group("api", |mut router| {
-        router.group("users", |mut router| {
-            router.get("{id}", async |req, res| {
-                return res.json(&User {
-                    id: req.parameters.get("id").unwrap().parse().unwrap(),
-                    first_name: "Joe",
-                    last_name: "Doe",
-                    email: "jeo@doe.com",
-                })
-            }, None);
-        }, None);
-    }, None);
-
-    server.router().not_found(async |_req, res| {
-        return res.view("404.html", None)
-    });
 
     print!("\r\n\r\nRunning server: {}\r\n\r\n", server.address());
 

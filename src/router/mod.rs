@@ -14,7 +14,9 @@ use crate::utils::url::clean_url;
 pub type WebRoute<'a> = dyn Fn(Request, Response) -> BoxFuture<'static, Response> + Send + Sync;
 pub type Middleware = for<'a>  fn (req: Request, res: Response, next: Next<'a>) -> Response;
 pub type Middlewares = Vec<Middleware>;
-pub type WsRoute = for<'a> fn (req: &'a mut Request, res: &'a mut Ws);
+
+pub type WsRoute<'a> = dyn Fn(Request, Ws) -> BoxFuture<'static, ()> + Send + Sync;
+// pub type WsRoute = for<'a> fn (req: &'a mut Request, res: &'a mut Ws);
 pub type Group<'s> = fn (router: Router);
 
 pub struct Next<'a> {
@@ -32,7 +34,7 @@ pub struct Route<R> {
     pub(crate) path: String,
     pub(crate) method: String,
     pub(crate) route: R,
-    pub(crate) middlewares: Middlewares
+    pub(crate) middlewares: Middlewares,
 }
 
 impl <'a>Next<'a> {
@@ -126,16 +128,20 @@ impl <'a>Router<'a> {
         return middlewares;
     }
 
-    pub fn ws(&mut self, path: &str, callback: WsRoute, middleware: Option<Middlewares>) {
+    pub fn ws<R, F>(&mut self, path: &str, callback: R, middleware: Option<Middlewares>)
+    where
+        R: Fn(Request, Ws) -> F + Send + Sync + 'static,
+        F: Future<Output = ()> + Send + Sync + 'static,
+    {
         let middlewares = self.merge_middlewares(middleware);
 
-        self.router.ws.push(Route{
-            // TODO: fix
-            path: Router::get_path(self.path.clone(), vec![path.to_string()]).join("/"),
-            method: "GET".to_owned(),
-            route: callback,
-            middlewares: middlewares,
-        });
+        // self.router.ws.push(Route{
+        //     // TODO: fix
+        //     path: Router::get_path(self.path.clone(), vec![path.to_string()]).join("/"),
+        //     method: "GET".to_owned(),
+        //     route: Box::new(move |req: Request, ws: Ws | callback(req, ws).boxed()),
+        //     middlewares: middlewares,
+        // });
     }
 
     pub fn group<'s>(&'s mut self , path: &str, group: Group<'s>, middleware: Option<Middlewares>) {

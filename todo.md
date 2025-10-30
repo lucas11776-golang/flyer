@@ -43,8 +43,6 @@
 # Handler errors when doing final refactor...
 
 
-
-
 # Find find way to run two server in non block way
 
 ```rust
@@ -59,3 +57,8 @@ fn block_main_thread() {
     while running.load(Ordering::SeqCst) {}
 }
 ```
+
+
+# HTTP3 websocket
+
+- Check how websocket work in HTTP3

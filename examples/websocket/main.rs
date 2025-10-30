@@ -3,9 +3,8 @@ use flyer::{server};
 fn main() {
     let mut server = server("127.0.0.1", 9999);
 
-
-    server.router().ws("/", |_req, ws| {
-        ws.on(|event| async {
+    server.router().ws("/", async |_req, mut ws| {
+        ws.on(async |event, writer| {
             match event {
                 flyer::ws::Event::Ready()                 => println!("Websocket connection is ready"),
                 flyer::ws::Event::Message(items) => println!("Websocket connection is message: {:?}", String::from_utf8(items.to_vec()).unwrap()),
