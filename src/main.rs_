@@ -1,115 +1,59 @@
-// Cargo.toml (add)
-// [dependencies]
-// tokio = { version = "1", features = ["full"] }
+use std::{fs::File, io::Write};
 
-use std::future::Future;
-use std::pin::Pin;
-use std::sync::Arc;
+use flyer::{view::view_data};
+use serde::{Deserialize, Serialize};
 
-// -------------------------------
-// Dummy Request & Response types
-// -------------------------------
-#[derive(Default, Debug)]
-pub struct Request {
-    pub body: String,
+// TODO: take rest must make controller route to support async operation...
+
+#[derive(Serialize, Deserialize)]
+pub struct User<'a> {
+    pub id: i64,
+    pub first_name: &'a str,
+    pub last_name: &'a str,
+    pub email: &'a str
 }
 
-#[derive(Default, Debug)]
-pub struct Response {
-    pub body: String,
-}
+fn main() {
+    let mut server = flyer::server_tls("127.0.0.1", 9999, "host.key", "host.cert")
+        .view("views");
 
-// Convenience alias for boxed pinned futures with the right lifetime handling
-type WebResponse<'a> = Pin<Box<dyn Future<Output = &'a mut Response> + Send + 'a>>;
+    server.router().get("/",   async |req, res| {
+        let mut data = view_data();
 
-// -------------------------------
-// RouteHandler trait: dynamic object
-// -------------------------------
-pub trait WebRouteHandler: Send + Sync {
-    fn call<'a>(&'a self, req: &'a mut Request, res: &'a mut Response) -> WebResponse<'a>;
-}
+        let user = User {
+            id: 1,
+            first_name: "Jeo",
+            last_name: "Deo",
+            email: "jeo@doe.com",
+        };
 
-// -----------------------------------------------------
-// Implement RouteHandler for any handler function/closure
-// that itself returns a WebResponse<'a> for any 'a.
-// This requires the handler to already return a boxed future.
-// -----------------------------------------------------
-impl<T> WebRouteHandler for T
-where
-    // The handler must be callable for any lifetime 'a and produce WebResponse<'a>
-    T: for<'a> Fn(&'a mut Request, &'a mut Response) -> WebResponse<'a> + Send + Sync + 'static,
-{
-    fn call<'a>(&'a self, req: &'a mut Request, res: &'a mut Response) -> WebResponse<'a> {
-        (self)(req, res)
-    }
-}
+        data.insert("user", &user);
 
-// -------------------------------
-// Route and Router definitions
-// -------------------------------
-pub struct Route<T> {
-    pub path: String,
-    pub method: String,
-    pub handler: Arc<T>,
-}
+        if let Some(image) =  req.file("image") {
+            File::create(format!("test.png")).unwrap().write(&image.content).unwrap();
+        }
 
-pub struct Router {
-    pub routes: Vec<Route<Box<dyn WebRouteHandler>>>,
-}
+        return res.view("index.html", Some(data));   
+    }, None);
 
-impl Router {
-    pub fn new() -> Self {
-        Self { routes: vec![] }
-    }
+    server.router().group("api", |mut router| {
+        router.group("users", |mut router| {
+            router.get("{id}", async |req, res| {
+                return res.json(&User {
+                    id: req.parameters.get("id").unwrap().parse().unwrap(),
+                    first_name: "Joe",
+                    last_name: "Doe",
+                    email: "jeo@doe.com",
+                })
+            }, None);
+        }, None);
+    }, None);
 
-    /// Adds a handler that must return a boxed future (WebResponse<'a>)
-    pub fn add_web_route<H>(&mut self, method: &str, path: &str, handler: H)
-    where
-        H: for<'a> Fn(&'a mut Request, &'a mut Response) -> WebResponse<'a> + Send + Sync + 'static,
-    {
-        self.routes.push(Route {
-            path: path.to_string(),
-            method: method.to_string(),
-            handler: Arc::new(Box::new(handler)),
-        });
-    }
-
-    /// Find route by path (very simple) and call it
-    pub async fn handle<'a>(&'a self, path: &str, req: &'a mut Request, res: &'a mut Response) -> &'a mut Response {
-        let route = self.routes.iter().find(|r| r.path == path).unwrap();
-        // call returns WebResponse<'a>
-        let fut = route.handler.call(req, res);
-        
-        return fut.await;
-        // Some(out)
-    }
-}
-
-// -------------------------------
-// Example usage
-// -------------------------------
-#[tokio::main]
-async fn main() {
-    let mut router = Router::new();
-
-    // Register a handler: NOTE we box the future inside the closure
-    router.add_web_route("GET", "/hello", |req: &mut Request, res: &mut Response| {
-        // Box the future so types match WebResponse<'a>
-        Box::pin(async move {
-            // mutate response and return it by mutable borrow
-            res.body = format!("Hello, {}", req.body);
-            res
-        })
+    server.router().not_found(async |_req, res| {
+        return res.view("404.html", None)
     });
 
-    // Simulate request
-    let mut req = Request {
-        body: "World".into(),
-    };
-    let mut res = Response::default();
+    print!("\r\n\r\nRunning server: {}\r\n\r\n", server.address());
 
-    let resp = router.handle("/hello", &mut req, &mut res).await;
-
-
-    println!("Response body: {}", resp.body);
+    server.listen();
 }

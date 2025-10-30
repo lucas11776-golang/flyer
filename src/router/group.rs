@@ -23,7 +23,7 @@ static PARAM_REGEX: Lazy<Regex> = Lazy::new(|| {
 #[derive(Default)]
 pub struct GroupRouter {
     pub(crate) web: Vec<Route<Box<WebRoute<'static>>>>,
-    pub(crate) ws: Vec<Route<WsRoute>>,
+    pub(crate) ws: Vec<Route<Box<WsRoute<'static>>>>,
     pub(crate) not_found_callback: Option<Box<WebRoute<'static>>>,
 }
 
