@@ -38,3 +38,21 @@
 
 
 # Handler errors when doing final refactor...
+
+
+
+
+# Find find way to run two server in non block way
+
+```rust
+fn block_main_thread() {
+    let running = Arc::new(AtomicBool::new(true));
+    let running_clone: Arc<AtomicBool> = running.clone();
+
+    ctrlc::set_handler(move || {
+        running_clone.store(false, Ordering::SeqCst);
+    }).unwrap();
+
+    while running.load(Ordering::SeqCst) {}
+}
+```

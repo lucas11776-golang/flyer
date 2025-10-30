@@ -1,45 +1,32 @@
 use std::pin::Pin;
 use std::sync::Arc;
-use std::io::Result as IOResult;
+use std::io::Result;
 
 use bytes::Bytes;
 use h3_quinn::quinn::crypto::rustls::QuicServerConfig;
 use quinn::{
-    Connection,
+    Connection as QuinnConnection,
     Endpoint,
     ServerConfig
 };
+use h3::server::Connection as H3ServerConnection;
+use h3_quinn::Connection as H3Connection;
 
 use crate::server::handler::http3;
-use crate::server::{get_server_config, HttpRequestCallback};
+use crate::server::{get_server_config};
 use crate::HTTP;
 
-pub struct UdpServer {
+pub struct UdpServer<'a> {
+    http: &'a mut HTTP,
     listener: Pin<Box<Endpoint>>,
-    // http: Pin<Box<&'a mut HTTP<'a>>>,
-    callback: Option<Box<HttpRequestCallback>>,
 }
 
-impl<'a> UdpServer {
-    // pub async fn new(http: &'a mut HTTP<'a>) -> UdpServer<'a> {
-    //     return UdpServer {
-    //         listener: Box::pin(Endpoint::server(UdpServer::get_config(http).unwrap(), http.address().parse().unwrap()).unwrap()),
-    //         http: Box::pin(http),
-    //         callback: None
-    //     }
-    // }
-
-    fn get_config(http: &'a mut HTTP) -> IOResult<ServerConfig> {
-        let mut config = get_server_config(&http.tls.as_ref().unwrap())?;
-
-        config.alpn_protocols = vec![
-            b"h3".to_vec(),
-            b"h3-29".to_vec(),
-            b"h3-32".to_vec(),
-            b"h3-34".to_vec(),
-        ];
-
-        Ok(ServerConfig::with_crypto(Arc::new(QuicServerConfig::try_from(config).unwrap())))
+impl <'a>UdpServer<'a> {    
+    pub async fn new(http: &'a mut HTTP) -> Result<UdpServer<'a>> {
+        return Ok(Self {
+            listener: Box::pin(UdpServer::get_endpoint(http).unwrap()),
+            http: http,
+        });
     }
 
     pub async fn listen(&mut self) {
@@ -47,33 +34,50 @@ impl<'a> UdpServer {
             tokio_scoped::scope(|scope| {
                 scope.spawn(async {
                     match incoming.await {
-                        Ok(conn) => self.new_connection(conn).await,
+                        Ok(conn) => self.connection(conn).await,
                         Err(_) => {} // TODO: Log
                     }
                 });
             });
         }
-
-        self.listener.wait_idle().await;
     }
 
+    async fn connection(&mut self, conn: QuinnConnection) {
+        let mut server = self.get_h3_server_connection(conn).await;
 
-    pub async fn on_request(&'a mut self, callback: Box<HttpRequestCallback>) {
-        self.callback = Some(callback);
+        while let Ok(Some(request)) = server.accept().await {
+            tokio_scoped::scope(|scope| {
+                scope.spawn(async {
+                    
+                });
+            });
+        }
     }
-    
-    async fn new_connection(&mut self, conn: Connection) {
-        // let mut connection: h3::server::Connection<h3_quinn::Connection, Bytes> = h3::server::Connection::new(h3_quinn::Connection::new(conn))
-        //     .await
-        //     .unwrap();
 
-        // while let Ok(Some(resolver)) = connection.accept().await {
-        //     tokio_scoped::scope(|scope| {
-        //         scope.spawn(async {
-        //             // TODO: fix - curl: (18) HTTP/3 stream 0 reset by server
-        //             http3::Handler::handle(&mut self.http, resolver).await.unwrap()
-        //         });
-        //     });
-        // }
+    async fn get_h3_server_connection(&mut self, conn: QuinnConnection) -> H3ServerConnection<H3Connection, Bytes> {
+        return H3ServerConnection::new(H3Connection::new(conn))
+            .await
+            .unwrap();
+    }
+
+    fn get_endpoint(http: &'a mut HTTP) -> Result<Endpoint> {
+        Ok(Endpoint::server(UdpServer::get_config(http).unwrap(), http.address().parse().unwrap()).unwrap())
+    }
+
+    fn get_config(http: &'a mut HTTP) -> Result<ServerConfig> {
+        let mut config = get_server_config(&http.tls.as_ref().unwrap())?;
+
+        config.alpn_protocols = UdpServer::get_alpn_protocols();
+
+        Ok(ServerConfig::with_crypto(Arc::new(QuicServerConfig::try_from(config).unwrap())))
+    }
+
+    fn get_alpn_protocols() -> Vec<Vec<u8>> {
+        return vec![
+            b"h3".to_vec(),
+            b"h3-29".to_vec(),
+            b"h3-32".to_vec(),
+            b"h3-34".to_vec(),
+        ];
     }
 }

@@ -9,7 +9,6 @@ pub mod server;
 
 use std::io::Result;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
 
 use tokio::runtime::Runtime;
 use tokio_rustls::TlsAcceptor;
@@ -18,6 +17,7 @@ use crate::router::group::GroupRouter;
 use crate::router::Router;
 use crate::server::get_server_config;
 use crate::server::tcp::TcpServer;
+use crate::server::udp::UdpServer;
 use crate::server::TlsPathConfig;
 use crate::session::SessionManager;
 use crate::view::View;
@@ -33,7 +33,7 @@ pub struct HTTP {
     pub(crate) view: Option<View>,
 }
 
-fn new_http(host: &str, port: i32, tls: Option<TlsPathConfig>) -> HTTP {
+fn new_http_server(host: &str, port: i32, tls: Option<TlsPathConfig>) -> HTTP {
     return HTTP {
         host: host.to_owned(),
         port: port,
@@ -46,11 +46,11 @@ fn new_http(host: &str, port: i32, tls: Option<TlsPathConfig>) -> HTTP {
 }
 
 pub fn server(host: &str, port: i32) -> HTTP {
-    return new_http(host, port, None);
+    return new_http_server(host, port, None);
 }
 
 pub fn server_tls(host: &str, port: i32, key: &str, cert: &str) -> HTTP {
-    return new_http(host, port, Some(TlsPathConfig {
+    return new_http_server(host, port, Some(TlsPathConfig {
         key_path: key.to_owned(),
         cert_path: cert.to_owned()
     }));
@@ -95,33 +95,18 @@ impl HTTP {
 
     pub fn listen(&mut self) {
         Runtime::new().unwrap().block_on(async {
+            // TODO: find not blocking way...
             tokio_scoped::scope(|scope| {
-                scope.spawn(self.tcp_server());
+                scope.spawn(self.run_udp_server());
+            });
+            // TODO: find not blocking way...
+            tokio_scoped::scope(|scope| {
+                scope.spawn(self.run_tcp_server());
             });
         });
-
-        Runtime::new().unwrap().block_on(async {
-            tokio_scoped::scope(|scope| {
-                scope.spawn(self.udp_server());
-            });
-        });
-
-        // // TODO: check if the is no better way...
-        HTTP::block_main_thread();
     }
 
-    fn block_main_thread() {
-        let running = Arc::new(AtomicBool::new(true));
-        let running_clone: Arc<AtomicBool> = running.clone();
-
-        ctrlc::set_handler(move || {
-            running_clone.store(false, Ordering::SeqCst);
-        }).unwrap();
-
-        while running.load(Ordering::SeqCst) {}
-    }
-
-    async fn tcp_server(&mut self) {
+    async fn run_tcp_server(&mut self) {
         TcpServer::new( self)
             .await
             .unwrap()
@@ -129,16 +114,20 @@ impl HTTP {
             .await;
     }
 
-    async fn udp_server(&mut self) {
-        // TODO: Implement HTTP3.* server...
+    async fn run_udp_server(&mut self) {
+        UdpServer::new(self)
+            .await
+            .unwrap()
+            .listen()
+            .await;
     }
 
     fn get_tls_acceptor(&mut self) -> Result<Option<TlsAcceptor>> {
-        Ok(
-            match self.tls.as_mut() {
-                Some(tls) => Some(TlsAcceptor::from(Arc::new(get_server_config(tls).unwrap()))),
-                None => None,
-            }
-        )
+        let tls_acceptor =    match self.tls.as_mut() {
+            Some(tls) => Some(TlsAcceptor::from(Arc::new(get_server_config(tls)?))),
+            None => None,
+        };
+
+        Ok(tls_acceptor)
     }
 }
