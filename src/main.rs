@@ -13,13 +13,9 @@ pub struct User<'a> {
     pub email: &'a str
 }
 
-
-// start: 'static
 fn main() {
-    let mut server = flyer::server_tls("127.0.0.1", 9999, "host.key", "host.cert");
-
-    server.view("views");
-
+    let mut server = flyer::server_tls("127.0.0.1", 9999, "host.key", "host.cert")
+        .view("views");
 
     server.router().get("/",   async |req, res| {
         let mut data = view_data();
@@ -40,7 +36,6 @@ fn main() {
         return res.view("index.html", Some(data));   
     }, None);
 
-
     server.router().group("api", |mut router| {
         router.group("users", |mut router| {
             router.get("{id}", async |req, res| {
@@ -54,16 +49,11 @@ fn main() {
         }, None);
     }, None);
 
-
-
     server.router().not_found(async |req, res| {
         return res.view("404.html", None)
     });
-    
-
 
     print!("\r\n\r\nRunning server: {}\r\n\r\n", server.address());
 
     server.listen();
 }
-// end: 'static

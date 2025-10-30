@@ -18,7 +18,6 @@ use crate::{request::Request, response::Response, HTTP};
 
 type Protocol = i32;
 
-
 pub(crate) type HttpRequestCallback =  dyn for<'a> FnOnce(Request, Response) -> BoxFuture<'static, Response> + Send + Sync;
 
 
@@ -40,7 +39,6 @@ pub struct TlsPathConfig {
     pub key_path: String,
     pub cert_path: String
 }
-
 
 pub fn get_tls_config(tls: &TlsPathConfig) -> IOResult<TlsConfig> {
     rustls::crypto::ring::default_provider()

@@ -35,3 +35,6 @@
 
 # This lookout for understand...
 - &mut self | &'{{lifetime}} mut | mut self - in `impl`
+
+
+# Handler errors when doing final refactor...

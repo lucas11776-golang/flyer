@@ -1,36 +1,24 @@
 use std::{
     io::Result,
     net::SocketAddr,
-    sync::Arc
 };
 use std::pin::{pin, Pin};
 
-use tokio::net::{TcpListener};
+use tokio::net::TcpListener;
 use tokio_rustls::TlsAcceptor;
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, BufReader};
 
-
-
-use futures::future::{BoxFuture, Future, FutureExt};
-
-use crate::request::Request;
 use crate::response::Response;
-use crate::router::{Route, WebRoute, WsRoute};
-use crate::server::handler::http1::Handler;
-use crate::server::handler::http2::Handler as Http2Handler;
+use crate::server::handler::{http1, http2};
 use crate::server::handler::http2::H2_PREFACE;
-use crate::server::{get_server_config, Protocol, HttpRequestCallback, HTTP1, HTTP2};
+use crate::server::{Protocol, HTTP1, HTTP2};
 use crate::HTTP;
-
-
-
 
 pub struct TcpServer<'a> {
     listener: TcpListener,
     acceptor: Option<TlsAcceptor>,
     http: &'a mut HTTP
 }
-
 
 impl <'a>TcpServer<'a> {
     pub async fn new(http: &'a mut HTTP) -> Result<TcpServer<'a>> {
@@ -77,7 +65,7 @@ impl <'a>TcpServer<'a> {
     }
 
     // TODO: refactor to best module.
-    fn render_view(&mut self, mut res: Response) -> Response {
+    fn render_data(&mut self, mut res: Response) -> Response {
         return match res.view  {
             Some(bag) => {
                 match self.http.view.as_mut() {
@@ -104,22 +92,33 @@ impl <'a>TcpServer<'a> {
     where
         RW: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static
     {
-        let mut handler = Handler::new(Pin::new(&mut rw), addr);
+        let mut handler = http1::Handler::new(Pin::new(&mut rw), addr);
 
         let req = handler.handle().await.unwrap().unwrap();
         let res = self.http.router.match_web_routes(req, Response::new()).await.unwrap();
     
-        handler.write(&mut self.render_view(res)).await.unwrap();
+        handler.write(&mut self.render_data(res)).await.unwrap();
 
         Ok(())
     }
 
-    async fn http_2_protocol<RW>(&mut self, mut rw: std::pin::Pin<&mut BufReader<RW>>, addr: SocketAddr) -> Result<()>
+    async fn http_2_protocol<RW>(&mut self, rw: std::pin::Pin<&mut BufReader<RW>>, addr: SocketAddr) -> Result<()>
     where
         RW: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static
     {
+        let mut handler = http2::Handler::new(addr, rw).await;
 
-        println!("HTTP @");
+        while let Some(result) = handler.handle().await {
+            tokio_scoped::scope(|scope| {
+                scope.spawn(async {
+                    let (request, send) = result.unwrap();
+                    let req = handler.get_http_request(request).await.unwrap();
+                    let res = self.http.router.match_web_routes(req, Response::new()).await.unwrap();
+
+                    handler.write(send,&mut self.render_data(res)).await.unwrap();
+                });
+            });
+        }
 
         Ok(())   
     }

@@ -1,14 +1,9 @@
-use std::{clone, collections::HashMap, io::Result};
+use std::io::Result;
 use serde::Serialize;
 
 use crate::{
     request::Headers,
-    session::Session,
-    ws::Ws,
-    view::{
-        View,
-        ViewData
-    }
+    view::ViewData
 };
 
 #[derive(Clone)]
@@ -93,9 +88,5 @@ impl Response {
 
         return self;
     }
-
-    // pub fn session<'a>(&self) -> Option<&Box<dyn Session>> {
-    //     return self.session.as_ref();
-    // }
 }
 
