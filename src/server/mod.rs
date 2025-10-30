@@ -2,9 +2,8 @@ pub mod udp;
 pub mod tcp;
 pub mod handler;
 
-use std::{io::Result as IOResult};
+use std::{io::Result as IoResult};
 
-use futures::future::BoxFuture;
 use rustls::{
     ServerConfig,
     pki_types::{
@@ -14,12 +13,9 @@ use rustls::{
     }
 };
 
-use crate::{request::Request, response::Response, HTTP};
+use crate::HTTP;
 
 type Protocol = i32;
-
-pub(crate) type HttpRequestCallback =  dyn for<'a> FnOnce(Request, Response) -> BoxFuture<'static, Response> + Send + Sync;
-
 
 const HTTP1: Protocol = 1;
 const HTTP2: Protocol = 2;
@@ -27,7 +23,7 @@ const HTTP3: Protocol = 3;
 
 pub trait Server<'a> {
     fn new(http: &'a mut HTTP) -> &'a mut Self;
-    fn listen() -> IOResult<()>;
+    fn listen() -> IoResult<()>;
 }
 
 pub struct TlsConfig { 
@@ -40,7 +36,7 @@ pub struct TlsPathConfig {
     pub cert_path: String
 }
 
-pub fn get_tls_config(tls: &TlsPathConfig) -> IOResult<TlsConfig> {
+pub fn get_tls_config(tls: &TlsPathConfig) -> IoResult<TlsConfig> {
     rustls::crypto::ring::default_provider()
         .install_default()
         .unwrap();
@@ -55,7 +51,7 @@ pub fn get_tls_config(tls: &TlsPathConfig) -> IOResult<TlsConfig> {
     })
 }
 
-pub fn get_server_config(tls: &TlsPathConfig) -> IOResult<ServerConfig> {
+pub fn get_server_config(tls: &TlsPathConfig) -> IoResult<ServerConfig> {
     let config = get_tls_config(tls)?;
     return Ok(
         rustls::ServerConfig::builder()

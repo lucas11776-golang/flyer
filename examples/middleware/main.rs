@@ -12,7 +12,7 @@ pub struct JsonMessage {
     message: String
 }
 
-pub fn auth<'a>(req: Request, res: Response, next: Next<'a>) ->  Response {
+pub fn auth<'a>(_req: Request, res: Response, _next: Next<'a>) ->  Response {
     return res.status_code(401).json(&JsonMessage{
         message: "unauthorized access".to_string()
     });

@@ -1,22 +1,22 @@
 use flyer::{server, request::Request, response::Response};
 
-pub async fn index(req: Request, res: Response) -> Response {
+pub async fn index(_req: Request, res: Response) -> Response {
     return res
 }
 
-pub async fn store(req: Request, res: Response) -> Response {
+pub async fn store(_req: Request, res: Response) -> Response {
     return res
 }
 
-pub async fn view(req: Request, res: Response) -> Response {
+pub async fn view(_req: Request, res: Response) -> Response {
     return res
 }
 
-pub async fn update(req: Request, res: Response) -> Response {
+pub async fn update(_req: Request, res: Response) -> Response {
     return res
 }
 
-pub async fn destroy(req: Request, res: Response) -> Response {
+pub async fn destroy(_req: Request, res: Response) -> Response {
     return res
 }
 

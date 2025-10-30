@@ -14,7 +14,7 @@ use crate::server::handler::http2::H2_PREFACE;
 use crate::server::{Protocol, HTTP1, HTTP2};
 use crate::HTTP;
 
-pub struct TcpServer<'a> {
+pub(crate) struct TcpServer<'a> {
     listener: TcpListener,
     acceptor: Option<TlsAcceptor>,
     http: &'a mut HTTP
@@ -64,29 +64,6 @@ impl <'a>TcpServer<'a> {
         }
     }
 
-    // TODO: refactor to best module.
-    fn render_data(&mut self, mut res: Response) -> Response {
-        return match res.view  {
-            Some(bag) => {
-                match self.http.view.as_mut() {
-                    Some(view) => {
-                        res.body =  view.render(&bag.view, bag.data).as_bytes().to_vec();
-                    },
-                    None => {
-                        res.status_code = 500;
-                        println!("Set View Path") // TODO: log
-                    },
-                }
-
-                res.view = None;
-
-                res
-            },
-            None => {
-                res
-            },
-        };
-    }
 
     async fn http_1_protocol<RW>(&mut self, mut rw: std::pin::Pin<&mut BufReader<RW>>, addr: SocketAddr) -> Result<()>
     where
@@ -97,7 +74,7 @@ impl <'a>TcpServer<'a> {
         let req = handler.handle().await.unwrap().unwrap();
         let res = self.http.router.match_web_routes(req, Response::new()).await.unwrap();
     
-        handler.write(&mut self.render_data(res)).await.unwrap();
+        handler.write(&mut self.http.render_response_view(res)).await.unwrap();
 
         Ok(())
     }
@@ -115,7 +92,7 @@ impl <'a>TcpServer<'a> {
                     let req = handler.get_http_request(request).await.unwrap();
                     let res = self.http.router.match_web_routes(req, Response::new()).await.unwrap();
 
-                    handler.write(send,&mut self.render_data(res)).await.unwrap();
+                    handler.write(send,&mut self.http.render_response_view(res)).await.unwrap();
                 });
             });
         }

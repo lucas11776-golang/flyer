@@ -49,7 +49,7 @@ fn main() {
         }, None);
     }, None);
 
-    server.router().not_found(async |req, res| {
+    server.router().not_found(async |_req, res| {
         return res.view("404.html", None)
     });
 

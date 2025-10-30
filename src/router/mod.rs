@@ -32,7 +32,7 @@ pub struct Route<R> {
     pub(crate) path: String,
     pub(crate) method: String,
     pub(crate) route: R,
-    pub(crate) middlewares: Middlewares,
+    pub(crate) middlewares: Middlewares
 }
 
 impl <'a>Next<'a> {

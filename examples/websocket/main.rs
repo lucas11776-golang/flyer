@@ -4,7 +4,7 @@ fn main() {
     let mut server = server("127.0.0.1", 9999);
 
 
-    server.router().ws("/", |req, ws| {
+    server.router().ws("/", |_req, ws| {
         ws.on(|event| async {
             match event {
                 flyer::ws::Event::Ready()                 => println!("Websocket connection is ready"),

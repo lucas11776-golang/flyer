@@ -18,7 +18,7 @@ pub struct MultipartForm {
 }
 
 pub struct Request {
-    pub(crate) ip: String,
+    pub ip: String,
     pub host: String,
     pub method: String,
     pub path: String,
@@ -32,6 +32,22 @@ pub struct Request {
 }
 
 impl Request {
+    pub fn new(method: &str, path: &str, headers: Values, body: Vec<u8>) -> Self {
+        return Self {
+            ip: "".to_owned(),
+            host: "".to_owned(),
+            method: method.to_owned(),
+            path: path.to_owned(),
+            query: Values::new(),
+            parameters: Values::new(),
+            protocol: "HTTP/1.1".to_string(),
+            headers: headers,
+            body: body,
+            values: Values::new(),
+            files: Files::new(),
+        }
+    }
+
     pub fn ip(&self) -> String {
         return self.ip.to_owned();
     }
