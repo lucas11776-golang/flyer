@@ -16,7 +16,7 @@ use crate::utils::Values;
 
 pub const H2_PREFACE: &[u8] = b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n";
 
-pub struct Handler<'a, RW> {
+pub(crate) struct Handler<'a, RW> {
     addr: SocketAddr,
     conn: Box<server::Connection< Pin<&'a mut BufReader<RW>>, Bytes>>,
 }

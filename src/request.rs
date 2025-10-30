@@ -32,6 +32,22 @@ pub struct Request {
 }
 
 impl Request {
+    pub fn new() -> Self {
+        return Self {
+            ip: todo!(),
+            host: todo!(),
+            method: todo!(),
+            path: todo!(),
+            query: todo!(),
+            parameters: todo!(),
+            protocol: todo!(),
+            headers: todo!(),
+            body: todo!(),
+            values: todo!(),
+            files: todo!(),
+        }
+    }
+
     pub fn ip(&self) -> String {
         return self.ip.to_owned();
     }

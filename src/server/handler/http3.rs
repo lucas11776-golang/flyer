@@ -2,18 +2,77 @@ use std::io::Result;
 
 use bytes::Bytes;
 
+use http::Request as HttpRequest;
 use h3::server::{
     RequestResolver,
     RequestStream
 };
 use h3_quinn::BidiStream;
 
-use crate::request::{Files, Request};
-// use crate::server::handler::RequestHandler;
+use crate::request::{self, Files, Request};
+use crate::response::Response;
 use crate::server::HTTP3;
 use crate::utils::url::parse_query_params;
 use crate::utils::Values;
 use crate::HTTP;
+
+pub(crate) struct Handler {
+    request: HttpRequest<()>,
+    stream: RequestStream<BidiStream<Bytes>, Bytes>
+}
+
+impl Handler {
+    pub fn new(request: HttpRequest<()>, stream: RequestStream<BidiStream<Bytes>, Bytes>) -> Self {
+        return Self {
+            request: request,
+            stream: stream
+        }
+    }
+
+    // pub async fn handle(&mut self) -> Result<Request> {
+    //     let (req, stream) = self.resolver.resolve_request().await.unwrap();
+        
+
+    //     let req: http::Request<()> = req;
+
+    //     let mut headers = Values::new();
+
+    //     for (k, v) in req.headers() {
+    //         headers.insert(k.to_string(), v.to_str().unwrap().to_string());
+    //     }
+
+    //     let host = headers
+    //         .get("host")
+    //         .cloned()
+    //         .or_else(|| headers.get(":authority").cloned())
+    //         .unwrap_or_default();
+
+    //     let request = Request{
+    //         ip: "127.0.0.1".to_owned(),
+    //         host: host.to_string(),
+    //         method: req.method().to_string(),
+    //         path: req.uri().path().to_string(),
+    //         parameters: Values::new(),
+    //         query: parse_query_params(req.uri().query().unwrap_or(""))?,
+    //         protocol: HTTP3.to_string(),
+    //         headers: headers,
+    //         body: vec![],
+    //         values: Values::new(),
+    //         files: Files::new(),
+    //     };
+
+    //     Ok((stream, request))
+    // }
+
+
+    // pub async fn write(self, stream: RequestStream<BidiStream<Bytes>, Bytes>, response: &mut Response) -> Result<()> {
+
+
+    //     Ok(())
+    // }
+}
+
+
 
 // pub struct Handler { }
 

@@ -17,7 +17,7 @@ use crate::utils::url::parse_query_params;
 use crate::utils::{Values};
 use crate::request::{Files, Headers, Request};
 
-pub struct Handler<'a, RW> {
+pub(crate) struct Handler<'a, RW> {
     rw: Pin<&'a mut BufReader<RW>>,
     addr: SocketAddr,
 

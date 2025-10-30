@@ -1,0 +1,293 @@
+pub mod group;
+
+use std::io::Result;
+use std::pin::Pin;
+use std::sync::Arc;
+
+use futures::FutureExt;
+use futures_util::future::BoxFuture;
+
+use crate::{router::group::GroupRouter, HTTP};
+use crate::utils::{merge, Values};
+use crate::ws::Ws;
+
+use crate::request::{self, Request};
+use crate::response::{self, Response};
+use crate::utils::url::clean_url;
+
+
+
+
+use std::future::Future;
+
+// use futures::future::{Future, FutureExt};
+
+
+
+// pub type TRoute<'a> = dyn Fn(Request, Response) -> BoxFuture<'static, Response> + Send + Sync; // TODO: 'a --
+// pub type TRoute = dyn for<'a> Fn(&'a mut Request, &'a mut Response) -> BoxFuture<'a, &'a mut Response> + Send + Sync; // TODO: 'a --
+pub type TRoute = dyn for<'a>  Fn(
+                &'a mut Request,
+                &'a mut Response,
+            ) -> Pin<Box<dyn Future<Output = &'a mut Response> + Send>>
+            + Send
+            + Sync; // TODO: 'a --
+
+
+// TODO: current option
+// pub type TRoute<'a> = dyn Fn(&'a mut Request, &'a mut Response) -> BoxFuture<'a, &'a mut Response> + Send + Sync;
+
+// TODO: route must be async...
+// pub type WebRoute = for<'a> fn (req: &'a mut Request, res: &'a mut Response) -> &'a mut Response;
+pub type Middleware = for<'a>  fn (req: Request, res: Response, next: Next<'a>) -> (Request, Response);
+pub type Middlewares = Vec<Middleware>;
+pub type WsRoute = for<'a> fn (req: &'a mut Request, res: &'a mut Ws);
+pub type Group<'s> = fn (router: Router);
+
+pub struct Next<'a> {
+    is_next: &'a mut bool,
+    response: Response,
+}
+
+pub struct Router<'l> {
+    // pub(crate) http: &'a mut HTTP<'a>,
+    pub(crate) router: &'l mut GroupRouter,
+    pub(crate) path: Vec<String>,
+    pub(crate) middleware: Middlewares,
+    // pub(crate) get: Option<Box<TRoute<'a>>>
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// Convenience alias for boxed pinned futures with the right lifetime handling
+pub type WebResponse<'a> = Pin<Box<dyn Future<Output = &'a mut Response> + Send + 'a>>;
+pub type RouteWebResponse<'a> = dyn Future<Output = &'a mut Response> + Send + Sync + 'static;
+
+// -------------------------------
+// RouteHandler trait: dynamic object
+// -------------------------------
+pub trait WebRouteHandler: Send + Sync {
+    fn call<'a>(&'a self, req: &'a mut Request, res: &'a mut Response) -> WebResponse<'a>;
+}
+
+// -----------------------------------------------------
+// Implement RouteHandler for any handler function/closure
+// that itself returns a WebResponse<'a> for any 'a.
+// This requires the handler to already return a boxed future.
+// -----------------------------------------------------
+impl<T> WebRouteHandler for T
+where
+    // The handler must be callable for any lifetime 'a and produce WebResponse<'a>
+    T: for<'a> Fn(&'a mut Request, &'a mut Response) -> WebResponse<'a> + Send + Sync + 'static,
+{
+    fn call<'a>(&'a self, req: &'a mut Request, res: &'a mut Response) -> WebResponse<'a> {
+        (self)(req, res)
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+pub struct Route<R> {
+    pub(crate) path: String,
+    pub(crate) method: String,
+    pub(crate) route: Arc<R>,
+    pub(crate) middlewares: Middlewares,
+}
+
+impl <'a>Next<'a> {
+    pub fn next(&'a mut self) -> &mut Response {
+        *self.is_next = true;
+
+        return &mut self.response;
+    }
+}
+
+impl <'l>Router<'l> {
+    pub fn get<C>(&mut self, path: &str, callback: C, middleware: Option<Middlewares>)
+    where
+    //     C: for<'a> Fn(&'a mut Request, &'a mut Response) -> RouteWebResponse<'a> + Send + Sync + 'static,
+
+        C: for<'a> AsyncFn(&'a mut Request, &'a mut Response) -> &'a mut Response + Send + Sync
+
+        // R: Fn(Request, Response) -> F + Send + Sync + 'static,
+        // F: Future<Output = &'a mut Response> + Send + Sync + 'static,
+    {
+
+
+
+        // let b = async move |req: &mut Request, res: &mut Response| callback(req, res);
+
+
+        // let a = callback(req, res);
+
+        // let a = move |req: &mut Request, res: &mut Response| Box::pin(callback(req, res));
+
+        // self.add_web_route("GET", path, callback, middleware);
+    }   
+ 
+    pub fn post<C, F>(&mut self, path: &str, callback: C, middleware: Option<Middlewares>)
+    where
+        C: for<'a> Fn(&'a mut Request, &'a mut Response) -> WebResponse<'a> + Send + Sync + 'static,
+    {
+        // self.add_web_route("POST", path, callback, middleware);
+    }
+
+    pub fn patch<C, F>(&mut self, path: &str, callback: C, middleware: Option<Middlewares>)
+    where
+        C: for<'a> Fn(&'a mut Request, &'a mut Response) -> WebResponse<'a> + Send + Sync + 'static,
+    {
+        // self.add_web_route("PATCH", path, callback, middleware);
+    }
+
+    pub fn put<C, F>(&mut self, path: &str, callback: C, middleware: Option<Middlewares>)
+    where
+        C: for<'a> Fn(&'a mut Request, &'a mut Response) -> WebResponse<'a> + Send + Sync + 'static,
+    {
+        // self.add_web_route("PUT", path, callback, middleware);
+    }
+
+    pub fn delete<C, F>(&mut self, path: &str, callback: C, middleware: Option<Middlewares>)
+    where
+        C: for<'a> Fn(&'a mut Request, &'a mut Response) -> WebResponse<'a> + Send + Sync + 'static,
+    {
+        // self.add_web_route("DELETE", path, callback, middleware);
+    }
+
+    pub fn head<C, F>(&mut self, path: &str, callback: C, middleware: Option<Middlewares>)
+    where
+        C: for<'a> Fn(&'a mut Request, &'a mut Response) -> WebResponse<'a> + Send + Sync + 'static,
+    {
+        // self.add_web_route("CONNECT", path, callback, middleware);
+    }
+
+    pub fn options<C, F>(&mut self, path: &str, callback: C, middleware: Option<Middlewares>)
+    where
+        C: for<'a> Fn(&'a mut Request, &'a mut Response) -> WebResponse<'a> + Send + Sync + 'static,
+    {
+        // self.add_web_route("OPTIONS", path, callback, middleware);
+    }
+
+    fn get_middlewares(&mut self, middleware: Option<Middlewares>) -> Middlewares {
+        let mut middlewares: Middlewares = self.middleware.clone();
+
+        if middleware.is_some() {
+            middlewares = merge(vec![middlewares, middleware.unwrap()]);
+        }
+
+        return middlewares;
+    }
+
+    pub fn ws(&mut self, path: &str, callback: WsRoute, middleware: Option<Middlewares>) {
+        let middlewares = self.get_middlewares(middleware);
+
+        // self.router.ws.push(Route{
+        //     // TODO: fix
+        //     path: Router::get_path(self.path.clone(), vec![path.to_string()]).join("/"),
+        //     method: "GET".to_owned(),
+        //     route: callback,
+        //     middlewares: middlewares,
+        // });
+    }
+
+    pub fn group<'s>(&'s mut self , path: &str, group: Group<'s>, middleware: Option<Middlewares>)
+    where
+        // 's: 'a
+    {
+        // group(Router{
+        //     // TODO: fix
+        //     path: Router::get_path(self.path.clone(), vec![path.to_string()]),
+        //     middleware: self.get_middlewares(middleware),
+        //     router: self.router,
+        // });
+    }
+
+    pub fn not_found(&mut self, callback: Box<TRoute>) {
+        // self.router.not_found_callback = Some(callback);
+    }
+
+    fn get_path(old: Vec<String>, new: Vec<String>) -> Vec<String> {
+        return merge(vec![old,new]).iter()
+            .map(|x| clean_url(x.to_owned()))
+            .filter(|x| x != "")
+            .collect();
+    }
+
+    fn add_web_route<C>(&mut self, method: &str, path: &str, callback: C, middleware: Option<Middlewares>)
+    where
+        // C: for<'a> Fn(&'a mut Request, &'a mut Response) -> WebResponse<'a> + Send + Sync + 'static,
+
+
+        // C: for<'a> Fn(&'a mut Request, &'a mut Response) -> Future<Output = &'a mut Response> + Send + Sync + 'static
+
+
+        // R: Fn(Request, Response) -> F + Send + Sync + 'static,
+        // F: Future<Output = &'a mut Response> + Send + Sync + 'static,
+
+
+        C: for<'a> Fn(&'a mut Request, &'a mut Response) -> Box<dyn Future<Output = &'a mut Response> + Send + Sync> + Send
+    {
+        let middlewares = self.get_middlewares(middleware);
+
+        let c = Arc::new(callback);
+
+
+
+                let mut res = response::new_response(None);
+                let mut req = request::Request::new("GET", "/", Values::new(), vec![]);
+
+                // let _r: Box<dyn Future<Output = &mut Response>> = |req |;
+
+
+        tokio_scoped::scope(|scope| {
+            // Use the scope to spawn the future.
+            scope.spawn(async {
+
+                // let mut res = response::new_response(None);
+                // let mut req = request::Request::new("GET", "/", Values::new(), vec![]);
+
+                // let _r: AsyncFnMut<(&mut Request, &mut Response)>::CallRefFuture<&mut Response> = c(&mut req, &mut res);
+
+
+            });
+        });
+
+        // self.router.web.push(Route{
+        //     path: Router::get_path(self.path.clone(), vec![path.to_string()]).join("/"),
+        //     method: method.to_string(),
+        //     route: Arc::new(callback),
+        //     middlewares: middlewares,
+        // });
+    }
+}
+
+
+
+
+
+
+
+
+

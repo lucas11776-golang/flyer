@@ -13,6 +13,7 @@ use std::sync::Arc;
 use tokio::runtime::Runtime;
 use tokio_rustls::TlsAcceptor;
 
+use crate::response::Response;
 use crate::router::group::GroupRouter;
 use crate::router::Router;
 use crate::server::get_server_config;
@@ -104,6 +105,30 @@ impl HTTP {
                 scope.spawn(self.run_tcp_server());
             });
         });
+    }
+
+    // TODO: still needs moving...
+    pub(crate) fn render_response_view(&mut self, mut res: Response) -> Response {
+        return match res.view  {
+            Some(bag) => {
+                match self.view.as_mut() {
+                    Some(view) => {
+                        res.body =  view.render(&bag.view, bag.data).as_bytes().to_vec();
+                    },
+                    None => {
+                        res.status_code = 500;
+                        println!("Set View Path") // TODO: log
+                    },
+                }
+
+                res.view = None;
+
+                res
+            },
+            None => {
+                res
+            },
+        };
     }
 
     async fn run_tcp_server(&mut self) {
