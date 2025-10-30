@@ -9,7 +9,6 @@ use h3::server::{
 use h3_quinn::BidiStream;
 
 use crate::request::{Files, Request};
-use crate::response::{new_response};
 // use crate::server::handler::RequestHandler;
 use crate::server::HTTP3;
 use crate::utils::url::parse_query_params;

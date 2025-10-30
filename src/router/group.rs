@@ -1,94 +1,58 @@
+use std::{io::Result};
 use regex::Regex;
 use once_cell::sync::Lazy;
-use sha1::digest::typenum::Gr;
+
+use futures::future::{Future, FutureExt};
 
 use crate::{
     request::Request,
-    response::{new_response, Response},
+    response::{Response},
     router::{
-        Middlewares, Next, Route, TRoute, WebRoute, WsRoute
+        Middlewares, Route, WebRoute, WsRoute
     },
     utils::{
         url::clean_uri_to_vec,
         Values
     },
-    ws::{Event, Ws}
 };
 
 static PARAM_REGEX: Lazy<Regex> = Lazy::new(|| {
     Regex::new(r"\{[a-zA-Z_]+\}").expect("Invalid parameter regex")
 });
 
-
-
-use futures::future::{Future, FutureExt};
-
-use std::{io::Result, marker::PhantomData};
-
 #[derive(Default)]
 pub struct GroupRouter {
-    pub(crate) name: &'static str,
-    pub(crate) web: Vec<Route<Box<TRoute<'static>>>>,
+    pub(crate) web: Vec<Route<Box<WebRoute<'static>>>>,
     pub(crate) ws: Vec<Route<WsRoute>>,
-    pub(crate) not_found_callback: Option<Box<WebRoute>>,
+    pub(crate) not_found_callback: Option<Box<WebRoute<'static>>>,
 }
-
-// pub trait Group {
-    
-// }
-
-
-pub trait Group {
-
-    fn new() -> Self;
-
-    fn match_web_routes<'a>(&'a mut self, req: &'a mut Request, res: &'a mut Response) -> impl std::future::Future<Output = &'a mut Response> + Send;
-} 
-
-
 
 impl <'a>GroupRouter {
     pub fn new() -> Self {
         return GroupRouter {
-            name: "",
             web: vec![],
             ws: vec![],
             not_found_callback: None,
         }
     }
 
-    pub fn add_web_route<'s, C, F>(&mut self, method: &str, path: &str, callback: C, middleware: Option<Middlewares>)
+    pub fn add_web_route<'s, C, F>(&mut self, method: &str, path: String, callback: C, middlewares: Middlewares)
     where
         C: Fn(Request, Response) -> F + Send + Sync + 'static,
         F: Future<Output = Response> + Send + Sync + 'static,
     {
-
-
-        // 
-
-        // let b: impl FnOnce(&'a mut Request, &'a mut Response) -> impl Pin<Box<dyn Future<Output = &'a mut Response> + Send>>;
-
-        // let a = ;
-
-        // let parsed = move |req: &'a mut Request, res: &'a mut Response| {
-        //     return callback(req, res).boxed();
-        // };
-        
-        // self.web.push(Route{
-        //     path: "/".to_string(),
-        //     method: "GET".to_string(),
-        //     route: Box::new(move |req: &mut Request, res: &mut Response| callback(req, res).boxed()),
-        //     middlewares: vec![],
-        // });
+        self.web.push(Route{
+            path: path,
+            method: method.to_string(),
+            route: Box::new(move |req: Request, res: Response| callback(req, res).boxed()),
+            middlewares,
+        });
     }
 
     pub async fn match_web_routes<'s>(& mut self, mut req: Request, mut res: Response) -> Result<Response>
     where
         'a: 's
      {
-
-        println!("REQUEST HERE");
-
         for route in &mut self.web {
             let (matches, parameters) = GroupRouter::match_route(route, &mut req);
 
@@ -102,16 +66,12 @@ impl <'a>GroupRouter {
             //     return Ok(res)
             // }
 
-
-            // let a = (route.route)(req, res).await;
-
-
             return Ok((route.route)(req, res).await)
         }
 
-        // if self.not_found_callback.is_some() {
-        //     return self.not_found_callback.as_ref() .unwrap()(req, res).await;
-        // }
+        if self.not_found_callback.is_some() {
+            return Ok(self.not_found_callback.as_ref() .unwrap()(req, res).await);
+        }
 
         res.status_code = 404;
 

@@ -10,132 +10,94 @@ use reqwest::Url;
 use tokio::io::{AsyncRead, AsyncWrite, BufReader};
 
 use crate::response::{Response};
-// use crate::{response::new_response, server::handler::RequestHandler, utils::Values, HTTP};
 use crate::request::{Headers, Request};
 use crate::utils::url::parse_query_params;
 use crate::utils::Values;
-use crate::HTTP;
 
 pub const H2_PREFACE: &[u8] = b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n";
 
-pub struct Handler { }
+pub struct Handler<'a, RW> {
+    addr: SocketAddr,
+    conn: Box<server::Connection< Pin<&'a mut BufReader<RW>>, Bytes>>,
+}
 
+impl <'a, RW>Handler<'a, RW>
+where
+    RW: AsyncRead + AsyncWrite + Unpin + Send + Sync
+{
+    pub async fn new(addr: SocketAddr, rw: Pin<&'a mut BufReader<RW>>) -> Self {
+        return Self {
+            addr: addr,
+            conn: Box::new(server::handshake(rw).await.unwrap()),
+        };
+    }
+    
+    pub async fn handle(&mut self) -> Option<Result<(HttpRequest<h2::RecvStream> , SendResponse<Bytes>)>> {
+        while let Some(result) = self.conn.accept().await {
+            return Some(Ok(result.unwrap()))
+        }
 
-// impl <'a> Handler {
-//     pub fn new() -> Self {
-//         return Self {}
-//     }
+        return None;
+    }
 
-//     pub async fn handle<RW>(&mut self, http: &'a mut HTTP, mut rw: Pin<&mut BufReader<RW>>, addr: SocketAddr) -> Result<()>
-//     where
-//         RW: AsyncRead + AsyncWrite + Unpin + std::marker::Send
-//     {
-//         // let mut conn = server::handshake(&mut rw).await.unwrap();
+    pub async fn write(&mut self, mut send: SendResponse<Bytes>, res: &mut Response) -> Result<()> {
+        let mut builder = HttpResponse::builder().status(res.status_code);
 
-//         // while let Some(result) = conn.accept().await {
-//         //     let (req, response) = result.unwrap();
+        for (k, v) in &mut res.headers {
+            builder = builder.header(k.clone(), v.clone());
+        }
 
-//         //     tokio_scoped::scope(|scope| {
-//         //         scope.spawn(async {
-//         //             let _ = self.new_request( http,req, response, addr).await;
-//         //         });
-//         //     });
-//         // }
+        send.send_response(builder.body(()).unwrap(), false)
+            .unwrap()
+            .send_data(Bytes::from(res.body.clone()), true)
+            .unwrap();
 
-//         return Ok(());
-//     }
+        Ok(())
+    }
 
-//     async fn connect<RW>(&mut self, http: &'a mut HTTP, mut rw: Pin<&mut BufReader<RW>>, addr: SocketAddr)
-//     where
-//         RW: AsyncRead + AsyncWrite + Unpin + Send
-//     {
-//         let mut conn = server::handshake(&mut rw).await.unwrap();
+    pub async fn get_http_request(&mut self, request: HttpRequest<h2::RecvStream>) -> Result<Request> {
+        let method = request.method().to_string();
+        let path = Url::parse(request.uri().to_string().as_str()).unwrap().path().to_string();
+        let query = parse_query_params(request.uri().query().unwrap_or(""))?;
+        let mut body = Vec::new();
+        let headers = self.hashmap_to_headers(request.headers());
+        let mut recv = request.into_body();
+        let host = headers
+            .get("host")
+            .cloned()
+            .or_else(|| headers.get(":authority").cloned())
+            .unwrap_or_default();
 
-//         while let Some(result) = conn.accept().await {
-//             let (req, response) = result.unwrap();
+        while let Some(chunk) = recv.data().await.transpose().unwrap() {
+            body.extend_from_slice(&chunk);
+        }
 
-//             // tokio_scoped::scope(|scope| {
-//             //     scope.spawn(async {
-//             //         let _ = self.new_request( http,req, response, addr).await;
-//             //     });
-//             // });
-//         }
-//     }
+        Ok(Request {
+            ip: self.addr.ip().to_string(),
+            host: host,
+            method: method,
+            path: path,
+            parameters: Values::new(),
+            query: query,
+            protocol: "HTTP/2.0".to_string(),
+            headers: headers,
+            body: body,
+            values: HashMap::new(),
+            files: HashMap::new(),
+        })
+    }
 
-//     async fn new_request(&mut self, http: &'a mut HTTP, request: HttpRequest<h2::RecvStream>, send: SendResponse<Bytes>, addr: SocketAddr) -> std::io::Result<()> {
-//         let method = request.method().to_string();
-//         let path = Url::parse(request.uri().to_string().as_str()).unwrap().path().to_string();
-//         let query = parse_query_params(request.uri().query().unwrap_or(""))?;
-//         let mut body = Vec::new();
-//         let headers = self.hashmap_to_headers(request.headers());
-//         let mut recv = request.into_body();
+    fn hashmap_to_headers(&mut self, map: &HeaderMap) -> Headers {
+        let mut headers = Headers::new();
 
-//         while let Some(chunk) = recv.data().await.transpose().unwrap() {
-//             body.extend_from_slice(&chunk);
-//         }
+        for (k, v) in map.iter() {
+            headers.insert(
+                k.as_str().to_string(),
+                v.to_str().unwrap_or_default().to_string()
+            );
+        }
 
-//         let host = headers
-//             .get("host")
-//             .cloned()
-//             .or_else(|| headers.get(":authority").cloned())
-//             .unwrap_or_default();
-
-//         let req = Request {
-//             ip: addr.ip().to_string(),
-//             host: host,
-//             method: method,
-//             path: path,
-//             parameters: Values::new(),
-//             query: query,
-//             protocol: "HTTP/2.0".to_string(),
-//             headers: headers,
-//             body: body,
-//             values: HashMap::new(),
-//             files: HashMap::new(),
-//         };
-
-//         self.handle_request(http, req, send).await?;
-
-//         Ok(())
-//     }
-
-//     fn hashmap_to_headers(&mut self, map: &HeaderMap) -> Headers {
-//         let mut headers = Headers::new();
-
-//         for (k, v) in map.iter() {
-//             headers.insert(
-//                 k.as_str().to_string(),
-//                 v.to_str().unwrap_or_default().to_string()
-//             );
-//         }
-
-//         return headers;
-//     }
-
-//     async fn handle_request(&mut self, http: &'a mut HTTP, mut req: Request, mut send:  SendResponse<Bytes>) -> Result<()> {
-//         // let mut response = new_response();
-//         // let response = RequestHandler::web(http, &mut req, &mut response).await?;
-
-//         // let mut builder = HttpResponse::builder().status(response.status_code);
-
-//         // for (k, v) in &mut response.headers {
-//         //     builder = builder.header(k.clone(), v.clone());
-//         // }
-
-//         // return Ok(
-//         //     send.send_response(builder.body(()).unwrap(), false)
-//         //         .unwrap()
-//         //         .send_data(Bytes::from(response.body.clone()), true)
-//         //         .unwrap()
-//         // )
-
-
-//         Ok(())
-//     }
-// }
-
-
-use futures::future::{BoxFuture, Future, FutureExt};
-
-
-
+        return headers;
+    }
+    
+}

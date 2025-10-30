@@ -1,34 +1,23 @@
-use std::{collections::HashMap, io::Result};
+use std::io::Result;
 use serde::Serialize;
 
 use crate::{
     request::Headers,
-    session::Session,
-    ws::Ws,
-    view::{
-        View,
-        ViewData
-    }
+    view::ViewData
 };
 
+#[derive(Clone)]
 pub struct Response {
     pub(crate) status_code: u16,
     pub(crate) headers: Headers,
     pub(crate) body: Vec<u8>,
-    pub(crate) session: Option<Box<dyn Session>>,
-    pub(crate) view: Option<View>,
-    pub ws: Option<Ws>,
+    pub(crate) view: Option<ViewBag>,
 }
 
-pub fn new_response(view: Option<View>) -> Response {
-    return Response {
-        status_code: 200,
-        headers: Headers::new(),
-        body: vec![],
-        session: None,
-        view: view,
-        ws: None,
-    };
+#[derive(Clone)]
+pub struct ViewBag {
+    pub(crate) view: String,
+    pub(crate) data: Option<ViewData>,
 }
 
 pub fn parse(response: &mut Response) -> Result<String> {
@@ -45,6 +34,15 @@ pub fn parse(response: &mut Response) -> Result<String> {
 }
 
 impl Response {
+    pub fn new() -> Self {
+        return Self {
+            status_code: 200,
+            headers: Headers::new(),
+            body: vec![],
+            view: None,
+        };
+    }
+
     pub fn status_code(mut self, code: u16) -> Response {
         self.status_code = code;
         
@@ -83,15 +81,12 @@ impl Response {
     }
 
     pub fn view(mut self, view: &str, data: Option<ViewData>) -> Response {
-        let html = self.view.as_mut().unwrap().render(view, data);
+        self.view = Some(ViewBag {
+            view: view.to_string(),
+            data: data
+        });
 
-        return self.html(&html);
-    }
-
-    pub fn session<'a>(&self) -> Option<&Box<dyn Session>> {
-        return self.session.as_ref();
+        return self;
     }
 }
-
-
 

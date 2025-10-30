@@ -7,29 +7,27 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
 pub struct User<'a> {
-    id: i64,
-    first_name: &'a str,
-    last_name: &'a str,
-    email: &'a str
+    pub id: i64,
+    pub first_name: &'a str,
+    pub last_name: &'a str,
+    pub email: &'a str
 }
 
-
-// start: 'static
 fn main() {
-    let mut server = flyer::server("127.0.0.1", 9999);
+    let mut server = flyer::server_tls("127.0.0.1", 9999, "host.key", "host.cert")
+        .view("views");
 
-    server.view("views");
-
-
-    server.router().get("/",   async|req, res| {
-        println!("YEs.... calling it...");
-
+    server.router().get("/",   async |req, res| {
         let mut data = view_data();
 
-        data.insert("first_name", "Jeo");
-        data.insert("last_name", "Doe");
-        data.insert("email", "jeo@doe.com");
-        data.insert("age", &23);
+        let user = User {
+            id: 1,
+            first_name: "Jeo",
+            last_name: "Deo",
+            email: "jeo@doe.com",
+        };
+
+        data.insert("user", &user);
 
         if let Some(image) =  req.file("image") {
             File::create(format!("test.png")).unwrap().write(&image.content).unwrap();
@@ -38,45 +36,24 @@ fn main() {
         return res.view("index.html", Some(data));   
     }, None);
 
+    server.router().group("api", |mut router| {
+        router.group("users", |mut router| {
+            router.get("{id}", async |req, res| {
+                return res.json(&User {
+                    id: req.parameters.get("id").unwrap().parse().unwrap(),
+                    first_name: "Joe",
+                    last_name: "Doe",
+                    email: "jeo@doe.com",
+                })
+            }, None);
+        }, None);
+    }, None);
 
-    server.router().group("users", |mut router| {
-        router.get("{id}", async |req, res| {
-            return res.json(&User {
-                id: req.parameters.get("id").unwrap().parse().unwrap(),
-                first_name: "Joe",
-                last_name: "Doe",
-                email: "jeo@doe.com",
-            })
-        }, Some(vec![]));
-    }, Some(vec![]));
-    
-
-    // server.router().ws("/", |req, ws| {
-    //     tokio_scoped::scope(|scope| {
-    //         scope.spawn(async {
-    //             ws.write("Hello World".into()).await;
-    //         });
-    //     });
-
-    //     ws.on(|event| async move {
-
-
-    //         match event {
-    //             flyer::ws::Event::Ready()                 => println!("Websocket connection is ready"),
-    //             flyer::ws::Event::Message(items) => {
-
-
-    //                 println!("Websocket connection is message: {:?}", String::from_utf8(items.to_vec()).unwrap())
-    //             },
-    //             flyer::ws::Event::Ping(items)    => println!("Websocket connection is ping: {:?}", String::from_utf8(items.to_vec()).unwrap()),
-    //             flyer::ws::Event::Pong(items)    => println!("Websocket connection is pong: {:?}", String::from_utf8(items.to_vec()).unwrap()),
-    //             flyer::ws::Event::Close(reason)   => println!("Websocket connection is close: {:?}", reason),
-    //         }
-    //     });
-    // }, None);
+    server.router().not_found(async |req, res| {
+        return res.view("404.html", None)
+    });
 
     print!("\r\n\r\nRunning server: {}\r\n\r\n", server.address());
 
     server.listen();
 }
-// end: 'static

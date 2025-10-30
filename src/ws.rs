@@ -1,11 +1,7 @@
-use std::{future::Future, io::Result, pin::Pin};
+use std::future::Future;
 
-use futures_util::{
-    future::BoxFuture, stream::SplitSink, FutureExt, SinkExt
-};
+use futures_util::{future::BoxFuture, FutureExt};
 use serde::Serialize;
-use tokio::io::{AsyncRead, AsyncWrite, BufReader};
-use tokio_tungstenite::WebSocketStream;
 use tungstenite::{Message, Utf8Bytes};
 
 #[derive(Debug)]
@@ -13,7 +9,6 @@ pub struct Reason {
     pub code: u16,
     pub message: String,
 }
-
 pub enum Event {
     Ready(),
     Message(Vec<u8>),
@@ -23,7 +18,6 @@ pub enum Event {
 }
 
 pub(crate) type OnEvent = dyn Fn(Event) -> BoxFuture<'static, ()> + Send + Sync + 'static;
-pub(crate) type Sending = Box<dyn FnMut(Message) -> Box<dyn Future<Output = ()> + Send + 'static> + Send + Sync + 'static>; 
 
 pub struct Ws {
     pub(crate) event: Option<Box<OnEvent>>,
