@@ -3,18 +3,14 @@ use std::io::Result;
 use bytes::Bytes;
 
 use http::Request as HttpRequest;
-use h3::server::{
-    RequestResolver,
-    RequestStream
-};
+use h3::server::RequestStream;
 use h3_quinn::BidiStream;
 
-use crate::request::{self, Files, Request};
+use crate::request::{Files, Request};
 use crate::response::Response;
 use crate::server::HTTP3;
 use crate::utils::url::parse_query_params;
 use crate::utils::Values;
-use crate::HTTP;
 
 pub(crate) struct Handler {
     request: HttpRequest<()>,
@@ -29,108 +25,58 @@ impl Handler {
         }
     }
 
-    // pub async fn handle(&mut self) -> Result<Request> {
-    //     let (req, stream) = self.resolver.resolve_request().await.unwrap();
+    fn get_headers(&mut self) -> Values {
+        let mut headers = Values::new();
+
+        for (k, v) in self.request.headers() {
+            headers.insert(k.to_string(), v.to_str().unwrap().to_string());
+        }
+
+        return headers;
+    }
+
+    fn get_host(&mut self, headers: &Values) -> String {
+        return headers
+            .get("host")
+            .cloned()
+            .or_else(|| headers.get(":authority").cloned())
+            .unwrap_or_default();
+    }
+
+    pub async fn handle(&mut self) -> Result<Request> {
+        let headers = self.get_headers();
         
+        Ok(Request{
+            ip: "127.0.0.1".to_owned(),
+            host: self.get_host(&headers),
+            method: self.request.method().to_string(),
+            path: self.request.uri().path().to_string(),
+            parameters: Values::new(),
+            query: parse_query_params(self.request.uri().query().unwrap_or(""))?,
+            protocol: HTTP3.to_string(),
+            headers: headers,
+            body: vec![],
+            values: Values::new(),
+            files: Files::new(),
+        })
+    }
 
-    //     let req: http::Request<()> = req;
+    pub async fn write(mut self, res: &mut Response) -> Result<()> {
+        let mut builder = http::Response::builder()
+            .status(res.status_code)
+            .header("content-length", format!("{}", res.body.len()));
 
-    //     let mut headers = Values::new();
+        for (k, v) in &mut res.headers {
+            builder = builder.header(k.clone(), v.clone());
+        }
 
-    //     for (k, v) in req.headers() {
-    //         headers.insert(k.to_string(), v.to_str().unwrap().to_string());
-    //     }
+        let response = builder.body(()).unwrap();
 
-    //     let host = headers
-    //         .get("host")
-    //         .cloned()
-    //         .or_else(|| headers.get(":authority").cloned())
-    //         .unwrap_or_default();
+        self.stream.send_response(response).await.unwrap();
+        self.stream.send_data(Bytes::from(res.body.to_owned()).clone()).await.unwrap();
+        self.stream.finish().await.unwrap();
 
-    //     let request = Request{
-    //         ip: "127.0.0.1".to_owned(),
-    //         host: host.to_string(),
-    //         method: req.method().to_string(),
-    //         path: req.uri().path().to_string(),
-    //         parameters: Values::new(),
-    //         query: parse_query_params(req.uri().query().unwrap_or(""))?,
-    //         protocol: HTTP3.to_string(),
-    //         headers: headers,
-    //         body: vec![],
-    //         values: Values::new(),
-    //         files: Files::new(),
-    //     };
-
-    //     Ok((stream, request))
-    // }
-
-
-    // pub async fn write(self, stream: RequestStream<BidiStream<Bytes>, Bytes>, response: &mut Response) -> Result<()> {
-
-
-    //     Ok(())
-    // }
+        Ok(())
+    }
 }
-
-
-
-// pub struct Handler { }
-
-// impl <'a>Handler {
-//     pub async fn handle(http: &'a mut HTTP<'a>, resolver: RequestResolver<h3_quinn::Connection, Bytes>) -> Result<()> {
-//         let (req, stream) = resolver.resolve_request().await.unwrap();
-//         let mut headers = Values::new();
-
-//         for (k, v) in req.headers() {
-//             headers.insert(k.to_string(), v.to_str().unwrap().to_string());
-//         }
-
-//         let host = headers
-//             .get("host")
-//             .cloned()
-//             .or_else(|| headers.get(":authority").cloned())
-//             .unwrap_or_default();
-
-//         let mut request= Request{
-//             ip: "127.0.0.1".to_owned(),
-//             host: host.to_string(),
-//             method: req.method().to_string(),
-//             path: req.uri().path().to_string(),
-//             parameters: Values::new(),
-//             query: parse_query_params(req.uri().query().unwrap_or(""))?,
-//             protocol: HTTP3.to_string(),
-//             headers: headers,
-//             body: vec![],
-//             values: Values::new(),
-//             files: Files::new(),
-//         };
-
-//         // TODO: move
-//         // Handler::handle_request(http, &mut request, stream).await?;
-
-//         Ok(())
-//     }
-
-//     async fn handle_request<'s>(http: &'a mut HTTP<'a>, req: &'a mut Request, mut stream: RequestStream<BidiStream<Bytes>, Bytes>) -> Result<()> {
-//         // let mut res = new_response();
-//         // let res = RequestHandler::web(http, req, &mut res).await.unwrap();
-//         // let mut builder = http::Response::builder()
-//         //     .status(res.status_code)
-//         //     .header("content-length", format!("{}", res.body.len()));
-
-//         // for (k, v) in &mut res.headers {
-//         //     builder = builder.header(k.clone(), v.clone());
-//         // }
-
-//         // let response = builder.body(()).unwrap();
-
-//         // stream.send_response(response).await.unwrap();
-//         // stream.send_data(Bytes::from(res.body.to_owned()).clone()).await.unwrap();
-//         // stream.finish().await.unwrap();
-
-//         Ok(())
-//     }
-
-// }
-
 

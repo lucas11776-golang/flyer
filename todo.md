@@ -1,3 +1,6 @@
+# ************** HTTP3 HANDLER REQUEST NOTE **************
+- Request body does not have data find way to get data.
+
 # DO MORE LIFETIMES....
 
 # TODO

@@ -51,12 +51,10 @@ impl <'a>UdpServer<'a> {
                     let (request, stream) = resolver.resolve_request().await.unwrap();
                     let mut handler = http3::Handler::new(request, stream);
 
+                    let req = handler.handle().await.unwrap();
+                    let res = self.http.router.match_web_routes(req, Response::new()).await.unwrap();
 
-                    // let (stream, req) = handler.handle().await.unwrap();
-                    // let res = self.http.router.match_web_routes(req, Response::new()).await.unwrap();
-
-                    // handler.write(stream,&mut self.http.render_response_view(res)).await.unwrap();
-
+                    handler.write(&mut self.http.render_response_view(res)).await.unwrap();
                 });
             });
         }
