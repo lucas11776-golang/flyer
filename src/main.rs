@@ -11,7 +11,8 @@ pub struct User<'a> {
 }
 
 fn main() {
-    let mut server = flyer::server_tls("127.0.0.1", 9999, "host.key", "host.cert")
+    // let mut server = flyer::server_tls("127.0.0.1", 9999, "host.key", "host.cert")
+    let mut server = flyer::server("127.0.0.1", 9999)
         .view("views");
 
     server.router().ws("/", async |req, mut ws| {
@@ -24,7 +25,6 @@ fn main() {
                 Event::Close(reason) => todo!(),
             }
         });
-
     }, None);
 
     print!("\r\n\r\nRunning server: {}\r\n\r\n", server.address());
