@@ -98,11 +98,12 @@ impl HTTP {
         Runtime::new().unwrap().block_on(async {
             // TODO: find not blocking way...
             tokio_scoped::scope(|scope| {
-                scope.spawn(self.run_udp_server());
+                scope.spawn(self.run_tcp_server());
             });
+
             // TODO: find not blocking way...
             tokio_scoped::scope(|scope| {
-                scope.spawn(self.run_tcp_server());
+                scope.spawn(self.run_udp_server());
             });
         });
     }
