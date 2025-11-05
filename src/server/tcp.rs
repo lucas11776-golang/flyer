@@ -72,14 +72,15 @@ impl <'a>TcpServer<'a> {
         let mut handler = http1::Handler::new(Pin::new(&mut rw), addr);
 
         // TODO: request may be empty due to connection broke...
-        let req = handler.handle().await.unwrap().unwrap();
+        let mut req = handler.handle().await.unwrap().unwrap();
+        let mut res = Response::new();
 
 
         if req.header("upgrade") == "websocket" {
             return Ok(ws_http1::Handler::new(rw).handle(req).await.unwrap())
         }
 
-        let res = self.http.router.match_web_routes(req, Response::new()).await.unwrap();
+        let res = self.http.router.match_web_routes(&mut req, &mut res).await.unwrap();
     
         handler.write(&mut self.http.render_response_view(res)).await.unwrap();
 
@@ -96,8 +97,9 @@ impl <'a>TcpServer<'a> {
             tokio_scoped::scope(|scope| {
                 scope.spawn(async {
                     let (request, send) = result.unwrap();
-                    let req = handler.get_http_request(request).await.unwrap();
-                    let res = self.http.router.match_web_routes(req, Response::new()).await.unwrap();
+                    let mut req = handler.get_http_request(request).await.unwrap();
+                    let mut res = Response::new();
+                    let res = self.http.router.match_web_routes(&mut req, &mut res).await.unwrap();
 
                     handler.write(send,&mut self.http.render_response_view(res)).await.unwrap();
                 });

@@ -1,6 +1,6 @@
 [package]
 name = "flyer"
-version = "0.0.34"
+version = "0.0.35"
 authors = ["Themba Lucas Ngubeni <thembangubeni04@email.com>"]
 license = "MIT"
 description = "HTTP framework for rust"
@@ -13,7 +13,7 @@ edition = "2024"
 
 [dependencies]
 openssl = "0.10.74"
-rustls = "0.23.34"
+rustls = "0.23.35"
 reqwest = { version = "0.12.24", default-features = false, features = ["rustls-tls"] }
 urlencoding = "2.1.3"
 regex = "1.12.2"

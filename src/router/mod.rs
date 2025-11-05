@@ -12,7 +12,7 @@ use crate::request::Request;
 use crate::response::Response;
 use crate::utils::url::clean_url;
 
-pub type WebRoute = dyn for<'a> Fn(Request, Response) -> Response + Send + Sync;
+pub type WebRoute = dyn for<'a> Fn(&'a mut Request, &'a mut Response) -> &'a mut Response + Send + Sync;
 pub type WsRoute<'a> = dyn Fn(Request, Ws) -> BoxFuture<'static, ()> + Send + Sync;
 
 pub type Middleware = for<'a>  fn (req: Request, res: Response, next: Next<'a>) -> Response;
@@ -48,56 +48,56 @@ impl <'a>Next<'a> {
 impl <'r>Router<'r> {
     pub fn get<C>(&mut self, path: &str, callback: C, middleware: Option<Middlewares>)
     where
-        C: for<'a> AsyncFn<(Request, Response), Output = Response> + Send + Sync + 'static
+        C: for<'a> AsyncFn<(&'a mut Request, &'a mut Response), Output = &'a mut Response> + Send + Sync + 'static
     {
         self.route("GET", path, callback, middleware);
     }   
  
     pub fn post<C>(&mut self, path: &str, callback: C, middleware: Option<Middlewares>)
     where
-        C: for<'a> AsyncFn<(Request, Response), Output = Response> + Send + Sync + 'static
+        C: for<'a> AsyncFn<(&'a mut Request, &'a mut Response), Output = &'a mut Response> + Send + Sync + 'static
     {
         self.route("POST", path, callback, middleware);
     }
 
     pub fn patch<C>(&mut self, path: &str, callback: C, middleware: Option<Middlewares>)
     where
-        C: for<'a> AsyncFn<(Request, Response), Output = Response> + Send + Sync + 'static
+        C: for<'a> AsyncFn<(&'a mut Request, &'a mut Response), Output = &'a mut Response> + Send + Sync + 'static
     {
         self.route("PATCH", path, callback, middleware);
     }
 
     pub fn put<C>(&mut self, path: &str, callback: C, middleware: Option<Middlewares>)
     where
-        C: for<'a> AsyncFn<(Request, Response), Output = Response> + Send + Sync + 'static
+        C: for<'a> AsyncFn<(&'a mut Request, &'a mut Response), Output = &'a mut Response> + Send + Sync + 'static
     {
         self.route("PUT", path, callback, middleware);
     }
 
     pub fn delete<C>(&mut self, path: &str, callback: C, middleware: Option<Middlewares>)
     where
-        C: for<'a> AsyncFn<(Request, Response), Output = Response> + Send + Sync + 'static
+        C: for<'a> AsyncFn<(&'a mut Request, &'a mut Response), Output = &'a mut Response> + Send + Sync + 'static
     {
         self.route("DELETE", path, callback, middleware);
     }
 
     pub fn head<C>(&mut self, path: &str, callback: C, middleware: Option<Middlewares>)
     where
-        C: for<'a> AsyncFn<(Request, Response), Output = Response> + Send + Sync + 'static
+        C: for<'a> AsyncFn<(&'a mut Request, &'a mut Response), Output = &'a mut Response> + Send + Sync + 'static
     {
         self.route("CONNECT", path, callback, middleware);
     }
 
     pub fn options<C>(&mut self, path: &str, callback: C, middleware: Option<Middlewares>)
     where
-        C: for<'a> AsyncFn<(Request, Response), Output = Response> + Send + Sync + 'static
+        C: for<'a> AsyncFn<(&'a mut Request, &'a mut Response), Output = &'a mut Response> + Send + Sync + 'static
     {
         self.route("OPTIONS", path, callback, middleware);
     }
 
     pub fn route<C>(&mut self, method: &str, path: &str, callback: C, middleware: Option<Middlewares>)
     where
-        C: for<'a> AsyncFn<(Request, Response), Output = Response> + Send + Sync + 'static
+        C: for<'a> AsyncFn<(&'a mut Request, &'a mut Response), Output = &'a mut Response> + Send + Sync + 'static
     {
         let middlewares = self.merge_middlewares(middleware);
 
@@ -145,12 +145,11 @@ impl <'r>Router<'r> {
         });
     }
 
-    pub fn not_found<R, F>(&mut self, callback: R)
+    pub fn not_found<C>(&mut self, callback: C)
     where
-        R: Fn(Request, Response) -> F + Send + Sync + 'static,
-        F: Future<Output = Response> + Send + Sync + 'static,
+        C: for<'a> AsyncFn<(&'a mut Request, &'a mut Response), Output = &'a mut Response> + Send + Sync + 'static
     {
-        self.router.not_found_callback = Some(Box::new(move |req: Request, res: Response| block_on(callback(req, res))));
+        self.router.not_found_callback = Some(Box::new(move |req, res| block_on(callback(req, res))));
     }
 
     fn get_path(old: Vec<String>, new: Vec<String>) -> Vec<String> {

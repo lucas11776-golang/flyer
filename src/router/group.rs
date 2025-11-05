@@ -39,19 +39,19 @@ impl <'r>GroupRouter {
 
     pub fn add_web_route<C>(&mut self, method: &str, path: String, callback: C, middlewares: Middlewares)
     where
-        C: for<'a> AsyncFn<(Request, Response), Output = Response> + Send + Sync + 'static,
+        C: for<'a> AsyncFn<(&'a mut Request, &'a mut Response), Output = &'a mut Response> + Send + Sync + 'static
     {
         self.web.push(Route{
             path: path,
             method: method.to_string(),
-            route: Box::new(move |req: Request, res: Response| block_on(callback(req, res))),
+            route: Box::new(move |req, res| block_on(callback(req, res))),
             middlewares,
         });
     }
 
-    pub async fn match_web_routes<'s>(& mut self, mut req: Request, mut res: Response) -> Result<Response> {
+    pub async fn match_web_routes(&mut self, req: &'r mut Request, res: &'r mut Response) -> Result<&'r mut Response> {
         for route in &mut self.web {
-            let (matches, parameters) = GroupRouter::match_route(route, &mut req);
+            let (matches, parameters) = GroupRouter::match_route(route, req);
 
             if !matches {
                 continue;

@@ -12,10 +12,13 @@ pub struct JsonMessage {
     message: String
 }
 
-pub fn auth<'a>(_req: Request, res: Response, _next: Next<'a>) ->  Response {
-    return res.status_code(401).json(&JsonMessage{
-        message: "unauthorized access".to_string()
-    });
+pub fn auth<'a>(_req: &'a mut Request, res: &'a mut Response, _next: Next<'a>) -> &'a mut Response {
+    // return res.status_code(401).json(&JsonMessage{
+    //     message: "unauthorized access".to_string()
+    // });
+
+
+    return res;
 }
 
 fn main() {
@@ -26,7 +29,7 @@ fn main() {
             id: req.parameter("user").parse().unwrap(),
             email: "joe@deo.com".to_owned()
         })
-    }, Some(vec![auth]));
+    }, Some(vec![]));
 
     print!("\r\n\r\nRunning server: {}\r\n\r\n", server.address());
 
