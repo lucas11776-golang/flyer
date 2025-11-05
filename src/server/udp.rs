@@ -50,9 +50,9 @@ impl <'a>UdpServer<'a> {
                 scope.spawn(async {
                     let (request, stream) = resolver.resolve_request().await.unwrap();
                     let mut handler = http3::Handler::new(request, stream);
-
-                    let req = handler.handle().await.unwrap();
-                    let res = self.http.router.match_web_routes(req, Response::new()).await.unwrap();
+                    let mut req = handler.handle().await.unwrap();
+                    let mut res = Response::new();
+                    let res = self.http.router.match_web_routes(&mut req, &mut res).await.unwrap();
 
                     handler.write(&mut self.http.render_response_view(res)).await.unwrap();
                 });

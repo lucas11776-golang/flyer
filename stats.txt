@@ -1,0 +1,35 @@
+# block_on
+Concurrency Level:      100
+Time taken for tests:   5.524 seconds
+Complete requests:      100000
+Failed requests:        0
+Total transferred:      343700000 bytes
+HTML transferred:       339600000 bytes
+Requests per second:    18102.57 [#/sec] (mean)
+Time per request:       5.524 [ms] (mean)
+Time per request:       0.055 [ms] (mean, across all concurrent requests)
+Transfer rate:          60760.28 [Kbytes/sec] received
+
+Concurrency Level:      100
+Time taken for tests:   59.317 seconds
+Complete requests:      1000000
+Failed requests:        0
+Total transferred:      3437000000 bytes
+HTML transferred:       3396000000 bytes
+Requests per second:    16858.51 [#/sec] (mean)
+Time per request:       5.932 [ms] (mean)
+Time per request:       0.059 [ms] (mean, across all concurrent requests)
+Transfer rate:          56584.65 [Kbytes/sec] received
+
+
+# non_block_on
+Concurrency Level:      100
+Time taken for tests:   5.465 seconds
+Complete requests:      100000
+Failed requests:        0
+Total transferred:      343700000 bytes
+HTML transferred:       339600000 bytes
+Requests per second:    18296.68 [#/sec] (mean)
+Time per request:       5.465 [ms] (mean)
+Time per request:       0.055 [ms] (mean, across all concurrent requests)
+Transfer rate:          61411.80 [Kbytes/sec] received

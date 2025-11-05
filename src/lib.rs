@@ -1,3 +1,6 @@
+#![feature(async_fn_traits)]
+#![feature(unboxed_closures)]
+
 pub mod request;
 pub mod response;
 pub mod ws;
@@ -109,12 +112,13 @@ impl HTTP {
     }
 
     // TODO: still needs moving...
-    pub(crate) fn render_response_view(&mut self, mut res: Response) -> Response {
-        return match res.view  {
+    pub(crate) fn render_response_view<'a>(&mut self, res: &'a mut Response) -> &'a mut Response {
+        return match &res.view  {
             Some(bag) => {
                 match self.view.as_mut() {
                     Some(view) => {
-                        res.body =  view.render(&bag.view, bag.data).as_bytes().to_vec();
+                        // TODO: Do want to clone data may have binary -> big data like Vec<u8>
+                        res.body =  view.render(&bag.view, bag.data.clone()).as_bytes().to_vec();
                     },
                     None => {
                         res.status_code = 500;
