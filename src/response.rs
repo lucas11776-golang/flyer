@@ -43,31 +43,31 @@ impl Response {
         };
     }
 
-    pub fn status_code(mut self, code: u16) -> Response {
+    pub fn status_code(&mut self, code: u16) -> &mut Response {
         self.status_code = code;
         
         return self;
     }
 
-    pub fn header(mut self, key: String, value: String) -> Response {
+    pub fn header(&mut self, key: String, value: String) -> &mut Response {
         self.headers.insert(key, value);
 
         return self;
     }
 
-    pub fn headers(mut self, headers: Headers) -> Response {
+    pub fn headers(&mut self, headers: Headers) -> &mut Response {
         self.headers.extend(headers);
 
         return self;
     }
 
-    pub fn body(mut self, body: &[u8]) -> Response {
+    pub fn body(&mut self, body: &[u8]) -> &mut Response {
         self.body = body.to_vec();
 
         return self;
     }
 
-    pub fn json<J>(self, object: &J) -> Response
+    pub fn json<J>(&mut self, object: &J) -> &mut Response
     where 
         J: ?Sized + Serialize
     {
@@ -75,12 +75,12 @@ impl Response {
             .body(serde_json::to_string(object).unwrap().as_bytes());
     }
 
-    pub fn html(self, html: &str) -> Response {
+    pub fn html(&mut self, html: &str) -> &mut Response {
         return self.header("Content-Type".to_string(), "text/html".to_owned())
             .body(html.as_bytes());
     }
 
-    pub fn view(mut self, view: &str, data: Option<ViewData>) -> Response {
+    pub fn view(&mut self, view: &str, data: Option<ViewData>) -> &mut Response {
         self.view = Some(ViewBag {
             view: view.to_string(),
             data: data

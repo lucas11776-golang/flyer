@@ -2,8 +2,6 @@ use std::{io::Result};
 use regex::Regex;
 use once_cell::sync::Lazy;
 
-use futures::future::{Future, FutureExt};
-
 use crate::{
     request::Request,
     response::{Response},
@@ -20,14 +18,17 @@ static PARAM_REGEX: Lazy<Regex> = Lazy::new(|| {
     Regex::new(r"\{[a-zA-Z_]+\}").expect("Invalid parameter regex")
 });
 
+
+use futures::executor::block_on;
+
 #[derive(Default)]
 pub struct GroupRouter {
-    pub(crate) web: Vec<Route<Box<WebRoute<'static>>>>,
-    pub(crate) ws: Vec<Route<WsRoute>>,
-    pub(crate) not_found_callback: Option<Box<WebRoute<'static>>>,
+    pub(crate) web: Vec<Route<Box<WebRoute>>>,
+    pub(crate) ws: Vec<Route<Box<WsRoute<'static>>>>,
+    pub(crate) not_found_callback: Option<Box<WebRoute>>,
 }
 
-impl <'a>GroupRouter {
+impl <'r>GroupRouter {
     pub fn new() -> Self {
         return GroupRouter {
             web: vec![],
@@ -36,25 +37,21 @@ impl <'a>GroupRouter {
         }
     }
 
-    pub fn add_web_route<'s, C, F>(&mut self, method: &str, path: String, callback: C, middlewares: Middlewares)
+    pub fn add_web_route<C>(&mut self, method: &str, path: String, callback: C, middlewares: Middlewares)
     where
-        C: Fn(Request, Response) -> F + Send + Sync + 'static,
-        F: Future<Output = Response> + Send + Sync + 'static,
+        C: for<'a> AsyncFn<(&'a mut Request, &'a mut Response), Output = &'a mut Response> + Send + Sync + 'static
     {
         self.web.push(Route{
             path: path,
             method: method.to_string(),
-            route: Box::new(move |req: Request, res: Response| callback(req, res).boxed()),
+            route: Box::new(move |req, res| block_on(callback(req, res))),
             middlewares,
         });
     }
 
-    pub async fn match_web_routes<'s>(& mut self, mut req: Request, mut res: Response) -> Result<Response>
-    where
-        'a: 's
-     {
+    pub async fn match_web_routes(&mut self, req: &'r mut Request, res: &'r mut Response) -> Result<&'r mut Response> {
         for route in &mut self.web {
-            let (matches, parameters) = GroupRouter::match_route(route, &mut req);
+            let (matches, parameters) = GroupRouter::match_route(route, req);
 
             if !matches {
                 continue;
@@ -66,11 +63,11 @@ impl <'a>GroupRouter {
             //     return Ok(res)
             // }
 
-            return Ok((route.route)(req, res).await)
+            return Ok((route.route)(req, res))
         }
 
         if self.not_found_callback.is_some() {
-            return Ok(self.not_found_callback.as_ref() .unwrap()(req, res).await);
+            return Ok(self.not_found_callback.as_ref() .unwrap()(req, res));
         }
 
         res.status_code = 404;
