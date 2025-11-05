@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use flyer::{request::Request, response::Response, router::Next, view::view_data, ws::Event};
+use flyer::{view::view_data, ws::Event};
 
 #[derive(Serialize, Deserialize)]
 pub struct User<'a> {
@@ -8,10 +8,6 @@ pub struct User<'a> {
     pub first_name: &'a str,
     pub last_name: &'a str,
     pub email: &'a str
-}
-
-pub async fn auth<'a>(req: &'a mut Request, res: &'a mut Response, next: Next<'a>) -> &'a mut Response {
-    return res
 }
 
 fn main() {
@@ -32,7 +28,19 @@ fn main() {
         data.insert("user", &user);
 
         return res.view("index.html", Some(data));   
-    }, Some(vec![auth]));
+    }, None);
+
+    server.router().ws("/", async |req, mut ws| {
+        ws.on(async |event, mut writer| {
+            match event {
+                Event::Ready() => writer.write("Ready".as_bytes().to_vec()).await,
+                Event::Message(items) => writer.write("Message".as_bytes().to_vec()).await,
+                Event::Ping(items) => writer.write("Ping".as_bytes().to_vec()).await,
+                Event::Pong(items) => writer.write("Pong".as_bytes().to_vec()).await,
+                Event::Close(reason) => todo!(),
+            }
+        });
+    }, None);
 
     print!("\r\n\r\nRunning server: {}\r\n\r\n", server.address());
 

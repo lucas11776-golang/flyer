@@ -1,3 +1,4 @@
+#![recursion_limit = "2000"]
 #![feature(async_fn_traits)]
 #![feature(unboxed_closures)]
 

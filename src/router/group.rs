@@ -4,13 +4,12 @@ use once_cell::sync::Lazy;
 
 use crate::{
     request::Request,
-    response::{Response},
+    response::Response,
     router::{
-        Middlewares, Route, WebRoute, WsRoute
+        MiddlewareT, Middlewares, Next, Route, WebRoute, WsRoute
     },
     utils::{
-        url::clean_uri_to_vec,
-        Values
+        Values, url::clean_uri_to_vec
     },
 };
 
@@ -37,7 +36,7 @@ impl <'r>GroupRouter {
         }
     }
 
-    pub fn add_web_route<C>(&mut self, method: &str, path: String, callback: C, middlewares: Middlewares)
+    pub fn add_web_route<C>(&mut self, method: &str, path: String, callback: C, middlewares: Vec<Box<MiddlewareT>>)
     where
         C: for<'a> AsyncFn<(&'a mut Request, &'a mut Response), Output = &'a mut Response> + Send + Sync + 'static
     {
@@ -45,7 +44,7 @@ impl <'r>GroupRouter {
             path: path,
             method: method.to_string(),
             route: Box::new(move |req, res| block_on(callback(req, res))),
-            middlewares,
+            middlewares: middlewares,
         });
     }
 
