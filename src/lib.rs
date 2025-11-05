@@ -1,3 +1,6 @@
+#![feature(async_fn_traits)]
+#![feature(unboxed_closures)]
+
 pub mod request;
 pub mod response;
 pub mod ws;

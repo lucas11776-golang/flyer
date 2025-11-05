@@ -20,8 +20,6 @@ where
     }
 
     pub async fn handle(self, request: Request) -> Result<()> {
-
-
         Ok(())
     }
 }

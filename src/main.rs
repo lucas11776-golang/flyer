@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use flyer::ws::Event;
+use flyer::{view::view_data, ws::Event};
 
 #[derive(Serialize, Deserialize)]
 pub struct User<'a> {
@@ -14,6 +14,21 @@ fn main() {
     // let mut server = flyer::server_tls("127.0.0.1", 9999, "host.key", "host.cert")
     let mut server = flyer::server("127.0.0.1", 9999)
         .view("views");
+
+    server.router().get("/",   async |req, res| {
+        let mut data = view_data();
+
+        let user = User {
+            id: 1,
+            first_name: "Jeo",
+            last_name: "Deo",
+            email: "jeo@doe.com",
+        };
+
+        data.insert("user", &user);
+
+        return res.view("index.html", Some(data));   
+    }, None);
 
     server.router().ws("/", async |req, mut ws| {
         ws.on(async |event, mut writer| {

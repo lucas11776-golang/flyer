@@ -71,6 +71,7 @@ impl <'a>TcpServer<'a> {
     {
         let mut handler = http1::Handler::new(Pin::new(&mut rw), addr);
 
+        // TODO: request may be empty due to connection broke...
         let req = handler.handle().await.unwrap().unwrap();
 
 
