@@ -40,6 +40,9 @@ impl <'r>GroupRouter {
     where
         C: for<'a> AsyncFn<(&'a mut Request, &'a mut Response), Output = &'a mut Response> + Send + Sync + 'static
     {
+
+        println!("PATH {:?} MIDDLEWARE {:?}", path, middlewares.len());
+
         self.web.push(Route{
             path: path,
             method: method.to_string(),
@@ -152,23 +155,23 @@ impl <'r>GroupRouter {
         return (true, params)
     }
 
-    // fn handle_middlewares(mut req:  Request, mut res: Response, middlewares: &Middlewares) -> Option<Response> {
-    //     // for middleware in  middlewares {
-    //     //     let mut move_to_next: bool = false;
+    fn handle_middlewares(mut req:  Request, mut res: Response, middlewares: &Middlewares) -> Option<Response> {
+        // for middleware in  middlewares {
+        //     let mut move_to_next: bool = false;
 
-    //     //     let next: Next = Next{
-    //     //         is_next: &mut move_to_next,
-    //     //         response: &mut new_response(None),
-    //     //     };
+        //     let next: Next = Next{
+        //         is_next: &mut move_to_next,
+        //         response: &mut new_response(None),
+        //     };
 
-    //     //     middleware(req, res, next);
+        //     middleware(req, res, next);
 
-    //     //     if !move_to_next {
-    //     //         return None;
-    //     //     }
-    //     // }
+        //     if !move_to_next {
+        //         return None;
+        //     }
+        // }
 
-    //     return Some(res);
-    // }
+        return Some(res);
+    }
 }
 
