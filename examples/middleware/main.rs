@@ -12,13 +12,14 @@ pub struct JsonMessage {
     message: String
 }
 
-pub fn auth<'a>(_req: &'a mut Request, res: &'a mut Response, _next: Next<'a>) -> &'a mut Response {
-    // return res.status_code(401).json(&JsonMessage{
-    //     message: "unauthorized access".to_string()
-    // });
-
-
-    return res;
+pub async fn auth<'a>(req: &'a mut Request, res: &'a mut Response, next: &mut Next) -> &'a mut Response {
+    if req.header("authorization") != "ey.jwt.token" {
+        return res.status_code(401).json(&JsonMessage{
+            message: "Unauthorized Access".to_owned()
+        })
+    }
+    
+    return next.handle(res);
 }
 
 fn main() {
@@ -29,7 +30,7 @@ fn main() {
             id: req.parameter("user").parse().unwrap(),
             email: "joe@deo.com".to_owned()
         })
-    }, Some(vec![]));
+    }, Some(vec![auth]));
 
     print!("\r\n\r\nRunning server: {}\r\n\r\n", server.address());
 

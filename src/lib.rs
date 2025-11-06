@@ -1,5 +1,8 @@
+#![recursion_limit = "2000"]
 #![feature(async_fn_traits)]
 #![feature(unboxed_closures)]
+#![feature(async_trait_bounds)]
+#![feature(mem_copy_fn)]
 
 pub mod request;
 pub mod response;
