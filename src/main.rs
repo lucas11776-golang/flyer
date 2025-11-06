@@ -37,43 +37,11 @@ pub fn auth_json<'a>(req: &'a mut Request, res: &'a mut Response, next: &'a mut 
 }
 
 fn main() {
-    // let mut server = flyer::server_tls("127.0.0.1", 9999, "host.key", "host.cert");
-    let mut server = flyer::server("127.0.0.1", 9999)
-        .view("views");
+    let mut server = flyer::server("127.0.0.1", 9999);
 
-
-    server.router().group("/", |mut router| {
-        router.get("/",   async |req, res| {
-            let mut data = view_data();
-
-            let user = User {
-                id: 1,
-                first_name: "Jeo",
-                last_name: "Deo",
-                email: "jeo@doe.com",
-            };
-
-            data.insert("user", &user);
-
-            return res.view("index.html", Some(data));   
-        }, Some(vec![auth_web]));
-
-        router.get("/api",   async |req, res| {
-            let mut data = view_data();
-
-            let user = User {
-                id: 1,
-                first_name: "Jeo",
-                last_name: "Deo",
-                email: "jeo@doe.com",
-            };
-
-            data.insert("user", &user);
-
-            return res.json(&user);   
-        }, Some(vec![auth_json]));
-    }, Some(vec![]));
-
+    server.router().ws("/", async |req, ws| {
+        println!("Working on websocket");    
+    }, None);
 
     print!("\r\n\r\nRunning server: {}\r\n\r\n", server.address());
 

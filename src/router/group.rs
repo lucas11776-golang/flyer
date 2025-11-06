@@ -23,7 +23,7 @@ use futures::executor::block_on;
 #[derive(Default)]
 pub struct GroupRouter {
     pub(crate) web: Vec<Route<Box<WebRoute>>>,
-    pub(crate) ws: Vec<Route<Box<WsRoute<'static>>>>,
+    pub(crate) ws: Vec<Route<Box<WsRoute>>>,
     pub(crate) not_found_callback: Option<Box<WebRoute>>,
     pub(crate) middlewares: Middlewares,
 }
@@ -74,6 +74,20 @@ impl <'r>GroupRouter {
         res.status_code = 404;
 
         return Ok(res)
+    }
+
+    pub async fn match_ws_routes(&mut self, req: &'r mut Request, res: &'r mut Response) -> Option<&mut Route<Box<WsRoute>>> {
+        for route in &mut self.ws {
+            let (matches, parameters) = GroupRouter::match_route(route, req);
+
+            if matches {
+                req.parameters = parameters;
+
+                return Some(route)
+            }
+        }
+
+        return None;
     }
 
     // pub async fn match_ws_routes(&mut self, req: &'a mut Request, res: &'a mut Response) -> Option<&'a mut Ws> {
@@ -154,7 +168,7 @@ impl <'r>GroupRouter {
         return (true, params)
     }
 
-    fn handle_middlewares(middlewares: &Middlewares, req: &'r mut Request, res: &'r mut Response, middlewares_ref: &MiddlewaresRef) -> Option<&'r mut Response> {
+    pub(crate) fn handle_middlewares(middlewares: &Middlewares, req: &'r mut Request, res: &'r mut Response, middlewares_ref: &MiddlewaresRef) -> Option<&'r mut Response> {
         for middleware_ref in  middlewares_ref {
             let middleware = middlewares.get(middleware_ref).unwrap();
             let mut next = Next::new();

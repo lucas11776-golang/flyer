@@ -17,7 +17,7 @@ use crate::response::Response;
 use crate::utils::url::clean_url;
 
 pub type WebRoute = dyn for<'a> Fn(&'a mut Request, &'a mut Response) -> &'a mut Response + Send + Sync;
-pub type WsRoute<'a> = dyn Fn(Request, Ws) -> BoxFuture<'static, ()> + Send + Sync;
+pub type WsRoute = dyn for<'a> Fn(&'a mut Request, &'a mut Ws) -> () + Send + Sync;
 
 // pub type Middleware = for<'a>  fn (req: Request, res: Response, next: Next) -> Response;
 
@@ -138,12 +138,19 @@ impl <'r>Router<'r> {
         self.router.not_found_callback = Some(Box::new(move |req, res| block_on(callback(req, res))));
     }
 
-    pub fn ws<R, F>(&mut self, path: &str, callback: R, middleware: Option<()>)
+    pub fn ws<C>(&mut self, path: &str, callback: C, middleware: Option<Vec<Middleware>>)
     where
-        R: Fn(Request, Ws) -> F + Send + Sync + 'static,
-        F: Future<Output = ()> + Send + Sync + 'static,
+        C: for<'a> AsyncFn<(&'a mut Request, &'a mut Ws), Output = ()> + Send + Sync + 'static,
     {
-        // TODO: implement
+        let path = self.get_path_v2(path).join("/");
+        let resolved = self.merge_middlewares(middleware);
+
+        self.router.ws.push(Route{
+            path: path,
+            method: "GET".to_string(),
+            route: Box::new(move |req, res| block_on(callback(req, res))),
+            middlewares: resolved,
+        });
     }
 
     pub fn group<'s>(&'s mut self , path: &str, group: Group<'s>, middleware: Option<Vec<Middleware>>)   

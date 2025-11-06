@@ -77,7 +77,13 @@ impl <'a>TcpServer<'a> {
 
 
         if req.header("upgrade") == "websocket" {
-            return Ok(ws_http1::Handler::new(rw).handle(req).await.unwrap())
+            let result = self.http.router.match_ws_routes(&mut req, &mut res).await;
+
+            if result.is_none() {
+                return Ok(());
+            }
+
+            return Ok(ws_http1::Handler::new(rw).handle(result.unwrap(),req).await.unwrap());
         }
 
         let res = self.http.router.match_web_routes(&mut req, &mut res).await.unwrap();
