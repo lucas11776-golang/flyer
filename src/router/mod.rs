@@ -25,7 +25,9 @@ pub type WsRoute<'a> = dyn Fn(Request, Ws) -> BoxFuture<'static, ()> + Send + Sy
 
 // pub type MiddlewareT = dyn for<'a> Fn(&'a mut Request, &'a mut Response, &'a mut Next) -> dyn Future<Output = &'a mut Response>;
 
-pub type Middleware = dyn for<'a> Fn(&'a mut Request, &'a mut Response, &'a mut Next) -> &'a mut Response + Send + Sync + 'static;
+// pub type Middleware = dyn for<'a> Fn(&'a mut Request, &'a mut Response, &'a mut Next) -> &'a mut Response + Send + Sync + 'static;
+
+pub type Middleware = for<'a> fn (&'a mut Request, &'a mut Response, &'a mut Next) -> &'a mut Response;
 
 // pub type Middlewares = Vec<Middleware>;
 
@@ -69,66 +71,59 @@ impl Next {
 }
 
 impl <'r>Router<'r> {
-    pub fn get<C, M>(&mut self, path: &str, callback: C, middleware: Option<Vec<M>>)
+    pub fn get<C>(&mut self, path: &str, callback: C, middleware: Option<Vec<Middleware>>)
     where
         C: for<'a> AsyncFn<(&'a mut Request, &'a mut Response), Output = &'a mut Response> + Send + Sync + 'static,
-        M: for<'a> AsyncFn<(&'a mut Request, &'a mut Response, &'a mut Next), Output = &'a mut Response> + Send + Sync + 'static
     {
         self.route("GET", path, callback, middleware);
     }
 
-    pub fn post<C, M>(&mut self, path: &str, callback: C, middleware: Option<Vec<M>>)
+    pub fn post<C>(&mut self, path: &str, callback: C, middleware: Option<Vec<Middleware>>)
     where
         C: for<'a> AsyncFn<(&'a mut Request, &'a mut Response), Output = &'a mut Response> + Send + Sync + 'static,
-        M: for<'a> AsyncFn<(&'a mut Request, &'a mut Response, &'a mut Next), Output = &'a mut Response> + Send + Sync + 'static
+        
     {
         self.route("POST", path, callback, middleware);
     }
 
-    pub fn patch<C, M>(&mut self, path: &str, callback: C, middleware: Option<Vec<M>>)
+    pub fn patch<C>(&mut self, path: &str, callback: C, middleware: Option<Vec<Middleware>>)
     where
         C: for<'a> AsyncFn<(&'a mut Request, &'a mut Response), Output = &'a mut Response> + Send + Sync + 'static,
-        M: for<'a> AsyncFn<(&'a mut Request, &'a mut Response, &'a mut Next), Output = &'a mut Response> + Send + Sync + 'static
     {
         self.route("PATCH", path, callback, middleware);
     }
 
-    pub fn put<C, M>(&mut self, path: &str, callback: C, middleware: Option<Vec<M>>)
+    pub fn put<C>(&mut self, path: &str, callback: C, middleware: Option<Vec<Middleware>>)
     where
         C: for<'a> AsyncFn<(&'a mut Request, &'a mut Response), Output = &'a mut Response> + Send + Sync + 'static,
-        M: for<'a> AsyncFn<(&'a mut Request, &'a mut Response, &'a mut Next), Output = &'a mut Response> + Send + Sync + 'static
     {
         self.route("PUT", path, callback, middleware);
     }
 
-    pub fn delete<C, M>(&mut self, path: &str, callback: C, middleware: Option<Vec<M>>)
+    pub fn delete<C>(&mut self, path: &str, callback: C, middleware: Option<Vec<Middleware>>)
     where
         C: for<'a> AsyncFn<(&'a mut Request, &'a mut Response), Output = &'a mut Response> + Send + Sync + 'static,
-        M: for<'a> AsyncFn<(&'a mut Request, &'a mut Response, &'a mut Next), Output = &'a mut Response> + Send + Sync + 'static
     {
         self.route("DELETE", path, callback, middleware);
     }   
 
-    pub fn options<C, M>(&mut self, path: &str, callback: C, middleware: Option<Vec<M>>)
+    pub fn options<C>(&mut self, path: &str, callback: C, middleware: Option<Vec<Middleware>>)
     where
         C: for<'a> AsyncFn<(&'a mut Request, &'a mut Response), Output = &'a mut Response> + Send + Sync + 'static,
-        M: for<'a> AsyncFn<(&'a mut Request, &'a mut Response, &'a mut Next), Output = &'a mut Response> + Send + Sync + 'static
     {
         self.route("OPTIONS", path, callback, middleware);
     }
 
-    pub fn head<C, M>(&mut self, path: &str, callback: C, middleware: Option<Vec<M>>)
+    pub fn head<C>(&mut self, path: &str, callback: C, middleware: Option<Vec<Middleware>>)
     where
         C: for<'a> AsyncFn<(&'a mut Request, &'a mut Response), Output = &'a mut Response> + Send + Sync + 'static,
-        M: for<'a> AsyncFn<(&'a mut Request, &'a mut Response, &'a mut Next), Output = &'a mut Response> + Send + Sync + 'static
     {
         self.route("CONNECT", path, callback, middleware);
     }
 
-    pub fn route<C, M>(&mut self, method: &str, path: &str, callback: C, middleware: Option<Vec<M>>)
+    pub fn route<C>(&mut self, method: &str, path: &str, callback: C, middleware: Option<Vec<Middleware>>)
     where
         C: for<'a> AsyncFn<(&'a mut Request, &'a mut Response), Output = &'a mut Response> + Send + Sync + 'static,
-        M: for<'a> AsyncFn<(&'a mut Request, &'a mut Response, &'a mut Next), Output = &'a mut Response> + Send + Sync + 'static
     {
         let path = self.get_path_v2(path).join("/");
         let resolved = self.merge_middlewares(middleware);
@@ -151,9 +146,8 @@ impl <'r>Router<'r> {
         // TODO: implement
     }
 
-    pub fn group<'s, M>(&'s mut self , path: &str, group: Group<'s>, middleware: Option<Vec<M>>)   
+    pub fn group<'s>(&'s mut self , path: &str, group: Group<'s>, middleware: Option<Vec<Middleware>>)   
     where
-        M: for<'a> AsyncFn<(&'a mut Request, &'a mut Response, &'a mut Next), Output = &'a mut Response> + Send + Sync + 'static
      {
         group(Router{
             // TODO: fix
@@ -163,10 +157,7 @@ impl <'r>Router<'r> {
         });
     }
 
-    fn merge_middlewares<M>(&mut self, middlewares: Option<Vec<M>>) -> MiddlewaresRef
-    where
-        M: for<'a> AsyncFn<(&'a mut Request, &'a mut Response, &'a mut Next), Output = &'a mut Response> + 'static + Send + Sync
-    {
+    fn merge_middlewares(&mut self, middlewares: Option<Vec<Middleware>>) -> MiddlewaresRef {
         // TODO: find way to 
         let mut resolved = self.middleware.clone();
 
@@ -175,14 +166,11 @@ impl <'r>Router<'r> {
         return resolved;
     }
 
-    pub fn resolve_middlewares<M>(&mut self, middlewares: Vec<M>) -> MiddlewaresRef
-    where
-        M: for<'a> AsyncFn<(&'a mut Request, &'a mut Response, &'a mut Next), Output = &'a mut Response> + 'static + Send + Sync
-    {
+    pub fn resolve_middlewares(&mut self, middlewares: Vec<Middleware>) -> MiddlewaresRef {
         let mut resolved: MiddlewaresRef = vec![];
 
         for mut middleware in middlewares {
-            let address = format!("{:?}", &mut middleware as *mut M);
+            let address = format!("{:?}", &mut middleware);
 
             if self.router.middlewares.get(&address).is_some() {
                 resolved.push(address);
@@ -190,7 +178,9 @@ impl <'r>Router<'r> {
                 continue;
             }
 
-            self.router.middlewares.insert(address.clone(), Box::new(move |req, res, next| block_on(middleware(req, res, next))));
+            // self.router.middlewares.insert(address.clone(), Box::new(move |req, res, next| block_on(middleware(req, res, next))));
+
+            self.router.middlewares.insert(address.clone(), Box::new(middleware));
 
             resolved.push(address);
         }

@@ -10,27 +10,34 @@ pub struct User<'a> {
     pub email: &'a str
 }
 
-pub async fn auth<'a>(req: &'a mut Request, res: &'a mut Response, next: &'a mut Next) -> &'a mut Response {
+pub fn auth<'a>(req: &'a mut Request, res: &'a mut Response, next: &'a mut Next) -> &'a mut Response {
     println!("AUTH ALL");
 
     return next.handle(res);
 }
 
-pub async fn auth_web<'a>(req: &'a mut Request, res: &'a mut Response, next: &'a mut Next) -> &'a mut Response {
+pub fn auth_web<'a>(req: &'a mut Request, res: &'a mut Response, next: &'a mut Next) -> &'a mut Response {
     println!("AUTH WEB");
 
+    if req.is_json() {
+        return res.status_code(400)
+    }
+
     return next.handle(res);
 }
 
-pub async fn auth_json<'a>(req: &'a mut Request, res: &'a mut Response, next: &'a mut Next) -> &'a mut Response {
+pub fn auth_json<'a>(req: &'a mut Request, res: &'a mut Response, next: &'a mut Next) -> &'a mut Response {
     println!("AUTH JSON");
 
+    if !req.is_json() {
+        return res.status_code(400)
+    }
+
     return next.handle(res);
 }
 
-// #[tokio::main]
 fn main() {
-    let mut server = flyer::server_tls("127.0.0.1", 9999, "host.key", "host.cert");
+    // let mut server = flyer::server_tls("127.0.0.1", 9999, "host.key", "host.cert");
     let mut server = flyer::server("127.0.0.1", 9999)
         .view("views");
 
@@ -46,7 +53,7 @@ fn main() {
                 email: "jeo@doe.com",
             };
 
-            data.insert("user", &user);
+            println!("IS JSON {}", req.is_json());
 
             return res.view("index.html", Some(data));   
         }, Some(vec![auth_web]));
@@ -61,11 +68,13 @@ fn main() {
                 email: "jeo@doe.com",
             };
 
+            println!("IS JSON {}", req.is_json());
+
             data.insert("user", &user);
 
             return res.json(&user);   
         }, Some(vec![auth_json]));
-    }, Some(vec![auth]));
+    }, Some(vec![]));
 
 
     print!("\r\n\r\nRunning server: {}\r\n\r\n", server.address());

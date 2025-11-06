@@ -1,7 +1,12 @@
+# WORKING ON MAKING MIDDLEWARE ASYNC
+
+- Must make middleware async because DB call may occur of async operation maybe wanted to verify request...
+
+
 # ************** HTTP3 HANDLER REQUEST NOTE **************
+
 - Request body does not have data find way to get data.
 
-# DO MORE LIFETIMES....
 
 # HTTP
 
