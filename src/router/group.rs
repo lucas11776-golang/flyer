@@ -1,4 +1,4 @@
-use std::{io::Result};
+use std::{collections::HashMap, io::Result};
 use regex::Regex;
 use once_cell::sync::Lazy;
 
@@ -6,7 +6,7 @@ use crate::{
     request::Request,
     response::Response,
     router::{
-        MiddlewareT, Middlewares, Next, Route, WebRoute, WsRoute
+        Middleware, Middlewares, MiddlewaresRef, Next, Route, WebRoute, WsRoute
     },
     utils::{
         Values, url::clean_uri_to_vec
@@ -25,6 +25,7 @@ pub struct GroupRouter {
     pub(crate) web: Vec<Route<Box<WebRoute>>>,
     pub(crate) ws: Vec<Route<Box<WsRoute<'static>>>>,
     pub(crate) not_found_callback: Option<Box<WebRoute>>,
+    pub(crate) middlewares: Middlewares,
 }
 
 impl <'r>GroupRouter {
@@ -33,16 +34,14 @@ impl <'r>GroupRouter {
             web: vec![],
             ws: vec![],
             not_found_callback: None,
+            middlewares: HashMap::new(),
         }
     }
 
-    pub fn add_web_route<C>(&mut self, method: &str, path: String, callback: C, middlewares: Vec<Box<MiddlewareT>>)
+    pub fn add_web_route<C>(&mut self, method: &str, path: String, callback: C, middlewares: MiddlewaresRef)
     where
         C: for<'a> AsyncFn<(&'a mut Request, &'a mut Response), Output = &'a mut Response> + Send + Sync + 'static
     {
-
-        println!("PATH {:?} MIDDLEWARE {:?}", path, middlewares.len());
-
         self.web.push(Route{
             path: path,
             method: method.to_string(),
@@ -61,9 +60,9 @@ impl <'r>GroupRouter {
             
             req.parameters = parameters;
 
-            // if GroupRouter::handle_middlewares(req, res, &route.middlewares).is_none() {
-            //     return Ok(res)
-            // }
+            if Self::handle_middlewares(&self.middlewares, req, res, &route.middlewares).is_none() {
+                return Ok(res)
+            }
 
             return Ok((route.route)(req, res))
         }
@@ -155,21 +154,17 @@ impl <'r>GroupRouter {
         return (true, params)
     }
 
-    fn handle_middlewares(mut req:  Request, mut res: Response, middlewares: &Middlewares) -> Option<Response> {
-        // for middleware in  middlewares {
-        //     let mut move_to_next: bool = false;
+    fn handle_middlewares(middlewares: &Middlewares, req: &'r mut Request, res: &'r mut Response, middlewares_ref: &MiddlewaresRef) -> Option<&'r mut Response> {
+        for middleware_ref in  middlewares_ref {
+            let middleware = middlewares.get(middleware_ref).unwrap();
+            let mut next = Next::new();
 
-        //     let next: Next = Next{
-        //         is_next: &mut move_to_next,
-        //         response: &mut new_response(None),
-        //     };
+            middleware(req, res, &mut next);
 
-        //     middleware(req, res, next);
-
-        //     if !move_to_next {
-        //         return None;
-        //     }
-        // }
+            if !next.is_move {
+                return None;
+            }
+        }
 
         return Some(res);
     }
