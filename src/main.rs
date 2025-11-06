@@ -53,7 +53,7 @@ fn main() {
                 email: "jeo@doe.com",
             };
 
-            println!("IS JSON {}", req.is_json());
+            data.insert("user", &user);
 
             return res.view("index.html", Some(data));   
         }, Some(vec![auth_web]));
@@ -67,8 +67,6 @@ fn main() {
                 last_name: "Deo",
                 email: "jeo@doe.com",
             };
-
-            println!("IS JSON {}", req.is_json());
 
             data.insert("user", &user);
 
