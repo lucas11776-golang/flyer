@@ -3,6 +3,7 @@
 #![feature(unboxed_closures)]
 #![feature(async_trait_bounds)]
 #![feature(mem_copy_fn)]
+#[deny(invalid_type_param_default)]
 
 pub mod request;
 pub mod response;

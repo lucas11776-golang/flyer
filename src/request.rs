@@ -1,4 +1,4 @@
-use std::{collections::HashMap};
+use std::{cmp::Ordering, collections::HashMap};
 
 use crate::utils::Values;
 
@@ -70,5 +70,12 @@ impl Request {
 
     pub fn file(&self, key: &str) -> Option<&File> {
         return self.files.get(key);
+    }
+
+    pub fn is_json(&self) -> bool {
+        let header = self.header("content-type");
+        let header_piece: Vec<&str> = header.split(";").collect();
+
+        return  header_piece.get(0).unwrap().cmp(&"application/json") == Ordering::Equal;
     }
 }
