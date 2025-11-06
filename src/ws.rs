@@ -2,6 +2,9 @@ use serde::Serialize;
 use tungstenite::{Message, Utf8Bytes};
 use futures_util::future::BoxFuture;
 use futures::future::{Future, FutureExt};
+use tokio::sync::mpsc::UnboundedSender;
+
+pub const SEC_WEB_SOCKET_ACCEPT_STATIC: &str = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 
 pub(crate) type OnEvent = dyn Fn(Event, Writer) -> BoxFuture<'static, ()> + Send + Sync + 'static;
 
@@ -24,7 +27,7 @@ pub struct Ws {
 }
 
 pub struct Writer {
-    pub(crate) sender: tokio::sync::mpsc::UnboundedSender<Message>,
+    pub(crate) sender: UnboundedSender<Message>,
 }
 
 impl Ws {
@@ -53,7 +56,7 @@ impl Ws {
 }
 
 impl Writer {
-    pub(crate) fn new(sender: tokio::sync::mpsc::UnboundedSender<Message>) -> Self {
+    pub(crate) fn new(sender: UnboundedSender<Message>) -> Self {
         return Self {
             sender: sender
         }
