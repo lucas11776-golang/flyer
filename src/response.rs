@@ -3,11 +3,11 @@ use serde::Serialize;
 
 use crate::{
     request::Headers,
-    view::ViewData
+    view::ViewData, ws::Ws
 };
 
-#[derive(Clone)]
 pub struct Response {
+    pub ws: Option<Ws>,
     pub(crate) status_code: u16,
     pub(crate) headers: Headers,
     pub(crate) body: Vec<u8>,
@@ -36,6 +36,7 @@ pub fn parse(response: &mut Response) -> Result<String> {
 impl Response {
     pub fn new() -> Self {
         return Self {
+            ws: None,
             status_code: 200,
             headers: Headers::new(),
             body: vec![],

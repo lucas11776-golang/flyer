@@ -41,6 +41,23 @@ fn main() {
 
     server.router().ws("/", async |req, ws| {
         println!("Working on websocket");    
+
+
+
+        ws.on( async |event, writer| {
+
+            match event {
+                flyer::ws::Event::Ready() => todo!(),
+                flyer::ws::Event::Message(items) => {
+                    println!("Message {:?}", String::from_utf8(items))
+                },
+                flyer::ws::Event::Ping(items) => todo!(),
+                flyer::ws::Event::Pong(items) => todo!(),
+                flyer::ws::Event::Close(reason) => todo!(),
+            }
+
+        });
+
     }, None);
 
     print!("\r\n\r\nRunning server: {}\r\n\r\n", server.address());

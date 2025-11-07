@@ -2,23 +2,19 @@ use std::{collections::HashMap, io::Result};
 use regex::Regex;
 use once_cell::sync::Lazy;
 
+use futures::executor::block_on;
+
 use crate::{
     request::Request,
     response::Response,
-    router::{
-        Middleware, Middlewares, MiddlewaresRef, Next, Route, WebRoute, WsRoute
-    },
-    utils::{
-        Values, url::clean_uri_to_vec
-    },
+    router::{Middlewares, MiddlewaresRef, Next, Route, WebRoute, WsRoute},
+    utils::{Values, url::clean_uri_to_vec},
 };
 
 static PARAM_REGEX: Lazy<Regex> = Lazy::new(|| {
     Regex::new(r"\{[a-zA-Z_]+\}").expect("Invalid parameter regex")
 });
 
-
-use futures::executor::block_on;
 
 #[derive(Default)]
 pub struct GroupRouter {
@@ -76,7 +72,7 @@ impl <'r>GroupRouter {
         return Ok(res)
     }
 
-    pub async fn match_ws_routes(&mut self, req: &'r mut Request, res: &'r mut Response) -> Option<&mut Route<Box<WsRoute>>> {
+    pub async fn match_ws_routes(&mut self, req: &'r mut Request) -> Option<&mut Route<Box<WsRoute>>> {
         for route in &mut self.ws {
             let (matches, parameters) = GroupRouter::match_route(route, req);
 
@@ -89,34 +85,6 @@ impl <'r>GroupRouter {
 
         return None;
     }
-
-    // pub async fn match_ws_routes(&mut self, req: &'a mut Request, res: &'a mut Response) -> Option<&'a mut Ws> {
-    //     for route in &mut self.ws {
-    //         let (matches, parameters) = GroupRouter::match_route(route, req);
-
-    //         if !matches {
-    //             continue;
-    //         }
-            
-    //         req.parameters = parameters;
-
-    //         if GroupRouter::handle_middlewares(req, res, &route.middlewares).is_none() {
-    //             return None;
-    //         }
-
-    //         let mut ws = res.ws.as_mut().unwrap();
-
-    //         (route.route)(req, &mut ws);
-
-    //         if ws.event.is_some() {
-    //             ws.event.as_ref().unwrap()(Event::Ready()).await;
-    //         }
-
-    //         return Some(ws);
-    //     }
-
-    //     return None;
-    // }
 
     fn match_route<T>(route: &mut Route<T>, req: &mut Request) -> (bool, Values) {
         let request_path: Vec<String> = clean_uri_to_vec(req.path.clone());

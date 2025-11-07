@@ -1,12 +1,8 @@
 pub mod group;
 
 use std::collections::HashMap;
-use std::mem::take;
-use std::mem::copy;
 
 use futures::executor::block_on;
-use futures_util::future::BoxFuture;
-use futures::future::{Future};
 
 use crate::{router::group::GroupRouter};
 use crate::utils::merge;
@@ -18,26 +14,10 @@ use crate::utils::url::clean_url;
 
 pub type WebRoute = dyn for<'a> Fn(&'a mut Request, &'a mut Response) -> &'a mut Response + Send + Sync;
 pub type WsRoute = dyn for<'a> Fn(&'a mut Request, &'a mut Ws) -> () + Send + Sync;
-
-// pub type Middleware = for<'a>  fn (req: Request, res: Response, next: Next) -> Response;
-
-// pub type MiddlewareT = dyn for<'a> Fn(&'a mut Request, &'a mut Response, Next) -> &'a mut Response + Send + Send + 'static;
-
-// pub type MiddlewareT = dyn for<'a> Fn(&'a mut Request, &'a mut Response, &'a mut Next) -> dyn Future<Output = &'a mut Response>;
-
-// pub type Middleware = dyn for<'a> Fn(&'a mut Request, &'a mut Response, &'a mut Next) -> &'a mut Response + Send + Sync + 'static;
-
 pub type Middleware = for<'a> fn (&'a mut Request, &'a mut Response, &'a mut Next) -> &'a mut Response;
-
-// pub type Middlewares = Vec<Middleware>;
-
 pub type Middlewares = HashMap<String, Box<Middleware>>;
-
 pub type MiddlewaresRef = Vec<String>;
-
-
-pub type Group<'s> = fn (router: Router);
-
+pub type Group = fn(Router);
 
 pub struct Next {
     pub(crate) is_move: bool,
@@ -125,7 +105,7 @@ impl <'r>Router<'r> {
     where
         C: for<'a> AsyncFn<(&'a mut Request, &'a mut Response), Output = &'a mut Response> + Send + Sync + 'static,
     {
-        let path = self.get_path_v2(path).join("/");
+        let path = self.path(path).join("/");
         let resolved = self.merge_middlewares(middleware);
 
         self.router.add_web_route(method, path, callback, resolved);
@@ -142,7 +122,7 @@ impl <'r>Router<'r> {
     where
         C: for<'a> AsyncFn<(&'a mut Request, &'a mut Ws), Output = ()> + Send + Sync + 'static,
     {
-        let path = self.get_path_v2(path).join("/");
+        let path = self.path(path).join("/");
         let resolved = self.merge_middlewares(middleware);
 
         self.router.ws.push(Route{
@@ -153,19 +133,15 @@ impl <'r>Router<'r> {
         });
     }
 
-    pub fn group<'s>(&'s mut self , path: &str, group: Group<'s>, middleware: Option<Vec<Middleware>>)   
-    where
-     {
+    pub fn group<'g>(&'g mut self , path: &str, group: Group, middleware: Option<Vec<Middleware>>) {
         group(Router{
-            // TODO: fix
-            path: self.get_path_v2(path),
+            path: self.path(path),
             middleware: self.merge_middlewares(middleware),
             router: self.router,
         });
     }
 
     fn merge_middlewares(&mut self, middlewares: Option<Vec<Middleware>>) -> MiddlewaresRef {
-        // TODO: find way to 
         let mut resolved = self.middleware.clone();
 
         resolved.extend(self.resolve_middlewares(middlewares.or(Some(vec![])).unwrap()));
@@ -186,7 +162,6 @@ impl <'r>Router<'r> {
             }
 
             // self.router.middlewares.insert(address.clone(), Box::new(move |req, res, next| block_on(middleware(req, res, next))));
-
             self.router.middlewares.insert(address.clone(), Box::new(middleware));
 
             resolved.push(address);
@@ -195,7 +170,7 @@ impl <'r>Router<'r> {
         return resolved;
     }
 
-    fn get_path_v2(&mut self, path: &str) -> Vec<String> {
+    fn path(&mut self, path: &str) -> Vec<String> {
         return merge(vec![self.path.clone(), vec![path.to_string()]]).iter()
             .map(|x| clean_url(x.to_owned()))
             .filter(|x| x != "")

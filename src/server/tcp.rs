@@ -8,6 +8,7 @@ use tokio::net::TcpListener;
 use tokio_rustls::TlsAcceptor;
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, BufReader};
 
+use crate::request::Request;
 use crate::response::Response;
 use crate::server::handler::{http1, http2, ws_http1};
 use crate::server::handler::http2::H2_PREFACE;
@@ -64,36 +65,43 @@ impl <'a>TcpServer<'a> {
         }
     }
 
+    async fn handle_web_socket<RW>(&mut self, rw: Pin<&mut BufReader<RW>>, mut req: Request, mut res: Response) -> Result<()>
+    where
+        RW: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static
+    {
+        let result = self.http.router.match_ws_routes(&mut req).await;
 
-    async fn http_1_protocol<RW>(&mut self, mut rw: std::pin::Pin<&mut BufReader<RW>>, addr: SocketAddr) -> Result<()>
+        if result.is_none() {
+            return Ok(());
+        }
+
+        return Ok(ws_http1::Handler::new(rw).handle(result.unwrap(), &mut req, &mut res).await.unwrap());
+    }
+ 
+    async fn http_1_protocol<RW>(&mut self, mut rw: Pin<&mut BufReader<RW>>, addr: SocketAddr) -> Result<()>
     where
         RW: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static
     {
         let mut handler = http1::Handler::new(Pin::new(&mut rw), addr);
+        let result = handler.handle().await;
 
-        // TODO: request may be empty due to connection broke...
-        let mut req = handler.handle().await.unwrap().unwrap();
+        if result.is_none() {
+            return Ok(());
+        }
+
+        let mut req = result.unwrap().unwrap();
         let mut res = Response::new();
 
-
         if req.header("upgrade") == "websocket" {
-            let result = self.http.router.match_ws_routes(&mut req, &mut res).await;
-
-            if result.is_none() {
-                return Ok(());
-            }
-
-            return Ok(ws_http1::Handler::new(rw).handle(result.unwrap(),req).await.unwrap());
+            return Ok(self.handle_web_socket(rw, req, res).await.unwrap())
         }
 
         let res = self.http.router.match_web_routes(&mut req, &mut res).await.unwrap();
-    
-        handler.write(&mut self.http.render_response_view(res)).await.unwrap();
 
-        Ok(())
+        Ok(handler.write(&mut self.http.render_response_view(res)).await.unwrap())
     }
 
-    async fn http_2_protocol<RW>(&mut self, rw: std::pin::Pin<&mut BufReader<RW>>, addr: SocketAddr) -> Result<()>
+    async fn http_2_protocol<RW>(&mut self, rw: Pin<&mut BufReader<RW>>, addr: SocketAddr) -> Result<()>
     where
         RW: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static
     {
@@ -115,7 +123,7 @@ impl <'a>TcpServer<'a> {
         Ok(())   
     }
 
-    async fn handle_connection<RW>(&mut self, mut rw: std::pin::Pin<&mut BufReader<RW>>, addr:  SocketAddr) -> Result<()>
+    async fn handle_connection<RW>(&mut self, mut rw: Pin<&mut BufReader<RW>>, addr:  SocketAddr) -> Result<()>
     where
         RW: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static
     {
