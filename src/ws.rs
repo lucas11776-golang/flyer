@@ -1,12 +1,9 @@
 use serde::Serialize;
-use tungstenite::{Message, Utf8Bytes};
-use futures_util::future::BoxFuture;
-use futures::{executor::block_on, future::{Future, FutureExt}};
-use tokio::sync::mpsc::UnboundedSender;
+use futures::{executor::block_on};
 
 pub const SEC_WEB_SOCKET_ACCEPT_STATIC: &str = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 
-pub(crate) type OnEvent = dyn Fn(Event, &mut Writer) -> () + Send + Sync + 'static;
+pub(crate) type OnEvent = dyn Fn(Event, &mut Box<dyn Writer + Send + Sync>) -> () + Send + Sync + 'static;
 
 #[derive(Debug)]
 pub struct Reason {
@@ -22,12 +19,13 @@ pub enum Event {
     Close(Option<Reason>),
 }
 
-pub struct Ws {
-    pub(crate) event: Option<Box<OnEvent>>,
+pub trait Writer {
+    fn write(&mut self, data: Vec<u8>);
+    fn write_binary(&mut self, data: Vec<u8>);
 }
 
-pub struct Writer {
-    pub(crate) sender: UnboundedSender<Message>,
+pub struct Ws {
+    pub(crate) event: Option<Box<OnEvent>>,
 }
 
 impl Ws {
@@ -39,30 +37,9 @@ impl Ws {
 
     pub fn on<C>(&mut self, callback: C)
     where
-        C: for<'a> AsyncFn<(Event, &'a mut Writer), Output = ()> + Send + Sync + 'static
+        C: for<'a> AsyncFn<(Event, &'a mut Box<dyn Writer + Send + Sync>), Output = ()> + Send + Sync + 'static
     {
         self.event = Some(Box::new(move |event, writer| block_on(callback(event, writer))));
-    }
-
-    pub async fn write_json<J>(&mut self, json: &J)
-    where 
-        J: ?Sized + Serialize
-    {   
-    }
-
-    pub async fn write_binary(&mut self, data: Vec<u8>) {
-    }
-}
-
-impl Writer {
-    pub(crate) fn new(sender: UnboundedSender<Message>) -> Self {
-        return Self {
-            sender: sender
-        }
-    }
-
-    pub async fn write(&mut self, data: Vec<u8>) {
-        self.sender.send(Message::Text(Utf8Bytes::from(String::from_utf8(data.to_vec()).unwrap()))).unwrap();
     }
 
     pub async fn write_json<J>(&mut self, json: &J)

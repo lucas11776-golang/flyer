@@ -49,7 +49,9 @@ fn main() {
             match event {
                 flyer::ws::Event::Ready() => todo!(),
                 flyer::ws::Event::Message(items) => {
-                    println!("Message {:?}", String::from_utf8(items))
+                    println!("Message {:?}", String::from_utf8(items));
+
+                    writer.write("Hello To Client".into());
                 },
                 flyer::ws::Event::Ping(items) => todo!(),
                 flyer::ws::Event::Pong(items) => todo!(),

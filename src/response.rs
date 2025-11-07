@@ -3,11 +3,12 @@ use serde::Serialize;
 
 use crate::{
     request::Headers,
-    view::ViewData, ws::Ws
+    view::ViewData,
+    ws::{Ws, Writer},
 };
 
 pub struct Response {
-    pub ws: Option<Ws>,
+    pub ws: Option<(Ws, Box<dyn Writer + Send + Sync>)>,
     pub(crate) status_code: u16,
     pub(crate) headers: Headers,
     pub(crate) body: Vec<u8>,
