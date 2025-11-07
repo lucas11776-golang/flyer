@@ -1,12 +1,12 @@
 use serde::Serialize;
 use tungstenite::{Message, Utf8Bytes};
 use futures_util::future::BoxFuture;
-use futures::future::{Future, FutureExt};
+use futures::{executor::block_on, future::{Future, FutureExt}};
 use tokio::sync::mpsc::UnboundedSender;
 
 pub const SEC_WEB_SOCKET_ACCEPT_STATIC: &str = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 
-pub(crate) type OnEvent = dyn Fn(Event, Writer) -> BoxFuture<'static, ()> + Send + Sync + 'static;
+pub(crate) type OnEvent = dyn Fn(Event, &mut Writer) -> () + Send + Sync + 'static;
 
 #[derive(Debug)]
 pub struct Reason {
@@ -37,12 +37,11 @@ impl Ws {
         } 
     }
 
-    pub fn on<F, C>(&mut self, callback: C)
+    pub fn on<C>(&mut self, callback: C)
     where
-        C: Fn(Event, Writer) -> F + Send + Sync + 'static,
-        F: Future<Output = ()> + Send + Sync + 'static,
+        C: for<'a> AsyncFn<(Event, &'a mut Writer), Output = ()> + Send + Sync + 'static
     {
-        self.event = Some(Box::new(move |event: Event, writer: Writer| callback(event, writer).boxed()));
+        self.event = Some(Box::new(move |event, writer| block_on(callback(event, writer))));
     }
 
     pub async fn write_json<J>(&mut self, json: &J)
