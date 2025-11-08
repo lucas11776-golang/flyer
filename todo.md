@@ -1,3 +1,10 @@
+# Refactor websocket
+
+- Cleanup websocket http1
+- Implement middleware 
+- Move websocket call to route.
+
+
 # WORKING ON MAKING MIDDLEWARE ASYNC
 
 - Must make middleware async because DB call may occur of async operation maybe wanted to verify request...

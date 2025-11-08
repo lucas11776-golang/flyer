@@ -22,6 +22,7 @@ pub enum Event {
 pub trait Writer {
     fn write(&mut self, data: Vec<u8>);
     fn write_binary(&mut self, data: Vec<u8>);
+    fn close(&mut self);
 }
 
 pub struct Ws {
