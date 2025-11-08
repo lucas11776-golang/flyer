@@ -48,9 +48,9 @@ impl <'r>GroupRouter {
 
     pub async fn match_web_routes(&mut self, req: &'r mut Request, res: &'r mut Response) -> Result<&'r mut Response> {
         for route in &mut self.web {
-            let (matches, parameters) = GroupRouter::match_route(route, req);
+            let (is_match, parameters) = route.is_match(req);
 
-            if !matches {
+            if !is_match {
                 continue;
             }
             
@@ -72,69 +72,79 @@ impl <'r>GroupRouter {
         return Ok(res)
     }
 
-    pub async fn match_ws_routes(&mut self, req: &'r mut Request) -> Option<&mut Route<Box<WsRoute>>> {
+    pub async fn match_ws_routes(&mut self, req: &'r mut Request, res: &'r mut Response) -> Result<bool> {
         for route in &mut self.ws {
-            let (matches, parameters) = GroupRouter::match_route(route, req);
+            let (is_match, parameters) = route.is_match(req);
 
-            if matches {
-                req.parameters = parameters;
-
-                return Some(route)
-            }
-        }
-
-        return None;
-    }
-
-    fn match_route<T>(route: &mut Route<T>, req: &mut Request) -> (bool, Values) {
-        let request_path: Vec<String> = clean_uri_to_vec(req.path.clone());
-        let route_path: Vec<String> = clean_uri_to_vec(route.path.clone());
-
-        if route.method.to_uppercase() != req.method.to_uppercase() {
-            return (false, Values::new());
-        }
-
-        let (matches, parameters) = GroupRouter::parameters_route_match(route_path, request_path);
-
-        if !matches {
-            return (false, Values::new());
-        }
-
-        return (true, parameters);
-    }
-
-    fn parameters_route_match(route_path: Vec<String>, request_path: Vec<String>) -> (bool, Values) {
-        let mut params: Values = Values::new();
-
-        for (i, seg) in route_path.iter().enumerate() {
-            if i > request_path.len() - 1 {
-                return (false, Values::new());
-            }
-
-            let seg_match = request_path[i].clone();
-
-            if seg == "*" {
-                return (true, Values::new());
-            }
-
-            if seg == &seg_match {
+            if !is_match {
                 continue;
             }
+            
+            req.parameters = parameters;
 
-            if PARAM_REGEX.is_match(&seg.to_string()) {
-                params.insert(
-                    seg.trim_start_matches('{').trim_end_matches('}').to_owned(),
-                    seg_match
-                );
-
-                continue;
+            if Self::handle_middlewares(&self.middlewares, req, res, &route.middlewares).is_none() {
+                return Ok(false)
             }
 
-            return (false, Values::new());
+            let (ws, _) = res.ws.as_mut().unwrap();
+
+            (route.route)(req, ws);
+
+            return Ok(true);
         }
 
-        return (true, params)
+        return Ok(false);
     }
+
+    // fn match_route<T>(route: &mut Route<T>, req: &mut Request) -> (bool, Values) {
+    //     let request_path: Vec<String> = clean_uri_to_vec(req.path.clone());
+    //     let route_path: Vec<String> = clean_uri_to_vec(route.path.clone());
+
+    //     if route.method.to_uppercase() != req.method.to_uppercase() {
+    //         return (false, Values::new());
+    //     }
+
+    //     let (matches, parameters) = GroupRouter::parameters_route_match(route_path, request_path);
+
+    //     if !matches {
+    //         return (false, Values::new());
+    //     }
+
+    //     return (true, parameters);
+    // }
+
+    // fn parameters_route_match(route_path: Vec<String>, request_path: Vec<String>) -> (bool, Values) {
+    //     let mut params: Values = Values::new();
+
+    //     for (i, seg) in route_path.iter().enumerate() {
+    //         if i > request_path.len() - 1 {
+    //             return (false, Values::new());
+    //         }
+
+    //         let seg_match = request_path[i].clone();
+
+    //         if seg == "*" {
+    //             return (true, Values::new());
+    //         }
+
+    //         if seg == &seg_match {
+    //             continue;
+    //         }
+
+    //         if PARAM_REGEX.is_match(&seg.to_string()) {
+    //             params.insert(
+    //                 seg.trim_start_matches('{').trim_end_matches('}').to_owned(),
+    //                 seg_match
+    //             );
+
+    //             continue;
+    //         }
+
+    //         return (false, Values::new());
+    //     }
+
+    //     return (true, params)
+    // }
 
     pub(crate) fn handle_middlewares(middlewares: &Middlewares, req: &'r mut Request, res: &'r mut Response, middlewares_ref: &MiddlewaresRef) -> Option<&'r mut Response> {
         for middleware_ref in  middlewares_ref {

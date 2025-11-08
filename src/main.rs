@@ -10,8 +10,20 @@ pub struct User<'a> {
     pub email: &'a str
 }
 
+#[derive(Serialize, Deserialize)]
+pub struct Message<'a> {
+    message: &'a str
+}
+
+
 pub fn auth<'a>(req: &'a mut Request, res: &'a mut Response, next: &'a mut Next) -> &'a mut Response {
-    println!("AUTH ALL");
+    if req.header("authorization") != "jwt.token" {
+        let (_, writer) = res.ws.as_mut().unwrap();
+
+        writer.write(serde_json::to_vec(&Message{message: "Unauthorized Access"}).unwrap());
+        
+        return res;
+    }
 
     return next.handle(res);
 }
@@ -37,30 +49,79 @@ pub fn auth_json<'a>(req: &'a mut Request, res: &'a mut Response, next: &'a mut 
 }
 
 fn main() {
-    let mut server = flyer::server("127.0.0.1", 9999);
+    // let mut server = flyer::server_tls("127.0.0.1", 9999, "host.key", "host.cert");
+    let mut server = flyer::server("127.0.0.1", 9999)
+        .view("views");
 
-    server.router().ws("/", async |req, ws| {
-        println!("Working on websocket");    
+    server.router().group("/", |mut router| {
+        router.get("/",   async |req, res| {
+            let mut data = view_data();
 
+            let user = User {
+                id: 1,
+                first_name: "Jeo",
+                last_name: "Deo",
+                email: "jeo@doe.com",
+            };
 
+            data.insert("user", &user);
 
-        ws.on( async |event, writer| {
+            return res.view("index.html", Some(data));   
+        }, Some(vec![auth_web]));
 
-            match event {
-                flyer::ws::Event::Ready() => todo!(),
-                flyer::ws::Event::Message(items) => {
-                    println!("Message {:?}", String::from_utf8(items));
+        router.get("/api",   async |req, res| {
+            let mut data = view_data();
 
-                    writer.write("Hello To Client".into());
-                },
-                flyer::ws::Event::Ping(items) => todo!(),
-                flyer::ws::Event::Pong(items) => todo!(),
-                flyer::ws::Event::Close(reason) => todo!(),
-            }
+            let user = User {
+                id: 1,
+                first_name: "Jeo",
+                last_name: "Deo",
+                email: "jeo@doe.com",
+            };
 
-        });
+            data.insert("user", &user);
+
+            return res.json(&user);   
+        }, Some(vec![auth_json]));
+    }, Some(vec![]));
+
+    server.router().group("", |mut router| {
+        router.ws("/", async |req, ws| {
+            println!("Working on websocket");    
+            ws.on( async |event, writer| {
+                match event {
+                    flyer::ws::Event::Ready() => todo!(),
+                    flyer::ws::Event::Message(items) => {
+                        println!("Message {:?}", String::from_utf8(items));
+                        writer.write("Hello This Public Route".into());
+                    },
+                    flyer::ws::Event::Ping(items) => todo!(),
+                    flyer::ws::Event::Pong(items) => todo!(),
+                    flyer::ws::Event::Close(reason) => todo!(),
+                }
+
+            });
+        }, None);
+
+        router.ws("/private", async |req, ws| {
+            println!("Working on websocket");    
+            ws.on( async |event, writer| {
+                match event {
+                    flyer::ws::Event::Ready() => todo!(),
+                    flyer::ws::Event::Message(items) => {
+                        println!("Message {:?}", String::from_utf8(items));
+                        writer.write("Hello This Private Route".into());
+                    },
+                    flyer::ws::Event::Ping(items) => todo!(),
+                    flyer::ws::Event::Pong(items) => todo!(),
+                    flyer::ws::Event::Close(reason) => todo!(),
+                }
+
+            });
+        },Some(vec![auth]));
 
     }, None);
+
 
     print!("\r\n\r\nRunning server: {}\r\n\r\n", server.address());
 

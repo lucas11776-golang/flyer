@@ -5,12 +5,12 @@ use std::collections::HashMap;
 use futures::executor::block_on;
 
 use crate::{router::group::GroupRouter};
-use crate::utils::merge;
+use crate::utils::{Values, merge};
 use crate::ws::Ws;
 
 use crate::request::Request;
 use crate::response::Response;
-use crate::utils::url::clean_url;
+use crate::utils::url::{clean_url, clean_uri_to_vec};
 
 pub type WebRoute = dyn for<'a> Fn(&'a mut Request, &'a mut Response) -> &'a mut Response + Send + Sync;
 pub type WsRoute = dyn for<'a> Fn(&'a mut Request, &'a mut Ws) -> () + Send + Sync;
@@ -34,6 +34,74 @@ pub struct Route<R> {
     pub(crate) method: String,
     pub(crate) route: R,
     pub(crate) middlewares: MiddlewaresRef,
+}
+
+
+use regex::Regex;
+use once_cell::sync::Lazy;
+
+static PARAM_REGEX: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r"\{[a-zA-Z_]+\}").expect("Invalid parameter regex")
+});
+
+
+impl <'r, R> Route<R> {
+    pub fn is_match(&mut self, req: &'r mut Request) -> (bool, Values) {
+        let request_path: Vec<String> = clean_uri_to_vec(req.path.clone());
+        let route_path: Vec<String> = clean_uri_to_vec(self.path.clone());
+
+        if self.method.to_uppercase() != req.method.to_uppercase() {
+            return (false, Values::new());
+        }
+
+        return self.parameters_route_match(route_path, request_path);
+    }
+
+    
+    fn parameters_route_match(&mut self, route_path: Vec<String>, request_path: Vec<String>) -> (bool, Values) {
+        let mut params: Values = Values::new();
+
+        for (i, seg) in route_path.iter().enumerate() {
+            if i > request_path.len() - 1 {
+                return (false, Values::new());
+            }
+
+            let seg_match = request_path[i].clone();
+
+            if seg == "*" {
+                return (true, Values::new());
+            }
+
+            if seg == &seg_match {
+                continue;
+            }
+
+            if PARAM_REGEX.is_match(&seg.to_string()) {
+                params.insert(seg.trim_start_matches('{').trim_end_matches('}').to_owned(), seg_match);
+
+                continue;
+            }
+
+            return (false, Values::new());
+        }
+
+        return (true, params)
+    }
+
+    pub fn handle_middlewares(&mut self, req: &'r mut Request, res: &'r mut Response, middlewares: &Middlewares) -> Option<&'r mut Response> {
+        for middleware_ref in  &self.middlewares {
+            let middleware = middlewares.get(middleware_ref).unwrap();
+            let mut next = Next::new();
+
+            middleware(req, res, &mut next);
+
+            if !next.is_move {
+                return None;
+            }
+        }
+
+        return Some(res);
+    }
 }
 
 impl Next {
