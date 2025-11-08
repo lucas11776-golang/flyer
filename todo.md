@@ -1,8 +1,8 @@
 # Refactor websocket
 
-- Cleanup websocket http1
-- Implement middleware 
-- Move websocket call to route.
+- Move websocket logic to http1_websocket handler.
+- Cleanup websocket http1.
+
 
 
 # WORKING ON MAKING MIDDLEWARE ASYNC
