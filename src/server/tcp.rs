@@ -107,7 +107,7 @@ impl <'a>TcpServer<'a> {
         let ws_stream = WebSocketStream::from_raw_socket(rw, Server, None).await;
         let (mut sink, mut stream) = ws_stream.split();
         let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<Payload>();
-        let ws = Ws::new();
+        let mut ws = Ws::new();
         let writer = Writer{sender: tx};
 
         let messages = async {
@@ -128,17 +128,17 @@ impl <'a>TcpServer<'a> {
 
         let listener = async {
             // println!(" ************************************ RUNNING listener ************************************ ");
-            res.ws = Some((ws, Box::new(writer)));
+            res.ws = Some(Box::new(writer));
 
-            if !self.http.router.match_ws_routes(req, res).await.unwrap() {
-                let (_, writer) = res.ws.as_mut().unwrap();
+            if !self.http.router.match_ws_routes(req, res, &mut ws).await.unwrap() {
+                let writer = res.ws.as_mut().unwrap();
 
                 writer.close();
 
                 return;
             }
 
-            let (ws, writer) = res.ws.as_mut().unwrap();
+            let writer = res.ws.as_mut().unwrap();
 
             while let Some(message) = stream.next().await {
                 match message.unwrap() {

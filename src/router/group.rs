@@ -8,7 +8,7 @@ use crate::{
     request::Request,
     response::Response,
     router::{Middlewares, MiddlewaresRef, Next, Route, WebRoute, WsRoute},
-    utils::{Values, url::clean_uri_to_vec},
+    utils::{Values, url::clean_uri_to_vec}, ws::Ws,
 };
 
 static PARAM_REGEX: Lazy<Regex> = Lazy::new(|| {
@@ -72,7 +72,7 @@ impl <'r>GroupRouter {
         return Ok(res)
     }
 
-    pub async fn match_ws_routes(&mut self, req: &'r mut Request, res: &'r mut Response) -> Result<bool> {
+    pub async fn match_ws_routes(&mut self, req: &'r mut Request, res: &'r mut Response, ws: &'r mut Ws) -> Result<bool> {
         for route in &mut self.ws {
             let (is_match, parameters) = route.is_match(req);
 
@@ -86,7 +86,7 @@ impl <'r>GroupRouter {
                 return Ok(false)
             }
 
-            let (ws, _) = res.ws.as_mut().unwrap();
+            // let writer = res.ws.as_mut().unwrap();
 
             (route.route)(req, ws);
 
