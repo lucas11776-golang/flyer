@@ -9,7 +9,7 @@ pub struct Message<'a> {
 
 pub fn auth<'a>(req: &'a mut Request, res: &'a mut Response, next: &'a mut Next) -> &'a mut Response {
     if req.header("authorization") != "jwt.token" {
-        let (_, writer) = res.ws.as_mut().unwrap();
+        let writer = res.ws.as_mut().unwrap();
 
         writer.write(serde_json::to_vec(&Message{message: "Unauthorized Access"}).unwrap());
         
@@ -57,7 +57,7 @@ fn main() {
         },Some(vec![auth]));
 
     }, None);
-    
+
     print!("\r\n\r\nRunning server: {}\r\n\r\n", server.address());
 
     server.listen();
