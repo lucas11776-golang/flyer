@@ -54,7 +54,7 @@ fn main() {
         .view("views");
 
     server.router().group("/", |mut router| {
-        router.get("/",   async |req, res| {
+        router.get("/",   async |_req, res| {
             let mut data = view_data();
 
             let user = User {
@@ -69,7 +69,7 @@ fn main() {
             return res.view("index.html", Some(data));   
         }, Some(vec![auth_web]));
 
-        router.get("/api",   async |req, res| {
+        router.get("/api",   async |_req, res| {
             let mut data = view_data();
 
             let user = User {
@@ -86,28 +86,28 @@ fn main() {
     }, Some(vec![]));
 
     server.router().group("", |mut router| {
-        router.ws("/", async |req, ws| {
+        router.ws("/", async |_req, ws| {
             ws.on( async |event, writer| {
                 match event {
                     flyer::ws::Event::Ready() => todo!(),
-                    flyer::ws::Event::Text(items) => writer.write("Hello This Public Route".into()),
-                    flyer::ws::Event::Binary(items) => todo!(),
-                    flyer::ws::Event::Ping(items) => todo!(),
-                    flyer::ws::Event::Pong(items) => todo!(),
-                    flyer::ws::Event::Close(reason) => todo!(),
+                    flyer::ws::Event::Text(_items) => writer.write("Hello This Public Route".into()),
+                    flyer::ws::Event::Binary(_items) => todo!(),
+                    flyer::ws::Event::Ping(_items) => todo!(),
+                    flyer::ws::Event::Pong(_items) => todo!(),
+                    flyer::ws::Event::Close(_reason) => todo!(),
                 }
             });
         }, None);
 
-        router.ws("/private", async |req, ws| {
+        router.ws("/private", async |_req, ws| {
             ws.on( async |event, writer| {
                 match event {
                     flyer::ws::Event::Ready() => todo!(),
-                    flyer::ws::Event::Text(items) => writer.write("Hello This Private Route".into()),
-                    flyer::ws::Event::Binary(items) => todo!(),
-                    flyer::ws::Event::Ping(items) => todo!(),
-                    flyer::ws::Event::Pong(items) => todo!(),
-                    flyer::ws::Event::Close(reason) => todo!(),
+                    flyer::ws::Event::Text(_items) => writer.write("Hello This Private Route".into()),
+                    flyer::ws::Event::Binary(_items) => todo!(),
+                    flyer::ws::Event::Ping(_items) => todo!(),
+                    flyer::ws::Event::Pong(_items) => todo!(),
+                    flyer::ws::Event::Close(_reason) => todo!(),
                 }
             });
         },Some(vec![auth]));

@@ -176,27 +176,27 @@ fn main() {
 
     server.router().group("", |mut router| {
         router.ws("/", async |req, ws| {
-            ws.on( async |event, writer| {
+            ws.on(async |event, writer| {
                 match event {
                     flyer::ws::Event::Ready() => todo!(),
-                    flyer::ws::Event::Text(items) => writer.write("Hello This Public Route".into()),
-                    flyer::ws::Event::Binary(items) => todo!(),
-                    flyer::ws::Event::Ping(items) => todo!(),
-                    flyer::ws::Event::Pong(items) => todo!(),
-                    flyer::ws::Event::Close(reason) => todo!(),
+                    flyer::ws::Event::Text(_items) => writer.write("Hello This Public Route".into()),
+                    flyer::ws::Event::Binary(_items) => todo!(),
+                    flyer::ws::Event::Ping(_items) => todo!(),
+                    flyer::ws::Event::Pong(_items) => todo!(),
+                    flyer::ws::Event::Close(_reason) => todo!(),
                 }
             });
         }, None);
 
         router.ws("/private", async |req, ws| {
-            ws.on( async |event, writer| {
+            ws.on(async |event, writer| {
                 match event {
                     flyer::ws::Event::Ready() => todo!(),
-                    flyer::ws::Event::Text(items) => writer.write("Hello This Private Route".into()),
-                    flyer::ws::Event::Binary(items) => todo!(),
-                    flyer::ws::Event::Ping(items) => todo!(),
-                    flyer::ws::Event::Pong(items) => todo!(),
-                    flyer::ws::Event::Close(reason) => todo!(),
+                    flyer::ws::Event::Text(_items) => writer.write("Hello This Private Route".into()),
+                    flyer::ws::Event::Binary(_items) => todo!(),
+                    flyer::ws::Event::Ping(_items) => todo!(),
+                    flyer::ws::Event::Pong(_items) => todo!(),
+                    flyer::ws::Event::Close(_reason) => todo!(),
                 }
             });
         },Some(vec![auth]));
@@ -205,6 +205,5 @@ fn main() {
     print!("\r\n\r\nRunning server: {}\r\n\r\n", server.address());
 
     server.listen();
-}
 }
 ```

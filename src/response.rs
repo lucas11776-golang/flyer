@@ -4,7 +4,7 @@ use serde::Serialize;
 use crate::{
     request::Headers,
     view::ViewData,
-    ws::{Ws, Writer},
+    ws::{Writer},
 };
 
 pub struct Response {
