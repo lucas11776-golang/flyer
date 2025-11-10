@@ -1,6 +1,6 @@
 [package]
 name = "flyer"
-version = "0.0.38"
+version = "0.0.39"
 authors = ["Themba Lucas Ngubeni <thembangubeni04@email.com>"]
 license = "MIT"
 description = "HTTP framework for rust"

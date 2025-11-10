@@ -22,40 +22,32 @@ pub fn auth<'a>(req: &'a mut Request, res: &'a mut Response, next: &'a mut Next)
 fn main() {
     let mut server = server("127.0.0.1", 9999);
 
-    server.router().group("/", |mut router| {
+    server.router().group("", |mut router| {
         router.ws("/", async |req, ws| {
             ws.on( async |event, writer| {
                 match event {
                     flyer::ws::Event::Ready() => todo!(),
-                    flyer::ws::Event::Message(items) => {
-                        println!("Message {:?}", String::from_utf8(items));
-                        writer.write("Hello This Public Route".into());
-                    },
+                    flyer::ws::Event::Text(items) => writer.write("Hello This Public Route".into()),
+                    flyer::ws::Event::Binary(items) => todo!(),
                     flyer::ws::Event::Ping(items) => todo!(),
                     flyer::ws::Event::Pong(items) => todo!(),
                     flyer::ws::Event::Close(reason) => todo!(),
                 }
-
             });
         }, None);
 
         router.ws("/private", async |req, ws| {
-            println!("Working on websocket");    
             ws.on( async |event, writer| {
                 match event {
                     flyer::ws::Event::Ready() => todo!(),
-                    flyer::ws::Event::Message(items) => {
-                        println!("Message {:?}", String::from_utf8(items));
-                        writer.write("Hello This Private Route".into());
-                    },
+                    flyer::ws::Event::Text(items) => writer.write("Hello This Private Route".into()),
+                    flyer::ws::Event::Binary(items) => todo!(),
                     flyer::ws::Event::Ping(items) => todo!(),
                     flyer::ws::Event::Pong(items) => todo!(),
                     flyer::ws::Event::Close(reason) => todo!(),
                 }
-
             });
         },Some(vec![auth]));
-
     }, None);
 
     print!("\r\n\r\nRunning server: {}\r\n\r\n", server.address());

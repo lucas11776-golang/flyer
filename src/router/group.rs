@@ -72,7 +72,7 @@ impl <'r>GroupRouter {
         return Ok(res)
     }
 
-    pub async fn match_ws_routes(&mut self, req: &'r mut Request, res: &'r mut Response, ws: &'r mut Ws) -> Result<bool> {
+    pub async fn match_ws_routes<'a>(&'a mut self, req: &'a mut Request, res: &'a mut Response) -> Option<(&'a mut Route<Box<WsRoute>>, &'a mut Request, &'a mut Response)> {
         for route in &mut self.ws {
             let (is_match, parameters) = route.is_match(req);
 
@@ -83,17 +83,13 @@ impl <'r>GroupRouter {
             req.parameters = parameters;
 
             if Self::handle_middlewares(&self.middlewares, req, res, &route.middlewares).is_none() {
-                return Ok(false)
+                return None;
             }
 
-            // let writer = res.ws.as_mut().unwrap();
-
-            (route.route)(req, ws);
-
-            return Ok(true);
+            return Some((route, req, res));
         }
 
-        return Ok(false);
+        return None;
     }
 
     // fn match_route<T>(route: &mut Route<T>, req: &mut Request) -> (bool, Values) {

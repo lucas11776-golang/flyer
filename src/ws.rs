@@ -13,7 +13,8 @@ pub struct Reason {
 
 pub enum Event {
     Ready(),
-    Message(Vec<u8>),
+    Text(Vec<u8>),
+    Binary(Vec<u8>),
     Ping(Vec<u8>),
     Pong(Vec<u8>),
     Close(Option<Reason>),
@@ -22,8 +23,12 @@ pub enum Event {
 pub trait Writer {
     fn write(&mut self, data: Vec<u8>);
     fn write_binary(&mut self, data: Vec<u8>);
+    fn ping(&mut self, data: Vec<u8>);
+    fn pong(&mut self, data: Vec<u8>);
     fn close(&mut self);
 }
+
+
 
 pub struct Ws {
     pub(crate) event: Option<Box<OnEvent>>,
