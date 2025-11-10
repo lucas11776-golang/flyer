@@ -22,8 +22,8 @@ pub fn auth<'a>(req: &'a mut Request, res: &'a mut Response, next: &'a mut Next)
 fn main() {
     let mut server = server("127.0.0.1", 9999);
 
-    server.router().group("", |mut router| {
-        router.ws("/", async |req, ws| {
+    server.router().group("", |router| {
+        router.ws("/", async |_req, ws| {
             ws.on(async |event, writer| {
                 match event {
                     flyer::ws::Event::Ready() => todo!(),
@@ -36,7 +36,7 @@ fn main() {
             });
         }, None);
 
-        router.ws("/private", async |req, ws| {
+        router.ws("/private", async |_req, ws| {
             ws.on(async |event, writer| {
                 match event {
                     flyer::ws::Event::Ready() => todo!(),

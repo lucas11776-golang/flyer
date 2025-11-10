@@ -1,9 +1,5 @@
-#![recursion_limit = "2000"]
 #![feature(async_fn_traits)]
 #![feature(unboxed_closures)]
-#![feature(async_trait_bounds)]
-#![feature(mem_copy_fn)]
-#[deny(invalid_type_param_default)]
 
 pub mod request;
 pub mod response;
@@ -17,6 +13,7 @@ pub mod server;
 use std::io::Result;
 use std::sync::Arc;
 
+use futures::join;
 use tokio::runtime::Runtime;
 use tokio_rustls::TlsAcceptor;
 
@@ -103,15 +100,20 @@ impl HTTP {
 
     pub fn listen(&mut self) {
         Runtime::new().unwrap().block_on(async {
-            // TODO: find not blocking way...
-            tokio_scoped::scope(|scope| {
-                scope.spawn(self.run_tcp_server());
-            });
+            // TODO: need re arch to support both TCP and UPD...
+            let tcp_server = async {
+                tokio_scoped::scope(|scope| {
+                    scope.spawn(self.run_tcp_server());
+                });
+            };
 
-            // TODO: find not blocking way...
-            tokio_scoped::scope(|scope| {
-                scope.spawn(self.run_udp_server());
-            });
+            let udp_server = async {
+                // tokio_scoped::scope(|scope| {
+                //     scope.spawn(self.run_udp_server());
+                // });
+            };
+            
+            join!(tcp_server, udp_server);
         });
     }
 

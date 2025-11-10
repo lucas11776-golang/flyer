@@ -48,8 +48,8 @@ pub fn auth_json<'a>(req: &'a mut Request, res: &'a mut Response, next: &'a mut 
 }
 
 fn main() {
-    // let mut server = flyer::server_tls("127.0.0.1", 9999, "host.key", "host.cert");
-    let mut server = flyer::server("127.0.0.1", 9999)
+    let mut server = flyer::server_tls("127.0.0.1", 9999, "host.key", "host.cert")
+    // let mut server = flyer::server("127.0.0.1", 9999)
         .view("views");
 
     server.router().group("/", |router| {
