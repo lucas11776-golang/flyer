@@ -15,7 +15,6 @@ pub struct Message<'a> {
     message: &'a str
 }
 
-
 pub fn auth<'a>(req: &'a mut Request, res: &'a mut Response, next: &'a mut Next) -> &'a mut Response {
     if req.header("authorization") != "jwt.token" {
         let writer = res.ws.as_mut().unwrap();
@@ -53,7 +52,7 @@ fn main() {
     let mut server = flyer::server("127.0.0.1", 9999)
         .view("views");
 
-    server.router().group("/", |mut router| {
+    server.router().group("/", |router| {
         router.get("/",   async |_req, res| {
             let mut data = view_data();
 
@@ -85,7 +84,7 @@ fn main() {
         }, Some(vec![auth_json]));
     }, Some(vec![]));
 
-    server.router().group("", |mut router| {
+    server.router().group("", |router| {
         router.ws("/", async |_req, ws| {
             ws.on( async |event, writer| {
                 match event {

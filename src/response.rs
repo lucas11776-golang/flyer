@@ -8,7 +8,6 @@ use crate::{
 };
 
 pub struct Response {
-    // TODO: should thing about give writer only because WS will be handled in controller...
     pub ws: Option<Box<dyn Writer + Send + Sync + 'static>>,
     pub(crate) status_code: u16,
     pub(crate) headers: Headers,
