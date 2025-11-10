@@ -1,20 +1,21 @@
 use std::{io::Result};
 use std::pin::Pin;
-use std::pin::{pin};
 
-use event_emitter_rs::Listener;
+use bytes::Bytes;
 use futures::future::join;
 use futures::{SinkExt, StreamExt};
-use futures::join;
+
 use openssl::sha::Sha1;
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt, BufReader};
 use tokio::sync::mpsc::UnboundedSender;
 use tokio_tungstenite::WebSocketStream;
+
 use tungstenite::Utf8Bytes;
 use tungstenite::{Message, protocol::Role::Server};
 use tokio::sync::mpsc::UnboundedReceiver;
+use tokio::sync::mpsc::unbounded_channel;
 
-use crate::router::group::GroupRouter;
+use crate::ws::Reason;
 use crate::{
     request::Request,
     response::{Response, parse},
@@ -22,30 +23,7 @@ use crate::{
     ws::{Event, SEC_WEB_SOCKET_ACCEPT_STATIC, Writer as WriterInterface, Ws}
 };
 
-
-pub struct Writer {
-    pub(crate) sender: UnboundedSender<Payload>
-}
-
-pub(crate) struct Handler {
-    pub receiver: UnboundedReceiver<Payload>
-}
-
-impl WriterInterface for Writer {
-    fn write(&mut self, data: Vec<u8>) {
-        self.sender.send(Payload { method: PayloadType::Text, data: data }).unwrap()
-    }
-
-    fn write_binary(&mut self, data: Vec<u8>) {
-        println!("Writer Binary");
-    }
-    
-    fn close(&mut self) {
-        self.sender.send(Payload { method: PayloadType::Close, data: vec![] }).unwrap()
-    }
-}
-
-pub(crate) enum PayloadType {
+pub(crate) enum Type {
     Close,
     Binary,
     Text,
@@ -54,105 +32,152 @@ pub(crate) enum PayloadType {
 }
 
 pub(crate) struct Payload {
-    pub method: PayloadType,
+    pub method: Type,
     pub data: Vec<u8>
 }
 
-impl <'a>Handler
-{
-    pub fn new(receiver: UnboundedReceiver<Payload>,) -> Self {
-        return Self {
-            receiver: receiver
-        }
+pub struct Writer {
+    pub(crate) sender: UnboundedSender<Payload>
+}
+
+pub(crate) struct Handler<'a ,RW> {
+    pub sink: futures::stream::SplitSink<WebSocketStream<Pin<&'a mut BufReader<RW>>>, Message>,
+    pub stream: futures::stream::SplitStream<WebSocketStream<Pin<&'a mut BufReader<RW>>>>,
+    pub receiver: UnboundedReceiver<Payload>,
+    pub ws: Ws
+}
+
+impl WriterInterface for Writer {
+    fn write(&mut self, data: Vec<u8>) {
+        self.sender.send(Payload { method: Type::Text, data: data }).unwrap();
     }
 
-    pub async fn handle(&mut self, req: &'a mut Request, res: &'a mut Response) -> Result<()> {
-        // let (req, res) = self.handshake(req, res).await.unwrap();
-        // let ws_stream = WebSocketStream::from_raw_socket(self.rw.as_mut(), Server, None).await;
-        // let (mut sink, mut stream) = ws_stream.split();
-        // let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<Payload>();
-        // let ws = Ws::new();
-        // let writer = Writer{sender: tx};
+    fn write_binary(&mut self, data: Vec<u8>) {
+        self.sender.send(Payload { method: Type::Binary, data: data }).unwrap();
+    }
 
-        // let messages = async {
-        //     println!(" ************************************ RUNNING MESSAGE ************************************ ");
+    fn ping(&mut self, data: Vec<u8>) {
+        self.sender.send(Payload { method: Type::Ping, data: data }).unwrap();
+    }
 
-        //     while let Some(payload) = rx.recv().await {
-        //         match payload.method {
-        //             PayloadType::Binary => todo!(),
-        //             PayloadType::Text => sink.send(Message::Text(Utf8Bytes::from(String::from_utf8(payload.data).unwrap()))).await.unwrap(),
-        //             PayloadType::Ping => todo!(),
-        //             PayloadType::Pong => todo!(),
-        //             PayloadType::Close => {
-        //                 break;
-        //             },
-        //         }
-        //     }
+    fn pong(&mut self, data: Vec<u8>) {
+        self.sender.send(Payload { method: Type::Pong, data: data }).unwrap();
+    }
+    
+    fn close(&mut self) {
+        self.sender.send(Payload { method: Type::Close, data: vec![] }).unwrap()
+    }
+}
 
-        //     sink.close().await.unwrap();
-        // };
+impl <'a, RW>Handler<'a, RW>
+where
+    RW: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static
+{
+    pub async fn new(rw: Pin<&'a mut BufReader<RW>>, req: &'a mut Request, res: &'a mut Response) -> Result<(Self, &'a mut Request, &'a mut Response)> {
+        let (rw, req, res) = Self::handshake(rw, req, res).await.unwrap();
+        let (sink, stream) = WebSocketStream::from_raw_socket(rw, Server, None).await.split();
+        let (tx, rx) = unbounded_channel::<Payload>();
+        res.ws = Some(Box::new(Writer{sender: tx}));
 
-        // let listener = async {
-        //     println!(" ************************************ RUNNING listener ************************************ ");
+        return Ok((Self {
+            sink: sink,
+            stream: stream,
+            receiver: rx,
+            ws: Ws::new(),
+        }, req, res));
+    }
 
-        //     /***********************************************************************************************
-        //      TODO: handle middleware and put writer in ws as trait to support (http3 websocket read more)
-        //     ***********************************************************************************************/
-        //     res.ws = Some((ws, Box::new(writer))); // Ready for middleware
+    pub async fn handle(&mut self, route: &'a mut Route<Box<WsRoute>>, req: &'a mut Request, res: &'a mut Response) -> Result<()> {
+        let receiver = async {
+            while let Some(payload) = self.receiver.recv().await {
+                match payload.method {
+                    Type::Binary => self.sink.send(Message::Binary(Bytes::from(payload.data))).await.unwrap(),
+                    Type::Text => self.sink.send(Message::Text(Utf8Bytes::from(String::from_utf8(payload.data).unwrap()))).await.unwrap(),
+                    Type::Ping => self.sink.send(Message::Ping(Bytes::from(payload.data))).await.unwrap(),
+                    Type::Pong => self.sink.send(Message::Pong(Bytes::from(payload.data))).await.unwrap(),
+                    Type::Close => {
+                        self.sink.send(Message::Close(None)).await.unwrap();
+                        break;
+                    },
+                }
+            }
 
-        //     let (ws, writer) = res.ws.as_mut().unwrap();
+            self.sink.close().await.unwrap();
+        };
 
-        //     (route.route)(req, ws);
+        let stream = async {
+            (route.route)(req, &mut self.ws);
 
-        //     while let Some(message) = stream.next().await {
-        //         match message.unwrap() {
-        //             Message::Text(data) => ws.event.as_mut().unwrap()(Event::Message(data.as_bytes().to_vec()), writer),
-        //             Message::Binary(bytes) => {
-        //             },
-        //             Message::Ping(bytes) => {
-        //             },
-        //             Message::Pong(bytes) => {
-        //             },
-        //             Message::Close(close_frame) => {
-        //             },
-        //             Message::Frame(_) => {/* When reading frame will not be called... */},
-        //         }
-        //     }
+            let writer = res.ws.as_mut().unwrap();
 
-        //     writer.close();
-        // };
+            while let Some(message) = self.stream.next().await {
+                let message = message.unwrap();
 
+                if self.ws.event.is_none() {
+                    continue;
+                }
+                
+                match message {
+                    Message::Text(data) => {
+                        self.ws.event.as_mut().unwrap()(Event::Text(data.as_bytes().to_vec()), writer);
+                    },
+                    Message::Binary(data) => {
+                        self.ws.event.as_mut().unwrap()(Event::Binary(data.to_vec()), writer);
+                    },
+                    Message::Ping(data) => {
+                        self.ws.event.as_mut().unwrap()(Event::Ping(data.to_vec()), writer);
+                    },
+                    Message::Pong(data) => {
+                        self.ws.event.as_mut().unwrap()(Event::Pong(data.to_vec()), writer);
+                    },
+                    Message::Close(close_frame) => {
+                        let callback = self.ws.event.as_deref().unwrap();
 
-        // join(messages, listener).await;
+                        if close_frame.is_none() {
+                            return callback(Event::Close(None), writer);
+                        }
 
-        // println!(" ************************************ END ************************************ ");
+                        let close = close_frame.unwrap();
+
+                        callback(Event::Close(Some(Reason{
+                            code: close.code.into(),
+                            message: close.reason.to_string()
+                        })), writer);
+                    },
+                    Message::Frame(_) => {/* When reading frame will not be called... */},
+                }
+            }
+
+            writer.close();
+        };
+
+        join(receiver, stream).await;
 
         Ok(())
     }
 
-    // async fn handshake(&mut self, req: &'a mut Request, res: &'a mut Response) -> Result<(&'a mut Request, &'a mut Response)> {
-    //     let res = res.status_code(101)
-    //         .header("Upgrade".to_owned(), "websocket".to_owned())
-    //         .header("Connection".to_owned(), "Upgrade".to_owned())
-    //         .header("Sec-WebSocket-Accept".to_owned(), self.get_sec_web_socket_accept(req.header("sec-websocket-key")));
+    async fn handshake(mut rw: Pin<&'a mut BufReader<RW>>, req: &'a mut Request, res: &'a mut Response) -> Result<(Pin<&'a mut BufReader<RW>>, &'a mut Request, &'a mut Response)> {
+        let res = res.status_code(101)
+            .header("Upgrade".to_owned(), "websocket".to_owned())
+            .header("Connection".to_owned(), "Upgrade".to_owned())
+            .header("Sec-WebSocket-Accept".to_owned(), Self::get_sec_web_socket_accept(req.header("sec-websocket-key")));
 
-    //     self.rw
-    //         .as_mut()
-    //         .write(parse(res).unwrap().as_bytes())
-    //         .await
-    //         .unwrap();
+        rw.as_mut()
+            .write(parse(res).unwrap().as_bytes())
+            .await
+            .unwrap();
 
-    //     return Ok((req, res));
-    // }
+        return Ok((rw, req, res));
+    }
 
-    // fn get_sec_web_socket_accept(&mut self, key: String) -> String {
-    //     let mut hasher = Sha1::new();
+    fn get_sec_web_socket_accept(key: String) -> String {
+        let mut hasher = Sha1::new();
         
-    //     hasher.update(format!("{}{}", key, SEC_WEB_SOCKET_ACCEPT_STATIC).as_bytes());
+        hasher.update(format!("{}{}", key, SEC_WEB_SOCKET_ACCEPT_STATIC).as_bytes());
         
-    //     // TODO: use the new implementation...
-    //     return base64::encode(&hasher.finish())
-    // }
+        // TODO: use the new implementation...
+        return base64::encode(&hasher.finish())
+    }
 }
 
 

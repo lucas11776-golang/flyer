@@ -90,15 +90,12 @@ fn main() {
             ws.on( async |event, writer| {
                 match event {
                     flyer::ws::Event::Ready() => todo!(),
-                    flyer::ws::Event::Message(items) => {
-                        println!("Message {:?}", String::from_utf8(items));
-                        writer.write("Hello This Public Route".into());
-                    },
+                    flyer::ws::Event::Text(items) => writer.write("Hello This Public Route".into()),
+                    flyer::ws::Event::Binary(items) => todo!(),
                     flyer::ws::Event::Ping(items) => todo!(),
                     flyer::ws::Event::Pong(items) => todo!(),
                     flyer::ws::Event::Close(reason) => todo!(),
                 }
-
             });
         }, None);
 
@@ -106,18 +103,14 @@ fn main() {
             ws.on( async |event, writer| {
                 match event {
                     flyer::ws::Event::Ready() => todo!(),
-                    flyer::ws::Event::Message(items) => {
-                        println!("Message {:?}", String::from_utf8(items));
-                        writer.write("Hello This Private Route".into());
-                    },
+                    flyer::ws::Event::Text(items) => writer.write("Hello This Private Route".into()),
+                    flyer::ws::Event::Binary(items) => todo!(),
                     flyer::ws::Event::Ping(items) => todo!(),
                     flyer::ws::Event::Pong(items) => todo!(),
                     flyer::ws::Event::Close(reason) => todo!(),
                 }
-
             });
         },Some(vec![auth]));
-
     }, None);
 
 
