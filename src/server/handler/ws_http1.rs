@@ -1,6 +1,8 @@
 use std::{io::Result};
 use std::pin::Pin;
 
+use base64::Engine;
+use base64::engine::general_purpose;
 use bytes::Bytes;
 use futures::future::join;
 use futures::{SinkExt, StreamExt};
@@ -172,11 +174,12 @@ where
 
     fn get_sec_web_socket_accept(key: String) -> String {
         let mut hasher = Sha1::new();
+        let mut accept = String::new();
         
         hasher.update(format!("{}{}", key, SEC_WEB_SOCKET_ACCEPT_STATIC).as_bytes());
+        general_purpose::STANDARD.encode_string(hasher.finish(), &mut accept);
         
-        // TODO: use the new implementation...
-        return base64::encode(&hasher.finish())
+        return accept;
     }
 }
 

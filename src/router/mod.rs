@@ -1,6 +1,8 @@
 pub mod group;
 
 use std::collections::HashMap;
+use regex::Regex;
+use once_cell::sync::Lazy;
 
 use futures::executor::block_on;
 
@@ -17,7 +19,18 @@ pub type WsRoute = dyn for<'a> Fn(&'a mut Request, &'a mut Ws) -> () + Send + Sy
 pub type Middleware = for<'a> fn (&'a mut Request, &'a mut Response, &'a mut Next) -> &'a mut Response;
 pub type Middlewares = HashMap<String, Box<Middleware>>;
 pub type MiddlewaresRef = Vec<String>;
-pub type Group = fn(Router);
+pub type Group = for<'a> fn(&'a mut Router);
+
+static PARAM_REGEX: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r"\{[a-zA-Z_]+\}").expect("Invalid parameter regex")
+});
+
+pub struct Route<R> {
+    pub(crate) path: String,
+    pub(crate) method: String,
+    pub(crate) route: R,
+    pub(crate) middlewares: MiddlewaresRef,
+}
 
 pub struct Next {
     pub(crate) is_move: bool,
@@ -28,22 +41,6 @@ pub struct Router<'r> {
     pub(crate) path: Vec<String>,
     pub(crate) middleware: MiddlewaresRef,
 }
-
-pub struct Route<R> {
-    pub(crate) path: String,
-    pub(crate) method: String,
-    pub(crate) route: R,
-    pub(crate) middlewares: MiddlewaresRef,
-}
-
-
-use regex::Regex;
-use once_cell::sync::Lazy;
-
-static PARAM_REGEX: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r"\{[a-zA-Z_]+\}").expect("Invalid parameter regex")
-});
-
 
 impl <'r, R> Route<R> {
     pub fn is_match(&mut self, req: &'r mut Request) -> (bool, Values) {
@@ -86,21 +83,6 @@ impl <'r, R> Route<R> {
         }
 
         return (true, params)
-    }
-
-    pub fn handle_middlewares(&mut self, req: &'r mut Request, res: &'r mut Response, middlewares: &Middlewares) -> Option<&'r mut Response> {
-        for middleware_ref in  &self.middlewares {
-            let middleware = middlewares.get(middleware_ref).unwrap();
-            let mut next = Next::new();
-
-            middleware(req, res, &mut next);
-
-            if !next.is_move {
-                return None;
-            }
-        }
-
-        return Some(res);
     }
 }
 
@@ -202,7 +184,7 @@ impl <'r>Router<'r> {
     }
 
     pub fn group<'g>(&'g mut self , path: &str, group: Group, middleware: Option<Vec<Middleware>>) {
-        group(Router{
+        group(&mut Router{
             path: self.path(path),
             middleware: self.merge_middlewares(middleware),
             router: self.router,

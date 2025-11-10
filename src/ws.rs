@@ -1,4 +1,3 @@
-use serde::Serialize;
 use futures::{executor::block_on};
 
 pub const SEC_WEB_SOCKET_ACCEPT_STATIC: &str = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
@@ -46,14 +45,5 @@ impl Ws {
         C: for<'a> AsyncFn<(Event, &'a mut Box<dyn Writer + Send + Sync>), Output = ()> + Send + Sync + 'static
     {
         self.event = Some(Box::new(move |event, writer| block_on(callback(event, writer))));
-    }
-
-    pub async fn write_json<J>(&mut self, json: &J)
-    where 
-        J: ?Sized + Serialize
-    {   
-    }
-
-    pub async fn write_binary(&mut self, data: Vec<u8>) {
     }
 }
