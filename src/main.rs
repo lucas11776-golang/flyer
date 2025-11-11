@@ -68,7 +68,7 @@ fn main() {
             return res.view("index.html", Some(data));   
         }, Some(vec![auth_web]));
 
-        router.get("/api",   async |_req, res| {
+        router.get("/api/users/{user}",   async |_req, res| {
             let mut data = view_data();
 
             let user = User {

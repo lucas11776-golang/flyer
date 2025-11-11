@@ -111,9 +111,14 @@ impl <'a>TcpServer<'a> {
             return Ok(self.handle_web_socket(rw, req, res).await.unwrap())
         }
 
-        let res = self.http.router.match_web_routes(&mut req, &mut res).await.unwrap();
+        let resp = self.http.router.match_web_routes(&mut req, &mut res).await;
 
-        Ok(handler.write(&mut self.http.render_response_view(res)).await.unwrap())
+        if resp.is_none() {
+            // println!("CODE {}", res.status_code);
+        }
+
+
+        Ok(handler.write(&mut self.http.render_response_view(&mut res)).await.unwrap())
     }
 
     async fn http_2_protocol<RW>(&mut self, rw: Pin<&mut BufReader<RW>>, addr: SocketAddr) -> Result<()>
