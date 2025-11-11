@@ -6,12 +6,12 @@
 
 **Http key features:**
 
-- Router         - 
-- Response Types -
-- Static Assets  -
-- WebSocket      -
-- Middleware     -
-- Session        -
+- Router
+- Response
+- Static Assets
+- WebSocket
+- Middleware
+- Session
 
 
 ## Getting with Flyer
@@ -52,6 +52,24 @@ Now we are ready to run the server using command.
 
 ```sh
 cargo run
+```
+
+if you want to run secure server you can use function `server_tls` here is example below.
+
+```rs
+use flyer::server_tls;
+
+fn main() {
+    let mut server = server_tls("127.0.0.1", 9999, ":HOST_KEY_PATH:", ":HOST_CERT_PATH:");
+    
+    server.router().get("/", async |req, res| {
+        return res.html("<h1>Hello World Secure Connection!!!</h1>")
+    }, None);
+
+    print!("\r\n\r\nRunning server: {}\r\n\r\n", server.address());
+
+    server.listen();
+}
 ```
 
 
@@ -145,6 +163,60 @@ fn main() {
     server.listen();
 }
 ```
+
+
+### View
+
+If create file called `index.html` in folder called views and copy the content below in the file.
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hello {{ user.first_name }}</title>
+</head>
+<body>
+    <h1>Hi, {{ user.first_name }} {{ user.last_name }} how are you?</h1>
+</body>
+</html>
+```
+
+The next step to insert code below in `main.rs`.
+
+```rust
+use flyer::{server, view::view_data};
+use serde::Serialize;
+
+#[derive(Serialize)]
+pub struct User<'a> {
+    first_name: &'a str,
+    last_name: &'a str,
+}
+
+fn main() {
+    let mut server = server("127.0.0.1", 8888)
+        .view("views");
+
+    server.router().get("/", async |_req, res| {
+        let mut data = view_data();
+
+        data.insert("user", &User{
+            first_name: "Jeo",
+            last_name: "Deo"
+        });
+
+        return res.view("index.html", Some(data));
+    }, None);
+
+    println!("Running Server: {}", server.address());
+
+    server.listen();
+}
+```
+
+For more information about view functionality view [Tera](https://keats.github.io/tera/).
 
 
 ### Websocket
