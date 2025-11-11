@@ -6,14 +6,14 @@ use h3_quinn::quinn::crypto::rustls::QuicServerConfig;
 use quinn::{
     Connection as QuinnConnection,
     Endpoint,
-    ServerConfig
+    ServerConfig as QuinnServerConfig
 };
 use h3::server::Connection as H3ServerConnection;
 use h3_quinn::Connection as H3Connection;
+use rustls::ServerConfig;
 
 use crate::response::Response;
 use crate::server::handler::http3;
-use crate::server::{get_server_config};
 use crate::HTTP;
 
 pub(crate) struct UdpServer<'a> {
@@ -22,9 +22,9 @@ pub(crate) struct UdpServer<'a> {
 }
 
 impl <'a>UdpServer<'a> {    
-    pub async fn new(http: &'a mut HTTP) -> Result<UdpServer<'a>> {
+    pub async fn new(http: &'a mut HTTP, tls: ServerConfig) -> Result<UdpServer<'a>> {
         return Ok(Self {
-            listener: UdpServer::get_endpoint(http).unwrap(),
+            listener: UdpServer::get_endpoint(http.address().clone(), tls).unwrap(),
             http: http,
         });
     }
@@ -66,19 +66,14 @@ impl <'a>UdpServer<'a> {
             .unwrap();
     }
 
-    fn get_endpoint(http: &'a mut HTTP) -> Result<Endpoint> {
-        Ok(Endpoint::server(UdpServer::get_config(http).unwrap(), http.address().parse().unwrap()).unwrap())
+    fn get_endpoint(address: String, mut config: ServerConfig) -> Result<Endpoint> {
+        config.alpn_protocols = UdpServer::setup_alpn_protocols();
+        let quinn_config = QuinnServerConfig::with_crypto(Arc::new(QuicServerConfig::try_from(config).unwrap()));
+
+        Ok(Endpoint::server(quinn_config, address.parse().unwrap()).unwrap())
     }
 
-    fn get_config(http: &'a mut HTTP) -> Result<ServerConfig> {
-        let mut config = get_server_config(&http.tls.as_ref().unwrap())?;
-
-        config.alpn_protocols = UdpServer::get_alpn_protocols();
-
-        Ok(ServerConfig::with_crypto(Arc::new(QuicServerConfig::try_from(config).unwrap())))
-    }
-
-    fn get_alpn_protocols() -> Vec<Vec<u8>> {
+    fn setup_alpn_protocols() -> Vec<Vec<u8>> {
         return vec![
             b"h3".to_vec(),
             b"h3-29".to_vec(),

@@ -12,7 +12,7 @@ use crate::request::Request;
 use crate::response::Response;
 use crate::server::handler::{http1, http2, ws_http1};
 use crate::server::handler::http2::H2_PREFACE;
-use crate::server::{Protocol, HTTP1, HTTP2};
+use crate::server::{HTTP1, HTTP2, Protocol};
 use crate::HTTP;
 
 pub(crate) struct TcpServer<'a> {
@@ -22,10 +22,10 @@ pub(crate) struct TcpServer<'a> {
 }
 
 impl <'a>TcpServer<'a> {
-    pub async fn new(http: &'a mut HTTP) -> Result<TcpServer<'a>> {
+    pub async fn new(http: &'a mut HTTP, tls: Option<TlsAcceptor>) -> Result<TcpServer<'a>> {
         return Ok(TcpServer{
             listener: TcpListener::bind(format!("{}", http.address())).await.unwrap(),
-            acceptor: http.get_tls_acceptor().unwrap(),
+            acceptor: tls,
             http: http,
         });
     }

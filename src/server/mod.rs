@@ -2,7 +2,7 @@ pub mod udp;
 pub mod tcp;
 pub mod handler;
 
-use std::{io::Result as IoResult};
+use std::{io::Result as IoResult, sync::Arc};
 
 use rustls::{
     ServerConfig,
@@ -12,6 +12,7 @@ use rustls::{
         PrivateKeyDer
     }
 };
+use tokio_rustls::TlsAcceptor;
 
 use crate::HTTP;
 
@@ -52,11 +53,18 @@ pub fn get_tls_config(tls: &TlsPathConfig) -> IoResult<TlsConfig> {
 }
 
 pub fn get_server_config(tls: &TlsPathConfig) -> IoResult<ServerConfig> {
-    let config = get_tls_config(tls)?;
+    return server_config(get_tls_config(tls)?);
+}
+
+pub fn server_config(config: TlsConfig) -> IoResult<ServerConfig> {
     return Ok(
         rustls::ServerConfig::builder()
         .with_no_client_auth()
         .with_single_cert(config.cert, config.key)
         .unwrap()
     );
+}
+
+pub fn get_tls_acceptor(config: ServerConfig) -> Option<TlsAcceptor> {
+    return Some(TlsAcceptor::from(Arc::new(config)));
 }
