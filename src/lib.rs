@@ -10,23 +10,24 @@ pub mod session;
 pub mod view;
 pub mod server;
 
-use std::io::Result;
-use std::sync::Arc;
+use std::mem;
 
 use futures::join;
+use rustls::ServerConfig;
 use tokio::runtime::Runtime;
 use tokio_rustls::TlsAcceptor;
 
 use crate::response::Response;
 use crate::router::group::GroupRouter;
 use crate::router::Router;
-use crate::server::get_server_config;
+use crate::server::{get_tls_acceptor, get_tls_config, server_config};
 use crate::server::tcp::TcpServer;
 use crate::server::udp::UdpServer;
 use crate::server::TlsPathConfig;
 use crate::session::SessionManager;
 use crate::view::View;
 
+// #[repr(packed)]
 #[derive(Default)]
 pub struct HTTP {
     pub(crate) host: String,
@@ -99,18 +100,41 @@ impl HTTP {
     }
 
     pub fn listen(&mut self) {
+        let udp_http: &mut HTTP = unsafe { mem::transmute_copy(&self) };
+        let mut tls_server_config: Option<ServerConfig> = None;
+
+        if self.tls.is_some() {
+            tls_server_config = Some(server_config(get_tls_config(&self.tls.as_mut().unwrap()).unwrap()).unwrap());
+        }
+
+        let udp_tls_server_config: Option<ServerConfig> = unsafe {  mem::transmute_copy(&tls_server_config) };
+
         Runtime::new().unwrap().block_on(async {
-            // TODO: need re arch to support both TCP and UPD...
-            let tcp_server = async {
-                tokio_scoped::scope(|scope| {
-                    scope.spawn(self.run_tcp_server());
-                });
+            let udp_server = async {
+                if udp_tls_server_config.is_none() {
+                    return;
+                }
+
+                UdpServer::new(udp_http,  udp_tls_server_config.unwrap())
+                            .await
+                            .unwrap()
+                            .listen()
+                            .await;
+
             };
 
-            let udp_server = async {
-                // tokio_scoped::scope(|scope| {
-                //     scope.spawn(self.run_udp_server());
-                // });
+            let tcp_server = async {
+                let mut acceptor: Option<TlsAcceptor> = None;
+
+                if tls_server_config.is_some() {
+                    acceptor = get_tls_acceptor(tls_server_config.unwrap());
+                }
+                
+                TcpServer::new(self, acceptor)
+                            .await
+                            .unwrap()
+                            .listen()
+                            .await;
             };
             
             join!(tcp_server, udp_server);
@@ -140,30 +164,5 @@ impl HTTP {
                 res
             },
         };
-    }
-
-    async fn run_tcp_server(&mut self) {
-        TcpServer::new( self)
-            .await
-            .unwrap()
-            .listen()
-            .await;
-    }
-
-    async fn run_udp_server(&mut self) {
-        UdpServer::new(self)
-            .await
-            .unwrap()
-            .listen()
-            .await;
-    }
-
-    fn get_tls_acceptor(&mut self) -> Result<Option<TlsAcceptor>> {
-        let tls_acceptor =    match self.tls.as_mut() {
-            Some(tls) => Some(TlsAcceptor::from(Arc::new(get_server_config(tls)?))),
-            None => None,
-        };
-
-        Ok(tls_acceptor)
     }
 }
