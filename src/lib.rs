@@ -88,7 +88,7 @@ impl HTTP {
         return self;
     }
 
-    pub fn assets(mut self, path: &str, max_size_kilobytes: u64, expires_in_seconds: u64) -> Self {
+    pub fn assets(mut self, path: &str, max_size_kilobytes: usize, expires_in_seconds: u128) -> Self {
         self.assets = Some(Assets::new(path.to_owned(), max_size_kilobytes, expires_in_seconds));
 
         return self;
