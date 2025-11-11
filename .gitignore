@@ -5,3 +5,5 @@ Cargo.lock
 /views
 /assets
 .gitignore
+host.cert
+host.key

@@ -2,7 +2,8 @@ use flyer::{server, view::view_data};
 
 fn main() {
     let mut server = server("127.0.0.1", 9999)
-        .assets("assets", 1024 * 10, (60 * 60) * 24)
+        // .assets("assets", 1024 * 10, (60 * 60) * 24)
+        .assets("assets", 1024 * 1, 10)
         .view("views");
     
     server.router().get("/", async |_req, res| {

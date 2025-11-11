@@ -1,4 +1,4 @@
-use std::{collections::HashMap};
+use std::{collections::HashMap, io::Result, time::{SystemTime, UNIX_EPOCH}};
 
 pub mod url;
 
@@ -13,4 +13,13 @@ pub fn merge<T>(items: Vec<Vec<T>>) -> Vec<T> {
     }
 
     return merged
+}
+
+pub fn timestamp() -> Result<u128> {
+    return Ok(
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_millis()
+    );
 }
