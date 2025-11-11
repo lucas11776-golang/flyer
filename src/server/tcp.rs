@@ -113,10 +113,9 @@ impl <'a>TcpServer<'a> {
 
         let resp = self.http.router.match_web_routes(&mut req, &mut res).await;
 
-        if resp.is_none() {
-            // println!("CODE {}", res.status_code);
+        if resp.is_none() && self.http.assets.is_some() {
+            self.http.assets.as_mut().unwrap().handle(&mut req, &mut res).await;
         }
-
 
         Ok(handler.write(&mut self.http.render_response_view(&mut res)).await.unwrap())
     }

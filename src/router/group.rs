@@ -1,4 +1,4 @@
-use std::{collections::HashMap, io::Result};
+use std::collections::HashMap;
 
 use futures::executor::block_on;
 

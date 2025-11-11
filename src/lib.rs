@@ -29,7 +29,6 @@ use crate::server::TlsPathConfig;
 use crate::session::SessionManager;
 use crate::view::View;
 
-// #[repr(packed)]
 #[derive(Default)]
 pub struct HTTP {
     pub(crate) host: String,
@@ -85,6 +84,12 @@ impl HTTP {
 
     pub fn view(mut self, path: &str) -> Self {
         self.view = Some(View::new(path));
+
+        return self;
+    }
+
+    pub fn assets(mut self, path: &str, max_size_kilobytes: u64, expires_in_seconds: u64) -> Self {
+        self.assets = Some(Assets::new(path.to_owned(), max_size_kilobytes, expires_in_seconds));
 
         return self;
     }

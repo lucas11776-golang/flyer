@@ -1,0 +1,10 @@
+body {
+    background-color: black !important;
+    min-height: 100%;
+    width: 100%;
+    padding: 0px !important;
+}
+
+h1 {
+    color: white !important;
+}
