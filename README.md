@@ -224,8 +224,8 @@ For more information about view functionality view [Tera](https://keats.github.i
 Create file called `style.css` in folder called `assets` and copy the content below in the file.
 
 ```css
-.body {
-    background-color: block;
+body {
+    background-color: black;
 }
 
 h1 {
