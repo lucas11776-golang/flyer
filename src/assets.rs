@@ -4,7 +4,11 @@ use std::{
     io::{Read, Result},
 };
 
-use crate::{request::Request, response::Response, utils::timestamp};
+use crate::{
+    request::Request,
+    response::Response,
+    utils::timestamp
+};
 
 pub(crate) struct Asset {
     pub size: usize,
@@ -21,13 +25,12 @@ pub(crate) struct Assets {
     cache: Cache,
 }
 
-// TODO: refactor cache, implement expiring cache
 impl Assets {
     pub fn new(path: String, max_size_kilobytes: usize, expires_in_seconds: u128) -> Self {
         return Self {
             path: path.trim_end_matches("/").to_owned(),
+            max_size: max_size_kilobytes * 1000,
             expires: expires_in_seconds,
-            max_size: max_size_kilobytes,
             cache: Cache::new(),
         }
     }
@@ -39,13 +42,9 @@ impl Assets {
         if cached_asset.is_some() {
             let asset = cached_asset.unwrap();
 
-
-            // println!("EXPIRES, {}", asset.expires - timestamp().unwrap() );
-
-            if timestamp().unwrap() > cached_asset.unwrap().expires {
+            if  asset.expires > timestamp().unwrap() {
                 return Ok((req, res.body(&asset.data).status_code(200)));
             }
-
         }
 
         let cached_asset = self.read_asset(name.clone()).unwrap();
@@ -60,7 +59,7 @@ impl Assets {
 
 
         if asset.size > self.max_size.clone() {
-            // remove in cache if big fix...
+            self.cache.remove(&name.clone());
         } 
 
         return Ok((req, res));
@@ -83,7 +82,7 @@ impl Assets {
 
         self.cache.insert(name.clone(), Asset {
             size: reading.unwrap(),
-            expires: timestamp().unwrap(),
+            expires: timestamp().unwrap() + (1000 * self.expires),
             data: content.into(),
         });
 
