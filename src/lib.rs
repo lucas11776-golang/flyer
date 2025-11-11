@@ -9,6 +9,7 @@ pub mod utils;
 pub mod session;
 pub mod view;
 pub mod server;
+pub mod assets;
 
 use std::mem;
 
@@ -17,6 +18,7 @@ use rustls::ServerConfig;
 use tokio::runtime::Runtime;
 use tokio_rustls::TlsAcceptor;
 
+use crate::assets::Assets;
 use crate::response::Response;
 use crate::router::group::GroupRouter;
 use crate::router::Router;
@@ -37,6 +39,7 @@ pub struct HTTP {
     pub(crate) router: GroupRouter,
     pub(crate) session_manger: Option<Box<dyn SessionManager>>,
     pub(crate) view: Option<View>,
+    pub(crate) assets: Option<Assets>
 }
 
 fn new_http_server(host: &str, port: i32, tls: Option<TlsPathConfig>) -> HTTP {
@@ -48,6 +51,7 @@ fn new_http_server(host: &str, port: i32, tls: Option<TlsPathConfig>) -> HTTP {
         router: GroupRouter::new(),
         view: None,
         session_manger: None,
+        assets: None,
     };
 }
 

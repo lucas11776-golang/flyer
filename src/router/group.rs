@@ -38,7 +38,7 @@ impl <'r>GroupRouter {
         });
     }
 
-    pub async fn match_web_routes(&mut self, req: &'r mut Request, res: &'r mut Response) -> Result<&'r mut Response> {
+    pub async fn match_web_routes(&mut self, req: &'r mut Request, res: &'r mut Response) -> Option<&'r mut Response> {
         for route in &mut self.web {
             let (is_match, parameters) = route.is_match(req);
 
@@ -49,19 +49,19 @@ impl <'r>GroupRouter {
             req.parameters = parameters;
 
             if Self::handle_middlewares(&self.middlewares, req, res, &route.middlewares).is_none() {
-                return Ok(res)
+                return Some(res)
             }
 
-            return Ok((route.route)(req, res))
+            return Some((route.route)(req, res))
         }
 
         if self.not_found_callback.is_some() {
-            return Ok(self.not_found_callback.as_ref() .unwrap()(req, res));
+            return Some(self.not_found_callback.as_ref() .unwrap()(req, res));
         }
 
         res.status_code = 404;
 
-        return Ok(res)
+        return None;
     }
 
     pub async fn match_ws_routes<'a>(&'a mut self, req: &'a mut Request, res: &'a mut Response) -> Option<(&'a mut Route<Box<WsRoute>>, &'a mut Request, &'a mut Response)> {
