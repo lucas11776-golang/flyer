@@ -167,7 +167,7 @@ fn main() {
 
 ### View
 
-If create file called `index.html` in folder called views and copy the content below in the file.
+Create file called `index.html` in folder called views and copy the content below in the file.
 
 ```html
 <!DOCTYPE html>
@@ -217,6 +217,61 @@ fn main() {
 ```
 
 For more information about view functionality view [Tera](https://keats.github.io/tera/).
+
+
+### Assets
+
+Create file called `style.css` in folder called `assets` and copy the content below in the file.
+
+```css
+.body {
+    background-color: block;
+}
+
+h1 {
+    color: white;
+}
+```
+
+And also create file called `index.html` in folder called `views` and copy the content below in the file.
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <base href="http://127.0.0.1:9999/">
+  <title>Assets Test</title>
+  <link href="/style.css" rel="stylesheet">
+</head>
+<body>
+  <h1>Hello World</h1>
+</body>
+</html>
+```
+
+The next step to insert code below in `main.rs`.
+
+```rs
+use flyer::{server, view::view_data};
+
+fn main() {
+    let mut server = server("127.0.0.1", 9999)
+        .assets("assets", 1024 * 10, (60 * 60) * 24)
+        .view("views");
+    
+    server.router().get("/", async |_req, res| {
+        return res.view("index.html", Some(view_data()));
+    }, None);
+
+    print!("\r\n\r\nRunning server: {}\r\n\r\n", server.address());
+
+    server.listen();
+}
+```
+
+You should see background color of black and Hello World with white color if you visit `127.0.0.0.1:9999`
 
 
 ### Websocket

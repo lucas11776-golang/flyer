@@ -2,6 +2,7 @@ use flyer::{server, view::view_data};
 use serde::Serialize;
 
 /*
+
 TODO: Create file called index.html in views folder and paste html content below
 
 ```html
@@ -17,6 +18,7 @@ TODO: Create file called index.html in views folder and paste html content below
 </body>
 </html>
 ```
+
 */
 
 #[derive(Serialize)]
