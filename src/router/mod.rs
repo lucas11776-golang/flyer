@@ -57,25 +57,33 @@ impl <'r, R> Route<R> {
     fn parameters_route_match(&mut self, route_path: Vec<String>, request_path: Vec<String>) -> (bool, Values) {
         let mut params: Values = Values::new();
 
-        for (i, seg) in request_path.iter().enumerate() {
+        for (i, _) in request_path.iter().enumerate() {
             if i > route_path.len() - 1 {
                 return (false, Values::new());
             }
 
-            let seg_match = route_path[i].clone();
-
-            if seg == "*" {
-                return (true, Values::new());
+            if route_path[i] == "*" {
+                return (true, params);
             }
 
-            if seg == &seg_match {
+            if route_path[i] == request_path[i] {
+                // Off guard
+                if request_path.len() - 1 == i && route_path.len() > request_path.len() {
+                    return (false, Values::new());
+                }
+
                 continue;
             }
 
-            if PARAM_REGEX.is_match(&seg_match.to_string()) {
-                params.insert(seg.trim_start_matches('{').trim_end_matches('}').to_owned(), seg.to_string());
+            if PARAM_REGEX.is_match(&route_path[i].to_string()) {
+                params.insert(route_path[i].trim_start_matches('{').trim_end_matches('}').to_owned(), request_path[i].to_string());
 
                 continue;
+            }
+
+            // Off guard
+            if request_path.len() - 1 == i && route_path.len() > request_path.len() {
+                return (false, Values::new());
             }
 
             return (false, Values::new());
