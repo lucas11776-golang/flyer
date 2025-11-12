@@ -9,13 +9,13 @@ use crate::utils::Values;
 pub trait Session: Send + Sync {
     fn values(&mut self) -> Values;
     fn set(&mut self, key: &str, value: &str);
-    fn set_values(&mut self, values: Values) -> Values;
+    fn set_values(&mut self, values: Values);
     fn get(&mut self, key: &str) -> String;
     fn remove(&mut self, key: &str);
     fn errors(&mut self) -> Values;
-    fn set_errors(&mut self, errors: Values) -> Values;
     fn set_error(&mut self, key: &str, value: &str);
-    fn get_error(&mut self, key: &str);
+    fn set_errors(&mut self, errors: Values);
+    fn get_error(&mut self, key: &str) -> String;
     fn remove_error(&mut self, key: &str);
 }
 
