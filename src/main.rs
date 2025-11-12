@@ -19,22 +19,17 @@ pub async fn home_view<'a>(req: &'a mut Request, res: &'a mut Response) -> &'a m
     return res.view("index.html", Some(view_data()));
 }
 
-
 pub async fn login_view<'a>(req: &'a mut Request, res: &'a mut Response) -> &'a mut Response {
     return res.view("login.html", Some(view_data()));
 }
-
 
 pub async fn register_view<'a>(req: &'a mut Request, res: &'a mut Response) -> &'a mut Response {
     return res.view("register.html", Some(view_data()));
 }
 
-
 pub async fn page_not_found<'a>(req: &'a mut Request, res: &'a mut Response) -> &'a mut Response {
     return res.view("404.html", Some(view_data()));
 }
-
-
 
 fn main() {
     // let mut server = server_tls("127.0.0.1", 9999, "host.key", "host.cert")
