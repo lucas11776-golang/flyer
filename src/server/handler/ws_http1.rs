@@ -160,9 +160,9 @@ where
 
     async fn handshake(mut rw: Pin<&'a mut BufReader<RW>>, req: &'a mut Request, res: &'a mut Response) -> Result<(Pin<&'a mut BufReader<RW>>, &'a mut Request, &'a mut Response)> {
         let res = res.status_code(101)
-            .header("Upgrade".to_owned(), "websocket".to_owned())
-            .header("Connection".to_owned(), "Upgrade".to_owned())
-            .header("Sec-WebSocket-Accept".to_owned(), Self::get_sec_web_socket_accept(req.header("sec-websocket-key")));
+            .header("Upgrade", "websocket")
+            .header("Connection", "Upgrade")
+            .header("Sec-WebSocket-Accept", Self::get_sec_web_socket_accept(req.header("sec-websocket-key")).as_str());
 
         rw.as_mut()
             .write(parse(res).unwrap().as_bytes())

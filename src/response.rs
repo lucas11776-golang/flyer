@@ -2,12 +2,11 @@ use std::io::Result;
 use serde::Serialize;
 
 use crate::{
-    request::Headers, session::Session, view::ViewData, ws::Writer
+    request::Headers, view::ViewData, ws::Writer
 };
 
 pub struct Response {
     pub ws: Option<Box<dyn Writer + Send + Sync + 'static>>,
-    pub session: Option<Box<dyn Session>>,
     pub(crate) status_code: u16,
     pub(crate) headers: Headers,
     pub(crate) body: Vec<u8>,
@@ -41,7 +40,6 @@ impl Response {
             headers: Headers::new(),
             body: vec![],
             view: None,
-            session: None,
         };
     }
 
@@ -51,8 +49,8 @@ impl Response {
         return self;
     }
 
-    pub fn header(&mut self, key: String, value: String) -> &mut Response {
-        self.headers.insert(key, value);
+    pub fn header(&mut self, key: &str, value: &str) -> &mut Response {
+        self.headers.insert(key.to_owned(), value.to_owned());
 
         return self;
     }
@@ -73,12 +71,12 @@ impl Response {
     where 
         J: ?Sized + Serialize
     {
-        return self.header("Content-Type".to_owned(), "application/json".to_owned())
+        return self.header("Content-Type", "application/json")
             .body(serde_json::to_string(object).unwrap().as_bytes());
     }
 
     pub fn html(&mut self, html: &str) -> &mut Response {
-        return self.header("Content-Type".to_string(), "text/html".to_owned())
+        return self.header("Content-Type", "text/html")
             .body(html.as_bytes());
     }
 
@@ -90,5 +88,17 @@ impl Response {
 
         return self;
     }
-}
 
+    pub fn redirect(&mut self, to: &str) -> &mut Response {
+        let html = format!(r#"
+        <!DOCTYPE html>
+        <meta http-equiv="Refresh" content="0, url='{}'">
+        <head>
+            <body>
+            </body>
+        </html>
+        "#, to);
+
+        return self.html(&html).status_code(307);
+    }
+}

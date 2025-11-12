@@ -1,5 +1,6 @@
 #![feature(async_fn_traits)]
 #![feature(unboxed_closures)]
+#![feature(downcast_unchecked)]
 
 pub mod request;
 pub mod response;

@@ -1,8 +1,7 @@
 use std::{cmp::Ordering, collections::HashMap};
 
-use quinn::crypto::Session;
 
-use crate::utils::Values;
+use crate::{session::Session, utils::Values};
 
 pub type Headers = HashMap<String, String>;
 pub type Files = HashMap<String, File>;
@@ -20,7 +19,7 @@ pub struct MultipartForm {
 }
 
 pub struct Request {
-    pub session: Option<Box<dyn Session>>,
+    pub(crate) session: Option<Box<dyn Session>>,
     pub ip: String,
     pub host: String,
     pub method: String,
@@ -93,5 +92,9 @@ impl Request {
         let header_piece: Vec<&str> = header.split(";").collect();
 
         return  header_piece.get(0).unwrap().cmp(&"application/json") == Ordering::Equal;
+    }
+
+    pub fn session(&mut self) -> &mut Box<dyn Session + 'static> {
+        return self.session.as_mut().unwrap();
     }
 }

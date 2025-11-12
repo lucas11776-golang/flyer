@@ -166,7 +166,7 @@ impl <'a>TcpServer<'a> {
             self.http.session_manager
                 .as_mut()
                 .unwrap()
-                .handle(&mut req, &mut res)
+                .setup(&mut req, &mut res)
                 .unwrap();
         }
 
@@ -179,7 +179,7 @@ impl <'a>TcpServer<'a> {
                 self.http.session_manager
                     .as_mut()
                     .unwrap()
-                    .cleanup(&mut req, &mut res)
+                    .teardown(&mut req, &mut res)
                     .unwrap();
             }
         }
