@@ -1,4 +1,4 @@
-use flyer::{server, server_tls, session::cookie::new_session_cookie, view::view_data};
+use flyer::{server_tls, session::cookie::new_session_cookie, view::view_data};
 
 fn main() {
     let mut server = server_tls("127.0.0.1", 9999, "host.key", "host.cert")

@@ -151,7 +151,12 @@ impl <'a>TcpServer<'a> {
             (req, res) = self.http.assets.as_mut().unwrap().handle(req, res).unwrap();
         }
 
-        self.http.render_response_view(&mut res);
+
+        if res.view.is_some() && self.http.view.is_some() {
+            res = self.http.view.as_mut().unwrap().render(res).unwrap();
+        }
+
+        // self.http.render_response_view(&mut res);
 
         return Ok(self.handle_session_cleanup(req, res).await.unwrap());
     }
