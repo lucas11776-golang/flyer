@@ -12,7 +12,9 @@ pub struct User {
 }
 
 pub async fn home_view<'a>(req: &'a mut Request, res: &'a mut Response) -> &'a mut Response {
-    req.session().set("user_id", format!("{}", 1).as_str());
+    // req.session().set("user_id", format!("{}", 1).as_str());
+
+    println!("user_id: {:?}", req.session().get("user_id"));
 
     return res.view("index.html", Some(view_data()));
 }
@@ -35,12 +37,13 @@ pub async fn page_not_found<'a>(req: &'a mut Request, res: &'a mut Response) -> 
 
 
 fn main() {
-    let mut server = server_tls("127.0.0.1", 9999, "host.key", "host.cert")
-    // let mut server = server("127.0.0.1", 9999)
+    // let mut server = server_tls("127.0.0.1", 9999, "host.key", "host.cert")
+    let mut server = server("127.0.0.1", 9999)
         // .assets("assets", 1024 * 10, (60 * 60) * 24)
         .assets("assets", 1024 * 1, 10)
         .view("views")
-        .session(new_session_manager(Duration::from_hours(2), "session", "encryption"));
+        .session(new_session_manager(Duration::from_hours(2), "session", "encryption"))
+        ;
 
     server.router().group("/", |router| {
         router.get("/", home_view, None);

@@ -162,7 +162,7 @@ impl <'a>TcpServer<'a> {
     }
 
     fn handle_session(&mut self, mut req: Request, mut res: Response) -> Result<(Request, Response)> {
-        if !req.is_asset() {
+        if !req.is_asset() &&  self.http.session_manager.is_some() {
             self.http.session_manager
                 .as_mut()
                 .unwrap()
@@ -174,14 +174,12 @@ impl <'a>TcpServer<'a> {
     }
 
     async fn handle_session_cleanup(&mut self, mut req: Request, mut res: Response) -> Result<(Request, Response)> {
-        if self.http.session_manager.is_some() {
-            if !req.is_asset() {
-                self.http.session_manager
-                    .as_mut()
-                    .unwrap()
-                    .teardown(&mut req, &mut res)
-                    .unwrap();
-            }
+        if !req.is_asset() && self.http.session_manager.is_some() {
+            self.http.session_manager
+                .as_mut()
+                .unwrap()
+                .teardown(&mut req, &mut res)
+                .unwrap();
         }
 
         return Ok((req, res));
