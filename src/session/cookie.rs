@@ -1,48 +1,108 @@
+use std::any::Any;
 use std::io::Result;
+use std::time::Duration;
+
+use cookie::Cookie;
+use serde::{Deserialize, Serialize};
 
 use crate::session::{Session, SessionManager};
 use crate::response::Response;
 use crate::request::Request;
+use crate::utils::Values;
+use crate::utils::encrypt::{decrypt, encrypt};
+use crate::utils::string::string_fixed_length;
 
-pub fn new_session_cookie() -> impl SessionManager {
+use cookie::time::{Duration as DurationCookie, OffsetDateTime};
+
+pub fn new_session_manager(expires: Duration, cookie_name: &str, encryption_key: &str) -> impl SessionManager {
     return SessionCookieManager {
-
-    }
+        expires: expires,
+        cookie_name: cookie_name.to_owned(),
+        encryption_key: string_fixed_length(encryption_key, 32),
+    };
 }
 
 pub struct SessionCookieManager {
-
+    expires: Duration,
+    cookie_name: String,
+    encryption_key: String,
 }
 
 pub(crate) struct SessionCookie {
+    pub(crate) values: Values,
+    pub(crate) errors: Values,
+    pub(crate) new_errors: Values,
+}
 
+
+pub(crate) fn new_session_cookie(values: Values, errors: Values) -> impl Session {
+    return SessionCookie {
+        values: values,
+        errors: errors,
+        new_errors: Values::new(),
+    }
+}
+
+
+#[derive(Serialize, Deserialize)]
+pub(crate) struct CookieStorage {
+    pub values: Values,
+    pub errors: Values,
 }
 
 impl SessionManager for SessionCookieManager {
-    fn handle<'a>(&mut self, req: &'a mut Request, res: &'a mut Response) -> Result<(&'a mut Request, &'a mut Response)> {
-        // println!("COOKIE HANDLE");
+    fn setup<'a>(&mut self, req: &'a mut Request, res: &'a mut Response) -> Result<(&'a mut Request, &'a mut Response)> {
+        let cookie= Cookie::parse(req.header("cookie"));
 
-        return Ok((req, res))
+        if cookie.is_err() {
+            req.session = Some(Box::new(new_session_cookie(Values::new(), Values::new())));
+
+            return Ok((req, res));
+        }
+
+
+
+        // TODO: check if it reads all the cookies.
+        // println!("COOKIE {:?}", cookie.unwrap().);
+
+
+        req.session = Some(Box::new(new_session_cookie(Values::new(), Values::new())));
+
+        return Ok((req, res));
     }
 
-    fn cleanup<'a>(&mut self, req: &'a mut Request, res: &'a mut Response) -> Result<(&'a mut Request, &'a mut Response)> {
-        // println!("COOKIE CLEANUP");
+    // TODO: set domain as global maybe have configuration struct in `new_session_manager``
+    fn teardown<'a>(&mut self, req: &'a mut Request, res: &'a mut Response) -> Result<(&'a mut Request, &'a mut Response)> {        
+        // TODO: do not like is - (working with unsafe...)
+        unsafe {
+            let session = (req.session.as_ref().unwrap() as &dyn Any).downcast_ref_unchecked::<Box<SessionCookie>>();
 
-        return Ok((req, res))
-    }
+            let data = serde_json::to_string(&CookieStorage {
+                values: session.values.clone(),
+                errors: session.new_errors.clone(),
+            });
 
-    fn expires(&mut self, expires_seconds: u128) {
-        
+            let payload = encrypt(self.encryption_key.as_str(), data.unwrap().as_str()).unwrap();
+            let mut cookie = Cookie::new(self.cookie_name.clone(), payload);
+
+            cookie.set_expires(OffsetDateTime::now_utc() + DurationCookie::seconds(self.expires.as_secs().try_into().unwrap()));
+
+            return Ok((req, res.header("Set-Cookie", cookie.to_string().as_str())))
+        };
     }
 }
 
 
 impl Session for SessionCookie {
-    fn values(&mut self) -> crate::utils::Values {
+    fn values(&mut self) -> Values {
         todo!()
     }
 
-    fn set_values(&mut self, values: crate::utils::Values) -> crate::utils::Values {
+    fn set(&mut self, key: &str, value: &str) {
+        self.values.insert(key.to_owned(), value.to_owned());
+    }
+
+    fn set_values(&mut self, values: Values) -> Values {
         todo!()
     }
 
@@ -50,15 +110,15 @@ impl Session for SessionCookie {
         todo!()
     }
 
-    fn set(&mut self, key: &str, value: &str) {
+    fn remove(&mut self, key: &str) {
         todo!()
     }
 
-    fn errors(&mut self) -> crate::utils::Values {
+    fn errors(&mut self) -> Values {
         todo!()
     }
 
-    fn set_errors(&mut self, errors: crate::utils::Values) -> crate::utils::Values {
+    fn set_errors(&mut self, errors: Values) -> Values {
         todo!()
     }
 
@@ -67,6 +127,10 @@ impl Session for SessionCookie {
     }
 
     fn get_error(&mut self, key: &str) {
+        todo!()
+    }
+
+    fn remove_error(&mut self, key: &str) {
         todo!()
     }
 }
