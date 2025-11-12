@@ -49,15 +49,16 @@ impl Handler {
         Ok(Request{
             ip: "127.0.0.1".to_owned(),
             host: self.get_host(&headers),
+            headers: headers,
             method: self.request.method().to_string(),
             path: self.request.uri().path().to_string(),
             parameters: Values::new(),
             query: parse_query_params(self.request.uri().query().unwrap_or(""))?,
             protocol: HTTP3.to_string(),
-            headers: headers,
             body: vec![],
             values: Values::new(),
             files: Files::new(),
+            session: None
         })
     }
 

@@ -23,6 +23,7 @@ pub(crate) struct Handler<'a, RW> {
 
 }
 
+// TODO: user third party HTTP/1.1 parse to handler edge cases...
 impl <'a, RW>Handler<'a, RW>
 where
     RW: AsyncRead + AsyncWrite + Unpin + Send + Sync
@@ -36,6 +37,8 @@ where
 
     pub async fn handle<'s>(&'s mut self) -> Option<Result<Request>> {
         let mut request_line: String = String::new();
+
+        // TODO: handle unwrap...
         let n: usize = self.rw.read_line(&mut request_line).await.unwrap();
 
         if n == 0 {
@@ -81,6 +84,7 @@ where
             body: body,
             values: Values::new(),
             files: Files::new(),
+            session: None
         };
 
         return Some(Ok(req));

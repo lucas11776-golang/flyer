@@ -36,7 +36,7 @@ pub struct HTTP {
     pub(crate) tls: Option<TlsPathConfig>,
     pub(crate) request_max_size: i64,
     pub(crate) router: GroupRouter,
-    pub(crate) session_manger: Option<Box<dyn SessionManager>>,
+    pub(crate) session_manager: Option<Box<dyn SessionManager>>,
     pub(crate) view: Option<View>,
     pub(crate) assets: Option<Assets>
 }
@@ -49,7 +49,7 @@ fn new_http_server(host: &str, port: i32, tls: Option<TlsPathConfig>) -> HTTP {
         request_max_size: 1024,
         router: GroupRouter::new(),
         view: None,
-        session_manger: None,
+        session_manager: None,
         assets: None,
     };
 }
@@ -94,8 +94,8 @@ impl HTTP {
         return self;
     }
 
-    pub fn session(mut self, manager: Box<dyn SessionManager>) -> Self {
-        self.session_manger = Some(manager);
+    pub fn session(mut self, manager: impl SessionManager + 'static) -> Self {
+        self.session_manager = Some(Box::new(manager));
 
         return self;
     }
