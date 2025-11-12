@@ -25,6 +25,7 @@ pub(crate) struct Assets {
     cache: Cache,
 }
 
+// TODO: Refactor
 impl Assets {
     pub fn new(path: String, max_size_kilobytes: usize, expires_in_seconds: u128) -> Self {
         return Self {
@@ -35,7 +36,7 @@ impl Assets {
         }
     }
 
-    pub fn handle<'a>(&mut self, req: &'a mut Request, res: &'a mut Response) -> Result<(&'a mut Request, &'a mut Response)> {
+    pub fn handle<'a>(&mut self, req: Request, mut res: Response) -> Result<(Request, Response)> {
         let name = format!("{}/{}", self.path, req.path.trim_start_matches("/"));
         let cached_asset = self.cache.get(&name);
 
@@ -43,7 +44,9 @@ impl Assets {
             let asset = cached_asset.unwrap();
 
             if  asset.expires > timestamp().unwrap() {
-                return Ok((req, res.body(&asset.data).status_code(200)));
+                res.body(&asset.data).status_code(200);
+
+                return Ok((req, res));
             }
         }
 
@@ -57,10 +60,9 @@ impl Assets {
 
         res.body(&asset.data).status_code(200);
 
-
         if asset.size > self.max_size.clone() {
             self.cache.remove(&name.clone());
-        } 
+        }
 
         return Ok((req, res));
     }

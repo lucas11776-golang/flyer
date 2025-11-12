@@ -19,7 +19,6 @@ use tokio::runtime::Runtime;
 use tokio_rustls::TlsAcceptor;
 
 use crate::assets::Assets;
-use crate::response::Response;
 use crate::router::group::GroupRouter;
 use crate::router::Router;
 use crate::server::{get_tls_acceptor, get_tls_config, server_config};
@@ -36,7 +35,7 @@ pub struct HTTP {
     pub(crate) tls: Option<TlsPathConfig>,
     pub(crate) request_max_size: i64,
     pub(crate) router: GroupRouter,
-    pub(crate) session_manger: Option<Box<dyn SessionManager>>,
+    pub(crate) session_manager: Option<Box<dyn SessionManager>>,
     pub(crate) view: Option<View>,
     pub(crate) assets: Option<Assets>
 }
@@ -49,7 +48,7 @@ fn new_http_server(host: &str, port: i32, tls: Option<TlsPathConfig>) -> HTTP {
         request_max_size: 1024,
         router: GroupRouter::new(),
         view: None,
-        session_manger: None,
+        session_manager: None,
         assets: None,
     };
 }
@@ -94,8 +93,8 @@ impl HTTP {
         return self;
     }
 
-    pub fn session(mut self, manager: Box<dyn SessionManager>) -> Self {
-        self.session_manger = Some(manager);
+    pub fn session(mut self, manager: impl SessionManager + 'static) -> Self {
+        self.session_manager = Some(Box::new(manager));
 
         return self;
     }
@@ -148,30 +147,5 @@ impl HTTP {
             
             join!(tcp_server, udp_server);
         });
-    }
-
-    // TODO: still needs moving...
-    pub(crate) fn render_response_view<'a>(&mut self, res: &'a mut Response) -> &'a mut Response {
-        return match &res.view  {
-            Some(bag) => {
-                match self.view.as_mut() {
-                    Some(view) => {
-                        // TODO: Do want to clone data may have binary -> big data like Vec<u8>
-                        res.body =  view.render(&bag.view, bag.data.clone()).as_bytes().to_vec();
-                    },
-                    None => {
-                        res.status_code = 500;
-                        println!("Set View Path") // TODO: log
-                    },
-                }
-
-                res.view = None;
-
-                res
-            },
-            None => {
-                res
-            },
-        };
     }
 }

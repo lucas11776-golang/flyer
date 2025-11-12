@@ -52,9 +52,14 @@ impl <'a>UdpServer<'a> {
                     let mut handler = http3::Handler::new(request, stream);
                     let mut req = handler.handle().await.unwrap();
                     let mut res = Response::new();
-                    let res = self.http.router.match_web_routes(&mut req, &mut res).await.unwrap();
+                    
+                    self.http.router.match_web_routes(&mut req, &mut res).await.unwrap();
 
-                    handler.write(&mut self.http.render_response_view(res)).await.unwrap();
+                    if res.view.is_some() && self.http.view.is_some() {
+                        res = self.http.view.as_mut().unwrap().render(res).unwrap();
+                    }
+
+                    handler.write(&mut res).await.unwrap();
                 });
             });
         }

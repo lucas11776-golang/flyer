@@ -77,11 +77,11 @@ impl <'a>TcpServer<'a> {
         }
     }
 
-    async fn handle_web_socket<RW>(&mut self, rw: Pin<&mut BufReader<RW>>, mut req: Request, mut res: Response) -> Result<()>
+    async fn handle_web_socket<RW>(&mut self, rw: Pin<&mut BufReader<RW>>, req: &mut Request, res: &mut Response) -> Result<()>
     where
         RW: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static
     {
-        let (mut handler, req, res) = ws_http1::Handler::new(rw, &mut req, &mut res).await.unwrap();
+        let (mut handler, req, res) = ws_http1::Handler::new(rw, req, res).await.unwrap();
         let result = self.http.router.match_ws_routes(req, res).await;
 
         if result.is_none() {
@@ -108,16 +108,16 @@ impl <'a>TcpServer<'a> {
         let mut res = Response::new();
 
         if req.header("upgrade") == "websocket" {
-            return Ok(self.handle_web_socket(rw, req, res).await.unwrap())
+            (req, res) = self.handle_session(req, res).unwrap();
+
+            self.handle_web_socket(rw, &mut req, &mut res).await.unwrap();
+
+            return Ok(())
         }
 
-        let resp = self.http.router.match_web_routes(&mut req, &mut res).await;
+        (req, res) = self.handle(req, res).await.unwrap();
 
-        if resp.is_none() && self.http.assets.is_some() {
-            let _ = self.http.assets.as_mut().unwrap().handle(&mut req, &mut res);
-        }
-
-        Ok(handler.write(&mut self.http.render_response_view(&mut res)).await.unwrap())
+        return Ok(handler.write(&mut res).await.unwrap());
     }
 
     async fn http_2_protocol<RW>(&mut self, rw: Pin<&mut BufReader<RW>>, addr: SocketAddr) -> Result<()>
@@ -132,13 +132,59 @@ impl <'a>TcpServer<'a> {
                     let (request, send) = result.unwrap();
                     let mut req = handler.get_http_request(request).await.unwrap();
                     let mut res = Response::new();
-                    let res = self.http.router.match_web_routes(&mut req, &mut res).await.unwrap();
 
-                    handler.write(send,&mut self.http.render_response_view(res)).await.unwrap();
+                    (req, res) = self.handle(req, res).await.unwrap();
+
+                    handler.write(send, &mut res).await.unwrap();
                 });
             });
         }
 
-        Ok(())   
+        return Ok(())   
     }
+
+    async fn handle<'h>(&mut self, mut req: Request, mut res: Response) -> Result<(Request, Response)> {
+        (req, res) = self.handle_session(req, res).unwrap();
+        let resp = self.http.router.match_web_routes(&mut req, &mut res).await;
+
+        if resp.is_none() && self.http.assets.is_some() {
+            (req, res) = self.http.assets.as_mut().unwrap().handle(req, res).unwrap();
+        }
+
+
+        if res.view.is_some() && self.http.view.is_some() {
+            res = self.http.view.as_mut().unwrap().render(res).unwrap();
+        }
+
+        // self.http.render_response_view(&mut res);
+
+        return Ok(self.handle_session_cleanup(req, res).await.unwrap());
+    }
+
+    fn handle_session(&mut self, mut req: Request, mut res: Response) -> Result<(Request, Response)> {
+        if !req.is_asset() {
+            self.http.session_manager
+                .as_mut()
+                .unwrap()
+                .handle(&mut req, &mut res)
+                .unwrap();
+        }
+
+        return Ok((req, res));
+    }
+
+    async fn handle_session_cleanup(&mut self, mut req: Request, mut res: Response) -> Result<(Request, Response)> {
+        if self.http.session_manager.is_some() {
+            if !req.is_asset() {
+                self.http.session_manager
+                    .as_mut()
+                    .unwrap()
+                    .cleanup(&mut req, &mut res)
+                    .unwrap();
+            }
+        }
+
+        return Ok((req, res));
+    }
+
 }

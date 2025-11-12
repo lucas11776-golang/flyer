@@ -1,5 +1,7 @@
 use std::{cmp::Ordering, collections::HashMap};
 
+use quinn::crypto::Session;
+
 use crate::utils::Values;
 
 pub type Headers = HashMap<String, String>;
@@ -18,6 +20,7 @@ pub struct MultipartForm {
 }
 
 pub struct Request {
+    pub session: Option<Box<dyn Session>>,
     pub ip: String,
     pub host: String,
     pub method: String,
@@ -34,6 +37,7 @@ pub struct Request {
 impl Request {
     pub fn new(method: &str, path: &str, headers: Values, body: Vec<u8>) -> Self {
         return Self {
+            session: None,
             ip: "".to_owned(),
             host: "".to_owned(),
             method: method.to_owned(),
@@ -46,6 +50,18 @@ impl Request {
             values: Values::new(),
             files: Files::new(),
         }
+    }
+
+    pub(crate) fn is_asset(&mut self) -> bool {
+        let end = self.path.split("/").last();
+
+        if end.is_none() {
+            return false;
+        }
+
+        let file_split: Vec<&str> = end.unwrap().split(".").collect();
+
+        return file_split.len() > 1;
     }
 
     pub fn ip(&self) -> String {

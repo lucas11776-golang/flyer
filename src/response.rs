@@ -2,13 +2,12 @@ use std::io::Result;
 use serde::Serialize;
 
 use crate::{
-    request::Headers,
-    view::ViewData,
-    ws::{Writer},
+    request::Headers, session::Session, view::ViewData, ws::Writer
 };
 
 pub struct Response {
     pub ws: Option<Box<dyn Writer + Send + Sync + 'static>>,
+    pub session: Option<Box<dyn Session>>,
     pub(crate) status_code: u16,
     pub(crate) headers: Headers,
     pub(crate) body: Vec<u8>,
@@ -42,6 +41,7 @@ impl Response {
             headers: Headers::new(),
             body: vec![],
             view: None,
+            session: None,
         };
     }
 
