@@ -12,11 +12,13 @@ pub struct User {
 }
 
 pub async fn home_view<'a>(req: &'a mut Request, res: &'a mut Response) -> &'a mut Response {
-    // req.session().set("user_id", format!("{}", 1).as_str());
+    req.session().set("user_id", format!("{}", 1).as_str());
 
-    println!("user_id: {:?}", req.session().get("user_id"));
+    // println!("user_id: {:?}", req.session().get("user_id"));
 
-    return res.view("index.html", Some(view_data()));
+    // return res.view("index.html", Some(view_data()));
+
+    return res.redirect("login");
 }
 
 pub async fn login_view<'a>(req: &'a mut Request, res: &'a mut Response) -> &'a mut Response {

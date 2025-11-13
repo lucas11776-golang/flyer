@@ -1,7 +1,13 @@
-use std::{cmp::Ordering, collections::HashMap};
+use std::{
+    cmp::Ordering,
+    collections::HashMap
+};
 
-
-use crate::{session::Session, utils::Values};
+use crate::{
+    cookie::Cookies,
+    session::Session,
+    utils::Values
+};
 
 pub type Headers = HashMap<String, String>;
 pub type Files = HashMap<String, File>;
@@ -19,6 +25,7 @@ pub struct MultipartForm {
 }
 
 pub struct Request {
+    pub(crate) cookies: Cookies,
     pub(crate) session: Option<Box<dyn Session>>,
     pub ip: String,
     pub host: String,
@@ -48,6 +55,7 @@ impl Request {
             body: body,
             values: Values::new(),
             files: Files::new(),
+            cookies: Cookies::new(Values::new()),
         }
     }
 
@@ -96,5 +104,9 @@ impl Request {
 
     pub fn session(&mut self) -> &mut Box<dyn Session + 'static> {
         return self.session.as_mut().unwrap();
+    }
+
+    pub fn cookies(&mut self) -> &mut Cookies {
+        return &mut self.cookies;
     }
 }

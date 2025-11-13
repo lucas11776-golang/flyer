@@ -4,23 +4,18 @@ use std::time::Duration;
 
 use cookie::Cookie;
 use serde::{Deserialize, Serialize};
+use cookie::time::{Duration as DurationCookie, OffsetDateTime};
 
 use crate::session::{Session, SessionManager};
 use crate::response::Response;
 use crate::request::Request;
-use crate::utils::Values;
-use crate::utils::encrypt::{decrypt, encrypt};
-use crate::utils::string::string_fixed_length;
 
-use cookie::time::{Duration as DurationCookie, OffsetDateTime};
-
-pub fn new_session_manager(expires: Duration, cookie_name: &str, encryption_key: &str) -> impl SessionManager {
-    return SessionCookieManager {
-        expires: expires,
-        cookie_name: cookie_name.to_owned(),
-        encryption_key: string_fixed_length(encryption_key, 32),
-    };
-}
+use crate::utils::{
+    Values,
+    encrypt::{decrypt, encrypt},
+    string::string_fixed_length,
+    cookie::cookie_parse
+};
 
 pub struct SessionCookieManager {
     expires: Duration,
@@ -28,10 +23,17 @@ pub struct SessionCookieManager {
     encryption_key: String,
 }
 
+
 pub(crate) struct SessionCookie {
     pub(crate) values: Values,
     pub(crate) errors: Values,
     pub(crate) new_errors: Values,
+}
+
+#[derive(Serialize, Deserialize)]
+pub(crate) struct CookieStorage {
+    pub values: Values,
+    pub errors: Values,
 }
 
 pub(crate) fn new_session_cookie(values: Values, errors: Values) -> SessionCookie {
@@ -42,23 +44,15 @@ pub(crate) fn new_session_cookie(values: Values, errors: Values) -> SessionCooki
     }
 }
 
-pub fn cookie_parse<'a>(raw_cookie: String) -> Result<Values> {
-    let mut values = Values::new();
-
-    for result in Cookie::split_parse(raw_cookie) {
-        let cookie = result.unwrap();
-
-        values.insert(cookie.name().to_string(), cookie.value().to_string());
-    }
-
-    return Ok(values);
+pub fn new_session_manager(expires: Duration, cookie_name: &str, encryption_key: &str) -> impl SessionManager {
+    return SessionCookieManager {
+        expires: expires,
+        cookie_name: cookie_name.to_owned(),
+        encryption_key: string_fixed_length(encryption_key, 32),
+    };
 }
 
-#[derive(Serialize, Deserialize)]
-pub(crate) struct CookieStorage {
-    pub values: Values,
-    pub errors: Values,
-}
+
 
 pub(crate) fn parse_raw_cookie(encryption_key: String, raw_cookie: Option<&String>) -> Result<SessionCookie> {
     if raw_cookie.is_none() {

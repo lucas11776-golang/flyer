@@ -11,6 +11,7 @@ use tokio::io::{
     BufReader
 };
 
+use crate::cookie::Cookies;
 use crate::response::{parse, Response};
 use crate::server::{HTTP1};
 use crate::utils::url::parse_query_params;
@@ -84,7 +85,8 @@ where
             body: body,
             values: Values::new(),
             files: Files::new(),
-            session: None
+            session: None,
+            cookies: Cookies::new(Values::new()),
         };
 
         return Some(Ok(req));

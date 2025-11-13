@@ -6,6 +6,7 @@ use http::Request as HttpRequest;
 use h3::server::RequestStream;
 use h3_quinn::BidiStream;
 
+use crate::cookie::Cookies;
 use crate::request::{Files, Request};
 use crate::response::Response;
 use crate::server::HTTP3;
@@ -58,7 +59,8 @@ impl Handler {
             body: vec![],
             values: Values::new(),
             files: Files::new(),
-            session: None
+            session: None,
+            cookies: Cookies::new(Values::new()),
         })
     }
 
