@@ -1,12 +1,11 @@
-use std::{collections::HashMap, time::Duration};
+use std::time::Duration;
+
+use cookie::{
+    Cookie as OrgCookie,
+    time::{Duration as CookieDuration, OffsetDateTime}
+};
 
 use crate::utils::Values;
-
-pub enum SameSite {
-    Strict,
-    None,
-    Lax,
-}
 
 pub struct Cookie {
     name: String,
@@ -16,13 +15,13 @@ pub struct Cookie {
     domain: Option<String>,
     path: Option<String>,
     secure: Option<bool>,
-    http_only: Option<SameSite>,
+    http_only: Option<bool>,
 
 }
 
 pub struct Cookies {
     pub(crate) cookies: Values,
-    pub(crate) new_cookie: HashMap<String, Cookie>,
+    pub(crate) new_cookie: Vec<Cookie>,
 }
 
 impl Cookie {
@@ -81,10 +80,40 @@ impl Cookie {
         return self;
     }
 
-    pub fn set_http_only(&mut self, value: SameSite) -> &mut Self {
+    pub fn set_http_only(&mut self, value: bool) -> &mut Self {
         self.http_only = Some(value);
 
         return self;
+    }
+
+    pub(crate) fn parse(&mut self) -> String {
+        let mut cookie = OrgCookie::new(self.name.to_string(), self.value.to_string());
+
+        if self.expires.is_some() {
+            cookie.set_expires(OffsetDateTime::now_utc() + CookieDuration::seconds(self.expires.unwrap().as_secs().try_into().unwrap()));
+        }
+
+        if self.max_age.is_some() {
+            cookie.set_max_age(CookieDuration::new(self.max_age.unwrap().as_secs().try_into().unwrap(), 0));
+        }
+
+        if self.domain.is_some() {
+            cookie.set_domain(self.domain.as_ref().unwrap());
+        }
+
+        if self.domain.is_some() {
+            cookie.set_domain(self.domain.as_ref().unwrap());
+        }
+
+        if self.secure.is_some() && self.secure.unwrap() {
+            cookie.set_secure(true);
+        }
+
+        if self.http_only.is_some() && self.http_only.unwrap() {
+            cookie.set_http_only(true);
+        }
+
+        return cookie.to_string();
     }
 }
 
@@ -92,7 +121,7 @@ impl Cookies {
     pub fn new(cookies: Values) -> Self {
         return Self {
             cookies: cookies,
-            new_cookie: HashMap::new(),
+            new_cookie: vec![],
         }
     }
 
@@ -106,9 +135,11 @@ impl Cookies {
         return cookie.unwrap().to_owned();
     }
 
-    pub fn set(&mut self, name: &str, value: &str) -> &Cookie {
-        self.new_cookie.insert(name.to_owned(), Cookie::new(name, value));
+    pub fn set(&mut self, name: &str, value: &str) -> &mut Cookie {
+        let idx = self.new_cookie.len();
 
-        return self.new_cookie.get(name).unwrap();
+        self.new_cookie.push(Cookie::new(name, value));
+
+        return &mut self.new_cookie[idx];
     }
 }

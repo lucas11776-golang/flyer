@@ -86,7 +86,7 @@ where
             values: HashMap::new(),
             files: HashMap::new(),
             session: None,
-            cookies: Cookies::new(Values::new()),
+            cookies: Box::new(Cookies::new(Values::new())),
         })
     }
 

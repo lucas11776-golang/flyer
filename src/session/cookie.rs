@@ -52,8 +52,6 @@ pub fn new_session_manager(expires: Duration, cookie_name: &str, encryption_key:
     };
 }
 
-
-
 pub(crate) fn parse_raw_cookie(encryption_key: String, raw_cookie: Option<&String>) -> Result<SessionCookie> {
     if raw_cookie.is_none() {
         return Ok(new_session_cookie(Values::new(), Values::new()));
@@ -65,7 +63,13 @@ pub(crate) fn parse_raw_cookie(encryption_key: String, raw_cookie: Option<&Strin
         return Ok(new_session_cookie(Values::new(), Values::new()));
     }
 
-    let storage: CookieStorage = serde_json::from_str(&payload.unwrap()).unwrap();
+    let result = serde_json::from_str::<CookieStorage>(&payload.unwrap());
+
+    if result.is_err() {
+        return Ok(new_session_cookie(Values::new(), Values::new()));
+    }
+
+    let storage = result.unwrap();
 
     return Ok(new_session_cookie(storage.values, storage.errors));
 }
@@ -83,7 +87,6 @@ impl SessionManager for SessionCookieManager {
     fn teardown<'a>(&mut self, req: &'a mut Request, res: &'a mut Response) -> Result<(&'a mut Request, &'a mut Response)> {        
         // TODO: do not like is - (working with unsafe...)
         unsafe {
-            
             // TODO: loosening performance here in downcast ref.
             let session = (req.session.as_ref().unwrap() as &dyn Any).downcast_ref_unchecked::<Box<SessionCookie>>();
 

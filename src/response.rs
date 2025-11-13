@@ -2,7 +2,7 @@ use std::io::Result;
 use serde::Serialize;
 
 use crate::{
-    request::Headers, view::ViewData, ws::Writer
+    cookie::Cookie, request::Headers, view::ViewData, ws::Writer
 };
 
 pub struct Response {
@@ -19,7 +19,7 @@ pub struct ViewBag {
     pub(crate) data: Option<ViewData>,
 }
 
-pub fn parse(response: &mut Response) -> Result<String> {
+pub fn parse(response: &mut Response, cookies: Option<&mut Vec<Cookie>>) -> Result<String> {
     let mut res: Vec<String> = vec![format!("HTTP/1.0 {} {}", response.status_code, "OK")];
 
     for (k, v) in response.headers.clone() {
@@ -27,7 +27,26 @@ pub fn parse(response: &mut Response) -> Result<String> {
     }
 
     res.push(format!("Content-Length: {}", response.body.len()));
+
+
+    // println!("COOKIE -> {}", cookies.is_some());
+
+
+    if let Some(cookies) = cookies {
+        for cookie in cookies {
+
+
+            res.push(format!("Set-Cookie: {}", cookie.parse()));
+        }
+    }
+
+
     res.push(format!("\r\n{}", String::from_utf8(response.body.clone()).unwrap()));
+
+
+    // for cookie in 
+
+    // println!("\r\n\r\n{}\r\n\r\n", res.join("\r\n"));
 
     return Ok(res.join("\r\n"));
 }

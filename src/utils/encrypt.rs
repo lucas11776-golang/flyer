@@ -11,6 +11,7 @@ use base64::{Engine, engine::general_purpose};
 
 // TODO: refactor to later un-deprecated
 pub fn encrypt(key_bytes: &str, plaintext: &str) -> Result<String> {
+    #[allow(deprecated)]
     let key = Key::<Aes256Gcm>::from_slice(key_bytes.as_bytes());
     let cipher = Aes256Gcm::new(key);
     let nonce = Aes256Gcm::generate_nonce(OsRng);
@@ -28,10 +29,18 @@ pub fn encrypt(key_bytes: &str, plaintext: &str) -> Result<String> {
 
 // TODO: refactor to later un-deprecated
 pub fn decrypt(key_bytes: &str, encrypted_b64: &str) -> Result<String> {
+    #[allow(deprecated)]
     let key = Key::<Aes256Gcm>::from_slice(key_bytes.as_bytes());
     let cipher = Aes256Gcm::new(key);
-    let combined = general_purpose::STANDARD.decode(encrypted_b64).unwrap();
-    let (nonce_bytes, ciphertext) = combined.split_at(12);
+    let combined = general_purpose::STANDARD.decode(encrypted_b64);
+
+    if combined.is_err() {
+        return Ok(String::new());
+    }
+
+    let session = combined.unwrap();
+    let (nonce_bytes, ciphertext) = session.split_at(12);
+    #[allow(deprecated)]
     let nonce = Nonce::from_slice(nonce_bytes);
     let plaintext = cipher.decrypt(nonce, ciphertext).unwrap();
 
