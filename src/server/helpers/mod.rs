@@ -26,7 +26,7 @@ pub(crate) async fn setup<'a>(http: &'a mut HTTP, mut req: Request, mut res: Res
 
 pub(crate) async fn teardown<'a>(http: &'a mut HTTP, mut req: Request, mut res: Response) -> Result<(Request, Response)> {
     if res.view.is_some() && http.view.is_some() {
-        res = http.view.as_mut().unwrap().render(res).unwrap();
+        (req, res) = http.view.as_mut().unwrap().render(req, res).unwrap();
     }
 
     if !req.is_asset() && http.session_manager.is_some() {

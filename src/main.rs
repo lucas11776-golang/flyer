@@ -23,7 +23,9 @@ pub async fn home_view<'a>(req: &'a mut Request, res: &'a mut Response) -> &'a m
     return res.view("index.html", Some(view_data()));
 }
 
-pub async fn login_view<'a>(_req: &'a mut Request, res: &'a mut Response) -> &'a mut Response {
+pub async fn login_view<'a>(req: &'a mut Request, res: &'a mut Response) -> &'a mut Response {
+    req.session().set("user_id", "1");
+
     return res.view("login.html", Some(view_data()));
 }
 

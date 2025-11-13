@@ -56,7 +56,7 @@ impl <'a>UdpServer<'a> {
                     self.http.router.match_web_routes(&mut req, &mut res).await.unwrap();
 
                     if res.view.is_some() && self.http.view.is_some() {
-                        res = self.http.view.as_mut().unwrap().render(res).unwrap();
+                        (req, res) = self.http.view.as_mut().unwrap().render(req, res).unwrap();
                     }
 
                     handler.write(&mut res).await.unwrap();

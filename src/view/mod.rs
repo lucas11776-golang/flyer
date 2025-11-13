@@ -1,9 +1,11 @@
+pub mod functions;
+
 use std::io::Result;
 
-use serde::Serialize;
+use serde::{Serialize};
 use tera::{Context, Tera};
 
-use crate::response::Response;
+use crate::{request::Request, response::Response, view::functions::Functions};
 
 pub(crate) struct View {
     pub(crate) render: Tera
@@ -33,9 +35,9 @@ impl View {
         }
     }
 
-    pub fn render<'a>(&mut self, mut res: Response) -> Result<Response> {
+    pub fn render<'a>(&mut self, mut req: Request,  mut res: Response) -> Result<(Request, Response)> {
         if res.view.is_none() {
-            return Ok(res);
+            return Ok((req, res));
         }
 
         let bag = res.view.as_mut().unwrap();
@@ -44,11 +46,10 @@ impl View {
             bag.data = Some(view_data());
         }
 
-        res.body = self.render
-            .render(&format!("{}", bag.view), &bag.data.as_mut().unwrap().context)
-            .unwrap()
-            .into();
+        let mut helper = Functions::new(&mut self.render, &mut req);
 
-        return Ok(res);   
+        res.body = helper.render(bag).unwrap();
+
+        return Ok((req, res));   
     }
 }
