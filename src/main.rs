@@ -1,9 +1,9 @@
 use std::time::Duration;
 
-use flyer::{request::Request, response::Response, server, server_tls, session::cookie::new_session_manager, view::view_data};
+use flyer::{request::Request, response::Response, server, session::cookie::new_session_manager, view::view_data};
 use serde::{Deserialize, Serialize};
 
-static ACCOUNTS: Vec<User> = vec![];
+// static ACCOUNTS: Vec<User> = vec![];
 
 #[derive(Serialize, Deserialize)]
 pub struct User {
@@ -12,24 +12,26 @@ pub struct User {
 }
 
 pub async fn home_view<'a>(req: &'a mut Request, res: &'a mut Response) -> &'a mut Response {
-    req.session().set("user_id", format!("{}", 1).as_str());
+    req.cookies()
+        .set("user_id", "1")
+        .set_expires(Duration::from_hours(2));
 
-    // println!("user_id: {:?}", req.session().get("user_id"));
+    req.cookies()
+        .set("tracker_id", "t_1")
+        .set_expires(Duration::from_hours(2));
 
-    // return res.view("index.html", Some(view_data()));
-
-    return res.redirect("login");
+    return res.view("index.html", Some(view_data()));
 }
 
-pub async fn login_view<'a>(req: &'a mut Request, res: &'a mut Response) -> &'a mut Response {
+pub async fn login_view<'a>(_req: &'a mut Request, res: &'a mut Response) -> &'a mut Response {
     return res.view("login.html", Some(view_data()));
 }
 
-pub async fn register_view<'a>(req: &'a mut Request, res: &'a mut Response) -> &'a mut Response {
+pub async fn register_view<'a>(_req: &'a mut Request, res: &'a mut Response) -> &'a mut Response {
     return res.view("register.html", Some(view_data()));
 }
 
-pub async fn page_not_found<'a>(req: &'a mut Request, res: &'a mut Response) -> &'a mut Response {
+pub async fn page_not_found<'a>(_req: &'a mut Request, res: &'a mut Response) -> &'a mut Response {
     return res.view("404.html", Some(view_data()));
 }
 
@@ -39,7 +41,7 @@ fn main() {
         // .assets("assets", 1024 * 10, (60 * 60) * 24)
         .assets("assets", 1024 * 1, 10)
         .view("views")
-        .session(new_session_manager(Duration::from_hours(2), "session", "encryption"))
+        .session(new_session_manager(Duration::from_hours(2), "session_cookie_key_name", "encryption"))
         ;
 
     server.router().group("/", |router| {

@@ -7,16 +7,6 @@ use flyer::{
     server,
     session::cookie::new_session_manager
 };
-use serde::{
-    Deserialize,
-    Serialize
-};
-
-#[derive(Serialize, Deserialize)]
-pub struct User {
-    email: String,
-    password: String,
-}
 
 pub fn auth<'a>(req: &'a mut Request, res: &'a mut Response, next: &'a mut Next) -> &'a mut Response {
     if req.session().get("user_id") == "" {
@@ -60,7 +50,7 @@ pub async fn page_not_found<'a>(_req: &'a mut Request, res: &'a mut Response) ->
 
 fn main() {
     let mut server = server("127.0.0.1", 9999)
-        .session(new_session_manager(Duration::from_hours(2), "session", "encryption"));
+        .session(new_session_manager(Duration::from_hours(2), "session_cookie_key_name", "encryption"));
 
     server.router().group("/", |router| {
         router.get("/", home_view, Some(vec![auth]));

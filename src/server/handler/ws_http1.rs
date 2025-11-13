@@ -165,7 +165,7 @@ where
             .header("Sec-WebSocket-Accept", Self::get_sec_web_socket_accept(req.header("sec-websocket-key")).as_str());
 
         rw.as_mut()
-            .write(parse(res).unwrap().as_bytes())
+            .write(parse(res, Some(&mut req.cookies.new_cookie)).unwrap().as_bytes())
             .await
             .unwrap();
 

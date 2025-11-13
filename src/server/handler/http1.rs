@@ -86,14 +86,14 @@ where
             values: Values::new(),
             files: Files::new(),
             session: None,
-            cookies: Cookies::new(Values::new()),
+            cookies: Box::new(Cookies::new(Values::new())),
         };
 
         return Some(Ok(req));
     }
 
-    pub async fn write(&mut self, res: &mut Response) -> Result<()> {
-        let _ = self.rw.write(parse(res)?.as_bytes()).await;
+    pub async fn write(&mut self, req: &mut Request, res: &mut Response) -> Result<()> {
+        let _ = self.rw.write(parse(res, Some(&mut req.cookies.new_cookie))?.as_bytes()).await;
 
         Ok(())
     }

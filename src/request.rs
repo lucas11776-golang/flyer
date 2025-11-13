@@ -25,7 +25,7 @@ pub struct MultipartForm {
 }
 
 pub struct Request {
-    pub(crate) cookies: Cookies,
+    pub(crate) cookies: Box<Cookies>,
     pub(crate) session: Option<Box<dyn Session>>,
     pub ip: String,
     pub host: String,
@@ -55,7 +55,7 @@ impl Request {
             body: body,
             values: Values::new(),
             files: Files::new(),
-            cookies: Cookies::new(Values::new()),
+            cookies: Box::new(Cookies::new(Values::new())),
         }
     }
 

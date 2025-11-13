@@ -12,6 +12,7 @@ use crate::request::Request;
 use crate::response::Response;
 use crate::server::handler::{http1, http2, ws_http1};
 use crate::server::handler::http2::H2_PREFACE;
+use crate::server::helpers::{setup, teardown};
 use crate::server::{HTTP1, HTTP2, Protocol};
 use crate::HTTP;
 
@@ -108,7 +109,7 @@ impl <'a>TcpServer<'a> {
         let mut res = Response::new();
 
         if req.header("upgrade") == "websocket" {
-            (req, res) = self.handle_session(req, res).unwrap();
+            (req, res) = setup(self.http, req, res).await.unwrap();
 
             self.handle_web_socket(rw, &mut req, &mut res).await.unwrap();
 
@@ -117,7 +118,7 @@ impl <'a>TcpServer<'a> {
 
         (req, res) = self.handle(req, res).await.unwrap();
 
-        return Ok(handler.write(&mut res).await.unwrap());
+        return Ok(handler.write(&mut req, &mut res).await.unwrap());
     }
 
     async fn http_2_protocol<RW>(&mut self, rw: Pin<&mut BufReader<RW>>, addr: SocketAddr) -> Result<()>
@@ -144,45 +145,15 @@ impl <'a>TcpServer<'a> {
     }
 
     async fn handle<'h>(&mut self, mut req: Request, mut res: Response) -> Result<(Request, Response)> {
-        (req, res) = self.handle_session(req, res).unwrap();
+        (req, res) = setup(self.http, req, res).await.unwrap();
+
         let resp = self.http.router.match_web_routes(&mut req, &mut res).await;
 
         if resp.is_none() && self.http.assets.is_some() {
             (req, res) = self.http.assets.as_mut().unwrap().handle(req, res).unwrap();
         }
 
-
-        if res.view.is_some() && self.http.view.is_some() {
-            res = self.http.view.as_mut().unwrap().render(res).unwrap();
-        }
-
-        // self.http.render_response_view(&mut res);
-
-        return Ok(self.handle_session_cleanup(req, res).await.unwrap());
+        return Ok(teardown(self.http, req, res).await.unwrap());
     }
-
-    fn handle_session(&mut self, mut req: Request, mut res: Response) -> Result<(Request, Response)> {
-        if !req.is_asset() &&  self.http.session_manager.is_some() {
-            self.http.session_manager
-                .as_mut()
-                .unwrap()
-                .setup(&mut req, &mut res)
-                .unwrap();
-        }
-
-        return Ok((req, res));
-    }
-
-    async fn handle_session_cleanup(&mut self, mut req: Request, mut res: Response) -> Result<(Request, Response)> {
-        if !req.is_asset() && self.http.session_manager.is_some() {
-            self.http.session_manager
-                .as_mut()
-                .unwrap()
-                .teardown(&mut req, &mut res)
-                .unwrap();
-        }
-
-        return Ok((req, res));
-    }
-
 }
+
