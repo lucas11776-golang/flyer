@@ -1,3 +1,7 @@
+# TODO
+
+- session must be available os set.
+
 # Refactor websocket
 
 - Move websocket logic to http1_websocket handler.
@@ -36,3 +40,5 @@
 
 # Remove package
 - Now all packages are used remove unused packages.
+
+<!-- // #[allow(deprecated)] -->

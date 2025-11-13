@@ -109,7 +109,7 @@ impl SessionManager for SessionCookieManager {
 
 impl Session for SessionCookie {
     fn values(&mut self) -> Values {
-        todo!()
+        return self.values.clone();
     }
 
     fn set(&mut self, key: &str, value: &str) {
