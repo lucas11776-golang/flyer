@@ -7,7 +7,6 @@
 **Http key features:**
 
 - Router
-- Response
 - View
 - Assets
 - Middleware

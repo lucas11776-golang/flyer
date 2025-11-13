@@ -36,3 +36,6 @@
 
 # Remove package
 - Now all packages are used remove unused packages.
+
+
+<!-- // #[allow(deprecated)] -->

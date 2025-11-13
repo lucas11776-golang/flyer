@@ -9,16 +9,14 @@ use aes_gcm::{
 };
 use base64::{Engine, engine::general_purpose};
 
-// TODO: refactor to later un-deprecated
-pub fn encrypt(key_bytes: &str, plaintext: &str) -> Result<String> {
-    #[allow(deprecated)]
-    let key = Key::<Aes256Gcm>::from_slice(key_bytes.as_bytes());
+pub fn encrypt(key: &str, data: &str) -> Result<String> {
+    let key = Key::<Aes256Gcm>::from_slice(key.as_bytes());
     let cipher = Aes256Gcm::new(key);
     let nonce = Aes256Gcm::generate_nonce(OsRng);
-    let ciphertext = cipher.encrypt(&nonce, plaintext.as_bytes()).unwrap();
+    let cipher_text = cipher.encrypt(&nonce, data.as_bytes()).unwrap();
     let mut combined = nonce.to_vec();
 
-    combined.extend_from_slice(&ciphertext);
+    combined.extend_from_slice(&cipher_text);
 
     let mut buffer = String::new();
 
@@ -27,12 +25,10 @@ pub fn encrypt(key_bytes: &str, plaintext: &str) -> Result<String> {
     return Ok(buffer);
 }
 
-// TODO: refactor to later un-deprecated
-pub fn decrypt(key_bytes: &str, encrypted_b64: &str) -> Result<String> {
-    #[allow(deprecated)]
-    let key = Key::<Aes256Gcm>::from_slice(key_bytes.as_bytes());
+pub fn decrypt(key: &str, hash: &str) -> Result<String> {
+    let key = Key::<Aes256Gcm>::from_slice(key.as_bytes());
     let cipher = Aes256Gcm::new(key);
-    let combined = general_purpose::STANDARD.decode(encrypted_b64);
+    let combined = general_purpose::STANDARD.decode(hash);
 
     if combined.is_err() {
         return Ok(String::new());
@@ -40,7 +36,6 @@ pub fn decrypt(key_bytes: &str, encrypted_b64: &str) -> Result<String> {
 
     let session = combined.unwrap();
     let (nonce_bytes, ciphertext) = session.split_at(12);
-    #[allow(deprecated)]
     let nonce = Nonce::from_slice(nonce_bytes);
     let plaintext = cipher.decrypt(nonce, ciphertext).unwrap();
 
