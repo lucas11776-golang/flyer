@@ -9,6 +9,7 @@ use http::{HeaderMap, Request as HttpRequest, Response as HttpResponse};
 use reqwest::Url;
 use tokio::io::{AsyncRead, AsyncWrite, BufReader};
 
+use crate::cookie::Cookies;
 use crate::response::{Response};
 use crate::request::{Headers, Request};
 use crate::utils::url::parse_query_params;
@@ -84,7 +85,8 @@ where
             body: body,
             values: HashMap::new(),
             files: HashMap::new(),
-            session: None
+            session: None,
+            cookies: Cookies::new(Values::new()),
         })
     }
 

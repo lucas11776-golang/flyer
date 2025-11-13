@@ -3,6 +3,7 @@ use std::{collections::HashMap, io::Result, time::{SystemTime, UNIX_EPOCH}};
 pub mod url;
 pub mod string;
 pub mod encrypt;
+pub mod cookie;
 
 pub type Values = HashMap<String, String>;
 pub type Configuration = HashMap<String, String>;

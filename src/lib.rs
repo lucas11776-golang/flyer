@@ -11,6 +11,7 @@ pub mod session;
 pub mod view;
 pub mod server;
 pub mod assets;
+pub mod cookie;
 
 use std::mem;
 
