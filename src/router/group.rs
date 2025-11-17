@@ -1,19 +1,25 @@
-use std::collections::HashMap;
+use std::mem::transmute_copy;
 
-use futures::executor::block_on;
 
 use crate::{
     request::Request,
     response::Response,
-    router::{Middlewares, MiddlewaresRef, Next, Route, WebRoute, WsRoute}
+    router::{
+        Middleware,
+        Next,
+        Route,
+        Router,
+        WebRoute,
+        WsRoute
+    }
 };
 
 #[derive(Default)]
 pub struct GroupRouter {
+    pub(crate) not_found_callback: Option<Box<WebRoute>>,
     pub(crate) web: Vec<Route<Box<WebRoute>>>,
     pub(crate) ws: Vec<Route<Box<WsRoute>>>,
-    pub(crate) not_found_callback: Option<Box<WebRoute>>,
-    pub(crate) middlewares: Middlewares,
+    pub(crate) nodes: Vec<Box<Router>>,
 }
 
 impl <'r>GroupRouter {
@@ -22,20 +28,48 @@ impl <'r>GroupRouter {
             web: vec![],
             ws: vec![],
             not_found_callback: None,
-            middlewares: HashMap::new(),
+            nodes: vec![]
         }
     }
 
-    pub fn add_web_route<C>(&mut self, method: &str, path: String, callback: C, middlewares: MiddlewaresRef)
-    where
-        C: for<'a> AsyncFn<(&'a mut Request, &'a mut Response), Output = &'a mut Response> + Send + Sync + 'static
-    {
-        self.web.push(Route{
-            path: path,
-            method: method.to_string(),
-            route: Box::new(move |req, res| block_on(callback(req, res))),
-            middlewares: middlewares,
-        });
+    fn get_router_in_nodes(router: &mut Box<Router>) -> (Vec<Route<Box<WebRoute>>>, Vec<Route<Box<WsRoute>>>, Option<Box<WebRoute>>) {
+        let mut web: Vec<Route<Box<WebRoute>>> = vec![];
+        let mut ws: Vec<Route<Box<WsRoute>>> = vec![];
+        let mut not_found: Option<Box<WebRoute>> = None;
+
+        if router.group .is_some() {
+            router.group.as_mut().unwrap()(router);
+
+            web.extend::<Vec<Route<Box<WebRoute>>>>(unsafe { transmute_copy(&mut router.web) });
+            ws.extend::<Vec<Route<Box<WsRoute>>>>(unsafe { transmute_copy(&mut router.ws) });
+        }
+
+
+        if router.not_found_callback.is_some() {
+            not_found = unsafe { transmute_copy(&mut router.not_found_callback) };
+        }
+        
+        for node in &mut router.nodes {
+            let (_web, _ws, _not_found) = GroupRouter::get_router_in_nodes(node);
+
+            web.extend(_web);
+            ws.extend(_ws);
+        }
+
+        return (web, ws, not_found);
+    }
+    
+    pub fn setup(&mut self) {
+        for mut node in &mut self.nodes {
+            let (web, ws, not_found) = GroupRouter::get_router_in_nodes(&mut node);
+
+            self.web.extend(web);
+            self.ws.extend(ws);
+
+            if not_found.is_some() {
+                self.not_found_callback = not_found;
+            }
+        }
     }
 
     pub async fn match_web_routes(&mut self, req: &'r mut Request, res: &'r mut Response) -> Option<&'r mut Response> {
@@ -48,7 +82,7 @@ impl <'r>GroupRouter {
             
             req.parameters = parameters;
 
-            if Self::handle_middlewares(&self.middlewares, req, res, &route.middlewares).is_none() {
+            if Self::handle_middlewares(&route.middlewares, req, res).is_none() {
                 return Some(res)
             }
 
@@ -74,19 +108,17 @@ impl <'r>GroupRouter {
             
             req.parameters = parameters;
 
-            if Self::handle_middlewares(&self.middlewares, req, res, &route.middlewares).is_none() {
+            if Self::handle_middlewares(&route.middlewares, req, res).is_none() {
                 return None;
             }
-
             return Some((route, req, res));
         }
 
         return None;
     }
 
-    pub(crate) fn handle_middlewares(middlewares: &Middlewares, req: &'r mut Request, res: &'r mut Response, middlewares_ref: &MiddlewaresRef) -> Option<&'r mut Response> {
-        for middleware_ref in  middlewares_ref {
-            let middleware = middlewares.get(middleware_ref).unwrap();
+    pub(crate) fn handle_middlewares(middlewares: &Vec<Box<Middleware>>, req: &'r mut Request, res: &'r mut Response) -> Option<&'r mut Response> {
+        for middleware in  middlewares {
             let mut next = Next::new();
 
             middleware(req, res, &mut next);

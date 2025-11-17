@@ -1,12 +1,12 @@
 pub mod group;
 
 use std::collections::HashMap;
+use std::mem;
 use regex::Regex;
 use once_cell::sync::Lazy;
 
 use futures::executor::block_on;
 
-use crate::{router::group::GroupRouter};
 use crate::utils::{Values, merge};
 use crate::ws::Ws;
 
@@ -16,7 +16,7 @@ use crate::utils::url::{clean_url, clean_uri_to_vec};
 
 pub type WebRoute = dyn for<'a> Fn(&'a mut Request, &'a mut Response) -> &'a mut Response + Send + Sync;
 pub type WsRoute = dyn for<'a> Fn(&'a mut Request, &'a mut Ws) -> () + Send + Sync;
-pub type Middleware = for<'a> fn (&'a mut Request, &'a mut Response, &'a mut Next) -> &'a mut Response;
+pub type Middleware = dyn for<'a> Fn(&'a mut Request, &'a mut Response, &'a mut Next) -> &'a mut Response + Send + Sync + 'static;
 pub type Middlewares = HashMap<String, Box<Middleware>>;
 pub type MiddlewaresRef = Vec<String>;
 pub type Group = for<'a> fn(&'a mut Router);
@@ -29,21 +29,34 @@ pub struct Route<R> {
     pub(crate) path: String,
     pub(crate) method: String,
     pub(crate) route: R,
-    pub(crate) middlewares: MiddlewaresRef,
+    pub(crate) middlewares: Vec<Box<Middleware>>,
 }
 
 pub struct Next {
     pub(crate) is_move: bool,
 }
 
-pub struct Router<'r> {
-    pub(crate) router: &'r mut GroupRouter,
+pub struct Router {
+    pub(crate) web: Vec<Route<Box<WebRoute>>>,
+    pub(crate) ws: Vec<Route<Box<WsRoute>>>,
     pub(crate) path: Vec<String>,
-    pub(crate) middleware: MiddlewaresRef,
+    pub(crate) middleware: Vec<Box<Middleware>>,
+    pub(crate) group: Option<Group>,
+    pub(crate) nodes: Vec<Box<Router>>,
+    pub(crate) not_found_callback: Option<Box<WebRoute>>,
 }
 
 impl <'r, R> Route<R> {
-    pub fn is_match(&mut self, req: &'r mut Request) -> (bool, Values) {
+    pub fn middleware<C>(&mut self, callback: C) -> &mut Self
+    where
+        C: for<'a> AsyncFn<(&'a mut Request, &'a mut Response, &'a mut Next), Output = &'a mut Response> + Send + Sync + 'static,
+    {
+        self.middlewares.push(Box::new(move |req, res, next| block_on(callback(req, res, next))));
+
+        return self;
+    }
+
+    pub(crate) fn is_match(&mut self, req: &'r mut Request) -> (bool, Values) {
         let request_path: Vec<String> = clean_uri_to_vec(req.path.clone());
         let route_path: Vec<String> = clean_uri_to_vec(self.path.clone());
 
@@ -107,124 +120,137 @@ impl Next {
     }
 }
 
-impl <'r>Router<'r> {
-    pub fn get<C>(&mut self, path: &str, callback: C, middleware: Option<Vec<Middleware>>)
+pub struct GroupRouting<'r> {
+    pub(crate) router: &'r mut Box<Router>
+}
+
+impl <'r>GroupRouting<'r> {
+    pub(crate) fn new(router: &'r mut Box<Router>) -> GroupRouting<'r> {
+        return Self {
+            router: router,
+        }
+    }
+
+    pub fn middleware<C>(&mut self, callback: C) -> &mut Self
+    where
+        C: for<'a> AsyncFn<(&'a mut Request, &'a mut Response, &'a mut Next), Output = &'a mut Response> + Send + Sync + 'static,
+    {
+        self.router.middleware.push(Box::new(move |req, res, next| block_on(callback(req, res, next))));
+
+        return self;
+    }
+}
+
+impl <'r>Router {
+    pub fn get<C>(&mut self, path: &str, callback: C) -> &mut Route<Box<WebRoute>>
     where
         C: for<'a> AsyncFn<(&'a mut Request, &'a mut Response), Output = &'a mut Response> + Send + Sync + 'static,
     {
-        self.route("GET", path, callback, middleware);
+        return self.route("GET", path, callback);
     }
 
-    pub fn post<C>(&mut self, path: &str, callback: C, middleware: Option<Vec<Middleware>>)
+    pub fn post<C>(&mut self, path: &str, callback: C) -> &mut Route<Box<WebRoute>>
     where
         C: for<'a> AsyncFn<(&'a mut Request, &'a mut Response), Output = &'a mut Response> + Send + Sync + 'static,
         
     {
-        self.route("POST", path, callback, middleware);
+        return self.route("POST", path, callback);
     }
 
-    pub fn patch<C>(&mut self, path: &str, callback: C, middleware: Option<Vec<Middleware>>)
+    pub fn patch<C>(&mut self, path: &str, callback: C) -> &mut Route<Box<WebRoute>>
     where
         C: for<'a> AsyncFn<(&'a mut Request, &'a mut Response), Output = &'a mut Response> + Send + Sync + 'static,
     {
-        self.route("PATCH", path, callback, middleware);
+        return self.route("PATCH", path, callback);
     }
 
-    pub fn put<C>(&mut self, path: &str, callback: C, middleware: Option<Vec<Middleware>>)
+    pub fn put<C>(&mut self, path: &str, callback: C) -> &mut Route<Box<WebRoute>>
     where
         C: for<'a> AsyncFn<(&'a mut Request, &'a mut Response), Output = &'a mut Response> + Send + Sync + 'static,
     {
-        self.route("PUT", path, callback, middleware);
+        return self.route("PUT", path, callback);
     }
 
-    pub fn delete<C>(&mut self, path: &str, callback: C, middleware: Option<Vec<Middleware>>)
+    pub fn delete<C>(&mut self, path: &str, callback: C) -> &mut Route<Box<WebRoute>>
     where
         C: for<'a> AsyncFn<(&'a mut Request, &'a mut Response), Output = &'a mut Response> + Send + Sync + 'static,
     {
-        self.route("DELETE", path, callback, middleware);
+        return self.route("DELETE", path, callback);
     }   
 
-    pub fn options<C>(&mut self, path: &str, callback: C, middleware: Option<Vec<Middleware>>)
+    pub fn options<C>(&mut self, path: &str, callback: C) -> &mut Route<Box<WebRoute>>
     where
         C: for<'a> AsyncFn<(&'a mut Request, &'a mut Response), Output = &'a mut Response> + Send + Sync + 'static,
     {
-        self.route("OPTIONS", path, callback, middleware);
+        return self.route("OPTIONS", path, callback);
     }
 
-    pub fn head<C>(&mut self, path: &str, callback: C, middleware: Option<Vec<Middleware>>)
+    pub fn head<C>(&mut self, path: &str, callback: C)
     where
         C: for<'a> AsyncFn<(&'a mut Request, &'a mut Response), Output = &'a mut Response> + Send + Sync + 'static,
     {
-        self.route("CONNECT", path, callback, middleware);
+        self.route("CONNECT", path, callback);
     }
 
-    pub fn route<C>(&mut self, method: &str, path: &str, callback: C, middleware: Option<Vec<Middleware>>)
+    pub fn route<C>(&mut self, method: &str, path: &str, callback: C) -> &mut Route<Box<WebRoute>>
     where
         C: for<'a> AsyncFn<(&'a mut Request, &'a mut Response), Output = &'a mut Response> + Send + Sync + 'static,
     {
+        let idx = self.web.len();
         let path = self.path(path).join("/");
-        let resolved = self.merge_middlewares(middleware);
+        let middlewares: Vec<Box<Middleware>> = unsafe { mem::transmute_copy(&mut self.middleware) };
 
-        self.router.add_web_route(method, path, callback, resolved);
+        self.web.push(Route{
+            path: path,
+            method: method.to_string(),
+            route: Box::new(move |req, res| block_on(callback(req, res))),
+            middlewares: middlewares,
+        });
+
+        return &mut self.web[idx];
     }
 
     pub fn not_found<C>(&mut self, callback: C)
     where
         C: for<'a> AsyncFn<(&'a mut Request, &'a mut Response), Output = &'a mut Response> + Send + Sync + 'static
     {
-        self.router.not_found_callback = Some(Box::new(move |req, res| block_on(callback(req, res))));
+        self.not_found_callback = Some(Box::new(move |req, res| block_on(callback(req, res))));
     }
 
-    pub fn ws<C>(&mut self, path: &str, callback: C, middleware: Option<Vec<Middleware>>)
+    pub fn ws<C>(&mut self, path: &str, callback: C) -> &mut Route<Box<WsRoute>>
     where
         C: for<'a> AsyncFn<(&'a mut Request, &'a mut Ws), Output = ()> + Send + Sync + 'static,
     {
+        let idx = self.web.len();
         let path = self.path(path).join("/");
-        let resolved = self.merge_middlewares(middleware);
+        let middlewares: Vec<Box<Middleware>> = unsafe { mem::transmute_copy(&mut self.middleware) };
 
-        self.router.ws.push(Route{
+        self.ws.push(Route{
             path: path,
             method: "GET".to_string(),
             route: Box::new(move |req, res| block_on(callback(req, res))),
-            middlewares: resolved,
+            middlewares: middlewares,
         });
+
+        return &mut self.ws[idx];
     }
 
-    pub fn group<'g>(&'g mut self , path: &str, group: Group, middleware: Option<Vec<Middleware>>) {
-        group(&mut Router{
-            path: self.path(path),
-            middleware: self.merge_middlewares(middleware),
-            router: self.router,
-        });
-    }
+    pub fn group<'g>(&'g mut self , path: &str, group: Group) -> GroupRouting<'g> {
+        let idx = self.nodes.len();
+        let path = self.path(path);
+        let middlewares: Vec<Box<Middleware>> = unsafe { mem::transmute_copy(&mut self.middleware) };
 
-    fn merge_middlewares(&mut self, middlewares: Option<Vec<Middleware>>) -> MiddlewaresRef {
-        let mut resolved = self.middleware.clone();
+        self.nodes.push(Box::new(Router{
+            web: vec![],
+            ws: vec![],
+            path: path,
+            middleware: middlewares,
+            group: Some(group),
+            nodes: vec![],
+            not_found_callback: None,
+        }));
 
-        resolved.extend(self.resolve_middlewares(middlewares.or(Some(vec![])).unwrap()));
-
-        return resolved;
-    }
-
-    pub fn resolve_middlewares(&mut self, middlewares: Vec<Middleware>) -> MiddlewaresRef {
-        let mut resolved: MiddlewaresRef = vec![];
-
-        for mut middleware in middlewares {
-            let address = format!("{:?}", &mut middleware);
-
-            if self.router.middlewares.get(&address).is_some() {
-                resolved.push(address);
-
-                continue;
-            }
-
-            // self.router.middlewares.insert(address.clone(), Box::new(move |req, res, next| block_on(middleware(req, res, next))));
-            self.router.middlewares.insert(address.clone(), Box::new(middleware));
-
-            resolved.push(address);
-        }
-
-        return resolved;
+        return GroupRouting::new(&mut self.nodes[idx])
     }
 
     fn path(&mut self, path: &str) -> Vec<String> {

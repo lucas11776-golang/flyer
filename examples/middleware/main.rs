@@ -12,8 +12,7 @@ pub struct JsonMessage {
     message: String
 }
 
-// TODO: working on async middleware
-pub fn auth<'a>(req: &'a mut Request, res: &'a mut Response, next: &mut Next) -> &'a mut Response {
+pub async fn auth<'a>(req: &'a mut Request, res: &'a mut Response, next: &mut Next) -> &'a mut Response {
     if req.header("authorization") != "ey.jwt.token" {
         return res.status_code(401).json(&JsonMessage{
             message: "Unauthorized Access".to_owned()
@@ -31,7 +30,7 @@ fn main() {
             id: req.parameter("user").parse().unwrap(),
             email: "joe@deo.com".to_owned()
         })
-    }, Some(vec![auth]));
+    }).middleware(auth);
 
     print!("\r\n\r\nRunning server: {}\r\n\r\n", server.address());
 

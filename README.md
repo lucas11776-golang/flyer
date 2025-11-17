@@ -39,9 +39,9 @@ use flyer::server;
 fn main() {
     let mut server = server("127.0.0.1", 9999);
     
-    server.router().get("/", async |req, res| {
+    server.router().get("/", async |_req, res| {
         return res.html("<h1>Hello World!!!</h1>")
-    }, None);
+    });
 
     print!("\r\n\r\nRunning server: {}\r\n\r\n", server.address());
 
@@ -65,7 +65,7 @@ fn main() {
     
     server.router().get("/", async |req, res| {
         return res.html("<h1>Hello World Secure Connection!!!</h1>")
-    }, None);
+    });
 
     print!("\r\n\r\nRunning server: {}\r\n\r\n", server.address());
 
@@ -104,15 +104,15 @@ fn main() {
     
     server.router().group("api", |router| {
         router.group("users", |router| {
-            router.get("/", index, None);
-            router.post("/", store, None);
+            router.get("/", index);
+            router.post("/", store);
             router.group("{user}", |router| {
-                router.get("/", view, None);
-                router.patch("/", update, None);
-                router.delete("/", destroy, None);
-            }, None);
-        }, None);
-    }, None);
+                router.get("/", view);
+                router.patch("/", update);
+                router.delete("/", destroy);
+            });
+        });
+    });
 
     print!("\r\n\r\nRunning server: {}\r\n\r\n", server.address());
 
@@ -164,7 +164,7 @@ fn main() {
         });
 
         return res.view("index.html", Some(data));
-    }, None);
+    });
 
     println!("Running Server: {}", server.address());
 
@@ -213,15 +213,14 @@ The next step to insert code below in `main.rs`.
 use flyer::{server, view::view_data};
 
 fn main() {
-    let mut server = server("127.0.0.1", 9999)
-        .assets("assets", 1024 * 10, (60 * 60) * 24)
+    let mut server = server("127.0.0.1", 8888)
         .view("views");
-    
+
     server.router().get("/", async |_req, res| {
         return res.view("index.html", Some(view_data()));
-    }, None);
+    });
 
-    print!("\r\n\r\nRunning server: {}\r\n\r\n", server.address());
+    println!("Running Server: {}", server.address());
 
     server.listen();
 }
@@ -247,8 +246,7 @@ pub struct JsonMessage {
     message: String
 }
 
-// TODO: working on async middleware
-pub fn auth<'a>(req: &'a mut Request, res: &'a mut Response, next: &mut Next) -> &'a mut Response {
+pub async fn auth<'a>(req: &'a mut Request, res: &'a mut Response, next: &mut Next) -> &'a mut Response {
     if req.header("authorization") != "ey.jwt.token" {
         return res.status_code(401).json(&JsonMessage{
             message: "Unauthorized Access".to_owned()
@@ -266,7 +264,7 @@ fn main() {
             id: req.parameter("user").parse().unwrap(),
             email: "joe@deo.com".to_owned()
         })
-    }, Some(vec![auth]));
+    }).middleware(auth);
 
     print!("\r\n\r\nRunning server: {}\r\n\r\n", server.address());
 
@@ -288,22 +286,7 @@ use flyer::{
     session::cookie::new_session_manager
 };
 
-pub fn auth<'a>(req: &'a mut Request, res: &'a mut Response, next: &'a mut Next) -> &'a mut Response {
-    if req.session().get("user_id") == "" {
-        return res.redirect("register");
-    }
-
-    return next.handle(res);
-}
-
-pub fn guest<'a>(req: &'a mut Request, res: &'a mut Response, next: &'a mut Next) -> &'a mut Response {
-    if req.session().get("user_id") != "" {
-        return res.redirect("/");
-    }
-
-    return next.handle(res);
-}
-
+/// Controller
 pub async fn home_view<'a>(req: &'a mut Request, res: &'a mut Response) -> &'a mut Response {
     return res.html(format!("<h1>Welcome to protected home page user {}</h1>", req.session().get("user_id")).as_str());
 }
@@ -328,17 +311,39 @@ pub async fn page_not_found<'a>(_req: &'a mut Request, res: &'a mut Response) ->
     return res.html("<h1>404 Page Not Found</h1>");
 }
 
+/// Middleware
+pub async fn auth<'a>(req: &'a mut Request, res: &'a mut Response, next: &'a mut Next) -> &'a mut Response {
+    if req.session().get("user_id") == "" {
+        return res.redirect("register");
+    }
+
+    return next.handle(res);
+}
+
+pub async fn guest<'a>(req: &'a mut Request, res: &'a mut Response, next: &'a mut Next) -> &'a mut Response {
+    if req.session().get("user_id") != "" {
+        return res.redirect("/");
+    }
+
+    return next.handle(res);
+}
+
 fn main() {
     let mut server = server("127.0.0.1", 9999)
         .session(new_session_manager(Duration::from_hours(2), "session_cookie_key_name", "encryption"));
 
     server.router().group("/", |router| {
-        router.get("/", home_view, Some(vec![auth]));
-        router.get("register", register, Some(vec![guest]));
-        router.get("login", login, Some(vec![guest]));
-        router.get("logout", logout, Some(vec![auth]));
-        router.not_found(page_not_found);
-    }, None);
+        router.get("/", home_view)
+            .middleware(auth);
+        router.get("register", register)
+            .middleware(guest);
+        router.get("login", login)
+            .middleware(guest);
+        router.get("logout", logout)
+            .middleware(auth);
+    });
+
+    server.router().not_found(page_not_found);
 
     print!("\r\n\r\nRunning server: {}\r\n\r\n", server.address());
 
@@ -374,9 +379,9 @@ fn main() {
     let mut server = server("127.0.0.1", 9999);
 
     server.router().group("/", |router| {
-        router.get("/", home_view, None);
-        router.get("cookie", cookie, None);
-    }, None);
+        router.get("/", home_view);
+        router.get("cookie", cookie);
+    });
 
     print!("\r\n\r\nRunning server: {}\r\n\r\n", server.address());
 
@@ -388,57 +393,33 @@ fn main() {
 ### Websocket
 
 ```rust
-use flyer::{server};
-use flyer::{request::Request, response::Response, router::Next};
-use serde::{Deserialize, Serialize};
+use std::time::Duration;
 
-#[derive(Serialize, Deserialize)]
-pub struct Message<'a> {
-    message: &'a str
+use flyer::{
+    request::Request,
+    response::Response,
+    server,
+};
+
+pub async fn home_view<'a>(req: &'a mut Request, res: &'a mut Response) -> &'a mut Response {
+    req.cookies()
+        .set("user_id", "1")
+        .set_expires(Duration::from_hours(2));
+
+    return res.html("<h1>Cookie has been set visit route /cookie</h1>");
 }
 
-pub fn auth<'a>(req: &'a mut Request, res: &'a mut Response, next: &'a mut Next) -> &'a mut Response {
-    if req.header("authorization") != "jwt.token" {
-        let writer = res.ws.as_mut().unwrap();
-
-        writer.write(serde_json::to_vec(&Message{message: "Unauthorized Access"}).unwrap());
-        
-        return res;
-    }
-
-    return next.handle(res);
+pub async fn cookie<'a>(req: &'a mut Request, res: &'a mut Response) -> &'a mut Response {
+    return res.html(format!("<h1>User ID cookie is {}</h1>", req.cookies().get("user_id")).as_str());
 }
 
 fn main() {
     let mut server = server("127.0.0.1", 9999);
 
-    server.router().group("", |router| {
-        router.ws("/", async |_req, ws| {
-            ws.on(async |event, writer| {
-                match event {
-                    flyer::ws::Event::Ready() => todo!(),
-                    flyer::ws::Event::Text(_items) => writer.write("Hello This Public Route".into()),
-                    flyer::ws::Event::Binary(_items) => todo!(),
-                    flyer::ws::Event::Ping(_items) => todo!(),
-                    flyer::ws::Event::Pong(_items) => todo!(),
-                    flyer::ws::Event::Close(_reason) => todo!(),
-                }
-            });
-        }, None);
-
-        router.ws("/private", async |_req, ws| {
-            ws.on(async |event, writer| {
-                match event {
-                    flyer::ws::Event::Ready() => todo!(),
-                    flyer::ws::Event::Text(_items) => writer.write("Hello This Private Route".into()),
-                    flyer::ws::Event::Binary(_items) => todo!(),
-                    flyer::ws::Event::Ping(_items) => todo!(),
-                    flyer::ws::Event::Pong(_items) => todo!(),
-                    flyer::ws::Event::Close(_reason) => todo!(),
-                }
-            });
-        },Some(vec![auth]));
-    }, None);
+    server.router().group("/", |router| {
+        router.get("/", home_view);
+        router.get("cookie", cookie);
+    });
 
     print!("\r\n\r\nRunning server: {}\r\n\r\n", server.address());
 

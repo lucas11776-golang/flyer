@@ -25,15 +25,15 @@ fn main() {
     
     server.router().group("api", |router| {
         router.group("users", |router| {
-            router.get("/", index, None);
-            router.post("/", store, None);
+            router.get("/", index);
+            router.post("/", store);
             router.group("{user}", |router| {
-                router.get("/", view, None);
-                router.patch("/", update, None);
-                router.delete("/", destroy, None);
-            }, None);
-        }, None);
-    }, None);
+                router.get("/", view);
+                router.patch("/", update);
+                router.delete("/", destroy);
+            });
+        });
+    });
 
     print!("\r\n\r\nRunning server: {}\r\n\r\n", server.address());
 

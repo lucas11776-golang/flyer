@@ -45,7 +45,7 @@ impl <'a>UdpServer<'a> {
     }
 
     async fn connection(&mut self, conn: QuinnConnection) {
-        let mut server = self.get_h3_server_connection(conn).await;
+        let mut server: H3ServerConnection<H3Connection, Bytes> = self.get_h3_server_connection(conn).await;
 
         while let Ok(Some(resolver)) = server.accept().await {
             tokio_scoped::scope(|scope| {
