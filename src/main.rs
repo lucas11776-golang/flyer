@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use flyer::{request::Request, response::Response, server, session::cookie::new_session_manager, view::view_data};
+use flyer::{request::Request, response::Response, server, server_tls, session::cookie::new_session_manager, view::view_data};
 use serde::{Deserialize, Serialize};
 
 // static ACCOUNTS: Vec<User> = vec![];
@@ -17,7 +17,7 @@ pub async fn home_view<'a>(req: &'a mut Request, res: &'a mut Response) -> &'a m
         .set_expires(Duration::from_hours(2));
 
     req.cookies()
-        .set("tracker_id", "t_1")
+        .set("tracker_id", "t_1_2")
         .set_expires(Duration::from_hours(2));
 
     return res.view("index.html", Some(view_data()));
@@ -38,8 +38,8 @@ pub async fn page_not_found<'a>(_req: &'a mut Request, res: &'a mut Response) ->
 }
 
 fn main() {
-    // let mut server = server_tls("127.0.0.1", 9999, "host.key", "host.cert")
-    let mut server = server("127.0.0.1", 9999)
+    let mut server = server_tls("127.0.0.1", 9999, "host.key", "host.cert")
+    // let mut server = server("127.0.0.1", 9999)
         // .assets("assets", 1024 * 10, (60 * 60) * 24)
         .assets("assets", 1024 * 1, 10)
         .view("views")

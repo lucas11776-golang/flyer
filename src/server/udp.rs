@@ -12,9 +12,11 @@ use h3::server::Connection as H3ServerConnection;
 use h3_quinn::Connection as H3Connection;
 use rustls::ServerConfig;
 
+use crate::request::Request;
 use crate::response::Response;
 use crate::server::handler::http3;
 use crate::HTTP;
+use crate::server::helpers::{setup, teardown};
 
 pub(crate) struct UdpServer<'a> {
     http: &'a mut HTTP,
@@ -52,17 +54,25 @@ impl <'a>UdpServer<'a> {
                     let mut handler = http3::Handler::new(request, stream);
                     let mut req = handler.handle().await.unwrap();
                     let mut res = Response::new();
-                    
-                    self.http.router.match_web_routes(&mut req, &mut res).await.unwrap();
 
-                    if res.view.is_some() && self.http.view.is_some() {
-                        (req, res) = self.http.view.as_mut().unwrap().render(req, res).unwrap();
-                    }
+                    (req, res) = self.handle(req, res).await.unwrap();
 
-                    handler.write(&mut res).await.unwrap();
+                    handler.write(&mut req, &mut res).await.unwrap();
                 });
             });
         }
+    }
+
+    async fn handle<'h>(&mut self, mut req: Request, mut res: Response) -> Result<(Request, Response)> {
+        (req, res) = setup(self.http, req, res).await.unwrap();
+
+        let resp = self.http.router.match_web_routes(&mut req, &mut res).await;
+
+        if resp.is_none() && self.http.assets.is_some() {
+            (req, res) = self.http.assets.as_mut().unwrap().handle(req, res).unwrap();
+        }
+
+        return Ok(teardown(self.http, req, res).await.unwrap());
     }
 
     async fn get_h3_server_connection(&mut self, conn: QuinnConnection) -> H3ServerConnection<H3Connection, Bytes> {

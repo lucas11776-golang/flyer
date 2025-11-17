@@ -64,13 +64,17 @@ impl Handler {
         })
     }
 
-    pub async fn write(mut self, res: &mut Response) -> Result<()> {
+    pub async fn write(mut self, req: &mut Request, res: &mut Response) -> Result<()> {
         let mut builder = http::Response::builder()
             .status(res.status_code)
             .header("content-length", format!("{}", res.body.len()));
 
         for (k, v) in &mut res.headers {
             builder = builder.header(k.clone(), v.clone());
+        }
+
+        for cookie in &mut req.cookies.new_cookie {
+            builder = builder.header("Set-Cookie", cookie.parse());
         }
 
         let response = builder.body(()).unwrap();

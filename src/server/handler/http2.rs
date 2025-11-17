@@ -41,11 +41,15 @@ where
         return None;
     }
 
-    pub async fn write(&mut self, mut send: SendResponse<Bytes>, res: &mut Response) -> Result<()> {
+    pub async fn write(&mut self, mut send: SendResponse<Bytes>, req: &mut Request, res: &mut Response) -> Result<()> {
         let mut builder = HttpResponse::builder().status(res.status_code);
 
         for (k, v) in &mut res.headers {
             builder = builder.header(k.clone(), v.clone());
+        }
+
+        for cookie in &mut req.cookies.new_cookie {
+            builder = builder.header("Set-Cookie", cookie.parse());
         }
 
         send.send_response(builder.body(()).unwrap(), false)

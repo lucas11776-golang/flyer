@@ -27,8 +27,6 @@ pub trait Writer {
     fn close(&mut self);
 }
 
-
-
 pub struct Ws {
     pub(crate) event: Option<Box<OnEvent>>,
 }

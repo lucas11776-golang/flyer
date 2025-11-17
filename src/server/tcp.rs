@@ -136,7 +136,7 @@ impl <'a>TcpServer<'a> {
 
                     (req, res) = self.handle(req, res).await.unwrap();
 
-                    handler.write(send, &mut res).await.unwrap();
+                    handler.write(send, &mut req, &mut res).await.unwrap();
                 });
             });
         }

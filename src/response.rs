@@ -27,26 +27,14 @@ pub fn parse(response: &mut Response, cookies: Option<&mut Vec<Cookie>>) -> Resu
     }
 
     res.push(format!("Content-Length: {}", response.body.len()));
-
-
-    // println!("COOKIE -> {}", cookies.is_some());
-
-
+    
     if let Some(cookies) = cookies {
         for cookie in cookies {
-
-
             res.push(format!("Set-Cookie: {}", cookie.parse()));
         }
     }
 
-
     res.push(format!("\r\n{}", String::from_utf8(response.body.clone()).unwrap()));
-
-
-    // for cookie in 
-
-    // println!("\r\n\r\n{}\r\n\r\n", res.join("\r\n"));
 
     return Ok(res.join("\r\n"));
 }
