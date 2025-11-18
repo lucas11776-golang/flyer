@@ -17,11 +17,12 @@ use tungstenite::{Message, protocol::Role::Server};
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::sync::mpsc::unbounded_channel;
 
+use crate::response::parser::parse;
 use crate::router::route::Route;
 use crate::ws::Reason;
 use crate::{
     request::Request,
-    response::{Response, parse},
+    response::{Response},
     router::WsRoute,
     ws::{Event, SEC_WEB_SOCKET_ACCEPT_STATIC, Writer as WriterInterface, Ws}
 };

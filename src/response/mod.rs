@@ -1,8 +1,10 @@
+pub mod parser;
+
 use std::io::Result;
 use serde::Serialize;
 
 use crate::{
-    cookie::Cookie, utils::Headers, view::ViewData, ws::Writer
+    cookie::Cookie, utils::{Headers, Values}, view::ViewData, ws::Writer
 };
 
 pub struct Response {
@@ -11,6 +13,7 @@ pub struct Response {
     pub(crate) headers: Headers,
     pub(crate) body: Vec<u8>,
     pub(crate) view: Option<ViewBag>,
+    pub(crate) errors: Values,
 }
 
 #[derive(Clone)]
@@ -19,25 +22,6 @@ pub struct ViewBag {
     pub(crate) data: Option<ViewData>,
 }
 
-pub fn parse(response: &mut Response, cookies: Option<&mut Vec<Cookie>>) -> Result<String> {
-    let mut res: Vec<String> = vec![format!("HTTP/1.0 {} {}", response.status_code, "OK")];
-
-    for (k, v) in response.headers.clone() {
-        res.push(format!("{}: {}", k, v));
-    }
-
-    res.push(format!("Content-Length: {}", response.body.len()));
-    
-    if let Some(cookies) = cookies {
-        for cookie in cookies {
-            res.push(format!("Set-Cookie: {}", cookie.parse()));
-        }
-    }
-
-    res.push(format!("\r\n{}", String::from_utf8(response.body.clone()).unwrap()));
-
-    return Ok(res.join("\r\n"));
-}
 
 impl Response {
     pub fn new() -> Self {
@@ -47,6 +31,7 @@ impl Response {
             headers: Headers::new(),
             body: vec![],
             view: None,
+            errors: Values::new(),
         };
     }
 
@@ -107,5 +92,12 @@ impl Response {
         "#, to);
 
         return self.html(&html).status_code(307);
+    }
+
+
+    pub fn with_error(&mut self, name: &str, error: &str) -> &mut Response {
+        self.errors.insert(name.to_string(), error.to_string());
+
+        return self;
     }
 }
