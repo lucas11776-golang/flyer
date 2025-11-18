@@ -444,7 +444,7 @@ pub async fn home<'a>(req: &'a mut Request, res: &'a mut Response) -> &'a mut Re
 pub async fn upload<'a>(req: &'a mut Request, res: &'a mut Response) -> &'a mut Response {
     if req.file("file").is_none() {
         return res.with_error("file", "The file is required.")
-            .redirect("/");
+            .back();
     }
 
     let uploaded = req.file("file").unwrap();

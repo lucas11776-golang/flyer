@@ -66,6 +66,8 @@ impl <'a>UdpServer<'a> {
     async fn handle<'h>(&mut self, mut req: Request, mut res: Response) -> Result<(Request, Response)> {
         (req, res) = setup(self.http, req, res).await.unwrap();
 
+        res.request_headers = req.headers.clone();
+
         let resp = self.http.router.match_web_routes(&mut req, &mut res).await;
 
         if resp.is_none() && self.http.assets.is_some() {

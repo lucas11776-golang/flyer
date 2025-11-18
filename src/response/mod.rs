@@ -12,6 +12,7 @@ pub struct Response {
     pub ws: Option<Box<dyn Writer + Send + Sync + 'static>>,
     pub(crate) status_code: u16,
     pub(crate) headers: Headers,
+    pub(crate) request_headers: Headers,
     pub(crate) body: Vec<u8>,
     pub(crate) view: Option<ViewBag>,
     pub(crate) errors: Values,
@@ -29,6 +30,7 @@ impl Response {
             ws: None,
             status_code: 200,
             headers: Headers::new(),
+            request_headers: Headers::new(),
             body: vec![],
             view: None,
             errors: Values::new(),
@@ -92,6 +94,16 @@ impl Response {
         "#, to);
 
         return self.html(&html).status_code(307);
+    }
+
+    pub fn back(&mut self) -> &mut Self {
+        let redirect = self.request_headers.get("referer");
+
+        if redirect.is_none() {
+            return self.redirect("/");
+        }
+
+        return self.redirect(&redirect.unwrap().clone());
     }
 
     pub fn with_error(&mut self, name: &str, error: &str) -> &mut Response {
