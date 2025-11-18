@@ -6,7 +6,7 @@ use crate::router::{Middleware, Next, Router};
 use crate::utils::Values;
 use crate::request::Request;
 use crate::response::Response;
-use crate::utils::url::clean_uri_to_vec;
+use crate::utils::url::uri_to_vec;
 
 static PARAM_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"\{[a-zA-Z_]+\}").expect("Invalid parameter regex"));
 
@@ -49,8 +49,8 @@ impl <'r, R> Route<R> {
     }
 
     pub(crate) fn is_match(&mut self, req: &'r mut Request) -> (bool, Values) {
-        let request_path: Vec<String> = clean_uri_to_vec(req.path.clone());
-        let route_path: Vec<String> = clean_uri_to_vec(self.path.clone());
+        let request_path: Vec<String> = uri_to_vec(req.path.clone());
+        let route_path: Vec<String> = uri_to_vec(self.path.clone());
 
         if self.method.to_uppercase() != req.method.to_uppercase() {
             return (false, Values::new());

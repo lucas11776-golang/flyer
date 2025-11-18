@@ -134,6 +134,9 @@ impl <'a>TcpServer<'a> {
                     let mut req = handler.get_http_request(request).await.unwrap();
                     let mut res = Response::new();
 
+
+                    // println!("\r\n\r\n\r\n\r\n\r\nPACKET_ID {}\r\n\r\n\r\n\r\n\r\n", send.stream_id().as_u32());
+
                     (req, res) = self.handle(req, res).await.unwrap();
 
                     handler.write(send, &mut req, &mut res).await.unwrap();

@@ -2,7 +2,7 @@ use std::io::Result;
 use serde::Serialize;
 
 use crate::{
-    cookie::Cookie, request::Headers, view::ViewData, ws::Writer
+    cookie::Cookie, utils::Headers, view::ViewData, ws::Writer
 };
 
 pub struct Response {

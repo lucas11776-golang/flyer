@@ -1,28 +1,14 @@
-use std::{
-    cmp::Ordering,
-    collections::HashMap
-};
+pub mod form;
+pub mod parse;
+
+use std::cmp::Ordering;
 
 use crate::{
     cookie::Cookies,
+    request::form::{File, Form},
     session::Session,
-    utils::Values
+    utils::{Headers, Values}
 };
-
-pub type Headers = HashMap<String, String>;
-pub type Files = HashMap<String, File>;
-
-pub struct File {
-    pub name: String,
-    pub content_type: String,
-    pub content: Vec<u8>,
-    pub size: usize,
-}
-
-pub struct MultipartForm {
-    pub values: Values,
-    pub files: Files,
-}
 
 pub struct Request {
     pub(crate) cookies: Box<Cookies>,
@@ -36,8 +22,7 @@ pub struct Request {
     pub protocol: String,
     pub headers: Headers,
     pub body: Vec<u8>,
-    pub values: Values,
-    pub files: Files,
+    pub form: Form,
 }
 
 impl Request {
@@ -53,8 +38,7 @@ impl Request {
             protocol: "HTTP/1.1".to_string(),
             headers: headers,
             body: body,
-            values: Values::new(),
-            files: Files::new(),
+            form: Form::new(),
             cookies: Box::new(Cookies::new(Values::new())),
         }
     }
@@ -87,12 +71,19 @@ impl Request {
         return self.query.get(key).get_or_insert(&"".to_string()).to_string()
     }
 
-    pub fn value(&self, key: &str) -> Option<String> {
-        return Some(self.values.get(key).get_or_insert(&"".to_owned()).to_string());
+    pub fn value(&self, key: &str) -> String {
+        return self.form.values.get(key).get_or_insert(&"".to_owned()).to_string();
     }
 
     pub fn file(&self, key: &str) -> Option<&File> {
-        return self.files.get(key);
+        return self.form.files.get(key);
+    }
+
+    pub fn content_type(&self) -> String {
+        let content_type = self.header("content-type");
+        let content_type_piece: Vec<&str> = content_type.split(";").collect();
+
+        return content_type_piece.get(0).unwrap().to_string();
     }
 
     pub fn is_json(&self) -> bool {

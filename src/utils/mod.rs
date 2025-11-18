@@ -6,6 +6,9 @@ pub mod encrypt;
 pub mod cookie;
 
 pub type Values = HashMap<String, String>;
+
+pub type Headers = HashMap<String, String>;
+
 pub type Configuration = HashMap<String, String>;
 
 pub fn merge<T>(items: Vec<Vec<T>>) -> Vec<T> {
