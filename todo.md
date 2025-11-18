@@ -1,12 +1,11 @@
 # TODO
 
-- session must be available os set.
+# FIX HTTP2 Multipart FORM
+- Getting error `received with incomplete data`
 
-# Refactor websocket
+# Refactor code
 
-- Move websocket logic to http1_websocket handler.
-- Cleanup websocket http1.
-
+- Cleanup package structure.
 
 
 # WORKING ON MAKING MIDDLEWARE ASYNC
@@ -30,6 +29,7 @@
 
 
 # Handler errors when doing final refactor...
+
 - TCP connection break etc...
 
 
@@ -38,7 +38,8 @@
 - Check how websocket work in HTTP3
 
 
-# Remove package
-- Now all packages are used remove unused packages.
+# Change Architecture
+
+- Remove unsafe blocks.
 
 <!-- // #[allow(deprecated)] -->

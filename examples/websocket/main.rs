@@ -1,5 +1,6 @@
+use flyer::router::next::Next;
 use flyer::{server};
-use flyer::{request::Request, response::Response, router::Next};
+use flyer::{request::Request, response::Response};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
@@ -7,7 +8,7 @@ pub struct Message<'a> {
     message: &'a str
 }
 
-pub fn auth<'a>(req: &'a mut Request, res: &'a mut Response, next: &'a mut Next) -> &'a mut Response {
+pub async fn auth<'a>(req: &'a mut Request, res: &'a mut Response, next: &'a mut Next) -> &'a mut Response {
     if req.header("authorization") != "jwt.token" {
         let writer = res.ws.as_mut().unwrap();
 
@@ -34,7 +35,7 @@ fn main() {
                     flyer::ws::Event::Close(_reason) => todo!(),
                 }
             });
-        }, None);
+        });
 
         router.ws("/private", async |_req, ws| {
             ws.on(async |event, writer| {
@@ -47,8 +48,8 @@ fn main() {
                     flyer::ws::Event::Close(_reason) => todo!(),
                 }
             });
-        },Some(vec![auth]));
-    }, None);
+        }).middleware(auth);
+    });
 
     print!("\r\n\r\nRunning server: {}\r\n\r\n", server.address());
 

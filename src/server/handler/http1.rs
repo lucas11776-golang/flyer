@@ -12,11 +12,13 @@ use tokio::io::{
 };
 
 use crate::cookie::Cookies;
+use crate::request::form::Form;
+use crate::request::parse::parse_content_type;
 use crate::response::{parse, Response};
-use crate::server::{HTTP1};
+use crate::server::HTTP1;
 use crate::utils::url::parse_query_params;
-use crate::utils::{Values};
-use crate::request::{Files, Headers, Request};
+use crate::utils::{Headers, Values};
+use crate::request::Request;
 
 pub(crate) struct Handler<'a, RW> {
     rw: Pin<&'a mut BufReader<RW>>,
@@ -83,13 +85,12 @@ where
             protocol: HTTP1.to_string(),
             headers: headers,
             body: body,
-            values: Values::new(),
-            files: Files::new(),
+            form: Form::new(),
             session: None,
             cookies: Box::new(Cookies::new(Values::new())),
         };
 
-        return Some(Ok(req));
+        return Some(Ok(parse_content_type(req).await.unwrap()));
     }
 
     pub async fn write(&mut self, req: &mut Request, res: &mut Response) -> Result<()> {

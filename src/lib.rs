@@ -30,7 +30,6 @@ use crate::server::TlsPathConfig;
 use crate::session::SessionManager;
 use crate::view::View;
 
-#[derive(Default)]
 pub struct HTTP {
     pub(crate) host: String,
     pub(crate) port: i32,
@@ -101,12 +100,20 @@ impl HTTP {
         return self;
     }
 
-    pub fn router<'a>(&'a mut self) -> Router<'a> {
-        return Router {
-            router: &mut self.router,
+    pub fn router<'a>(&mut self) -> &mut Router {
+        let idx = self.router.nodes.len();
+
+        self.router.nodes.push(Box::new(Router{
+            web: vec![],
+            ws: vec![],
             path: vec!["/".to_string()],
-            middleware: vec![],
-        };
+            middlewares: vec![],
+            group: None,
+            router_nodes: vec![],
+            not_found_callback: None,
+        }));
+
+        return &mut self.router.nodes[idx];
     }
 
     pub fn listen(&mut self) {
@@ -119,6 +126,8 @@ impl HTTP {
 
         let udp_tls_server_config: Option<ServerConfig> = unsafe {  mem::transmute_copy(&tls_server_config) };
 
+        self.router.setup();
+
         Runtime::new().unwrap().block_on(async {
             let udp_server = async {
                 if udp_tls_server_config.is_none() {
@@ -126,11 +135,10 @@ impl HTTP {
                 }
 
                 UdpServer::new(udp_http,  udp_tls_server_config.unwrap())
-                            .await
-                            .unwrap()
-                            .listen()
-                            .await;
-
+                    .await
+                    .unwrap()
+                    .listen()
+                    .await;
             };
 
             let tcp_server = async {
@@ -141,10 +149,10 @@ impl HTTP {
                 }
                 
                 TcpServer::new(self, acceptor)
-                            .await
-                            .unwrap()
-                            .listen()
-                            .await;
+                    .await
+                    .unwrap()
+                    .listen()
+                    .await;
             };
             
             join!(tcp_server, udp_server);

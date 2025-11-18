@@ -1,5 +1,4 @@
 use flyer::{server, view::view_data};
-use serde::Serialize;
 
 /*
 
@@ -35,19 +34,13 @@ TODO: Create file called `index.html` in folder called `views` and copy the cont
 
 */
 
-#[derive(Serialize)]
-pub struct User<'a> {
-    first_name: &'a str,
-    last_name: &'a str,
-}
-
 fn main() {
     let mut server = server("127.0.0.1", 8888)
         .view("views");
 
     server.router().get("/", async |_req, res| {
         return res.view("index.html", Some(view_data()));
-    }, None);
+    });
 
     println!("Running Server: {}", server.address());
 

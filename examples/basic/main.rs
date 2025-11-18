@@ -5,7 +5,7 @@ fn main() {
     
     server.router().get("/", async |_req, res| {
         return res.html("<h1>Hello World!!!</h1>")
-    }, None);
+    });
 
     print!("\r\n\r\nRunning server: {}\r\n\r\n", server.address());
 

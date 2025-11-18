@@ -1,4 +1,4 @@
-use std::{collections::HashMap, io::Result};
+use std::io::Result;
 use std::net::SocketAddr;
 use std::pin::Pin;
 
@@ -9,9 +9,9 @@ use http::{HeaderMap, Request as HttpRequest, Response as HttpResponse};
 use reqwest::Url;
 use tokio::io::{AsyncRead, AsyncWrite, BufReader};
 
-use crate::cookie::Cookies;
+use crate::{cookie::Cookies, request::{form::Form, parse::parse_content_type}, utils::Headers};
 use crate::response::{Response};
-use crate::request::{Headers, Request};
+use crate::request::Request;
 use crate::utils::url::parse_query_params;
 use crate::utils::Values;
 
@@ -41,11 +41,15 @@ where
         return None;
     }
 
-    pub async fn write(&mut self, mut send: SendResponse<Bytes>, res: &mut Response) -> Result<()> {
+    pub async fn write(&mut self, mut send: SendResponse<Bytes>, req: &mut Request, res: &mut Response) -> Result<()> {
         let mut builder = HttpResponse::builder().status(res.status_code);
 
         for (k, v) in &mut res.headers {
             builder = builder.header(k.clone(), v.clone());
+        }
+
+        for cookie in &mut req.cookies.new_cookie {
+            builder = builder.header("Set-Cookie", cookie.parse());
         }
 
         send.send_response(builder.body(()).unwrap(), false)
@@ -60,7 +64,6 @@ where
         let method = request.method().to_string();
         let path = Url::parse(request.uri().to_string().as_str()).unwrap().path().to_string();
         let query = parse_query_params(request.uri().query().unwrap_or(""))?;
-        let mut body = Vec::new();
         let headers = self.hashmap_to_headers(request.headers());
         let mut recv = request.into_body();
         let host = headers
@@ -68,12 +71,9 @@ where
             .cloned()
             .or_else(|| headers.get(":authority").cloned())
             .unwrap_or_default();
+        let body = recv.data().await.unwrap().unwrap().to_vec();
 
-        while let Some(chunk) = recv.data().await.transpose().unwrap() {
-            body.extend_from_slice(&chunk);
-        }
-
-        Ok(Request {
+        let request = Request {
             ip: self.addr.ip().to_string(),
             host: host,
             method: method,
@@ -83,11 +83,13 @@ where
             protocol: "HTTP/2.0".to_string(),
             headers: headers,
             body: body,
-            values: HashMap::new(),
-            files: HashMap::new(),
+            form: Form::new(),
             session: None,
             cookies: Box::new(Cookies::new(Values::new())),
-        })
+        };
+
+
+        return Ok(parse_content_type(request).await.unwrap());
     }
 
     fn hashmap_to_headers(&mut self, map: &HeaderMap) -> Headers {
@@ -102,5 +104,4 @@ where
 
         return headers;
     }
-    
 }

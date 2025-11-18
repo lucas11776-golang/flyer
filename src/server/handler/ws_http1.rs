@@ -17,11 +17,12 @@ use tungstenite::{Message, protocol::Role::Server};
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::sync::mpsc::unbounded_channel;
 
+use crate::router::route::Route;
 use crate::ws::Reason;
 use crate::{
     request::Request,
     response::{Response, parse},
-    router::{Route, WsRoute},
+    router::WsRoute,
     ws::{Event, SEC_WEB_SOCKET_ACCEPT_STATIC, Writer as WriterInterface, Ws}
 };
 
@@ -98,7 +99,12 @@ where
                     Type::Ping => self.sink.send(Message::Ping(Bytes::from(payload.data))).await.unwrap(),
                     Type::Pong => self.sink.send(Message::Pong(Bytes::from(payload.data))).await.unwrap(),
                     Type::Close => {
-                        self.sink.send(Message::Close(None)).await.unwrap();
+                        let s = self.sink.send(Message::Close(None)).await;
+
+                        if s.is_ok() {
+                            s.unwrap();
+                        }
+
                         break;
                     },
                 }

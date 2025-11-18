@@ -7,7 +7,9 @@ use h3::server::RequestStream;
 use h3_quinn::BidiStream;
 
 use crate::cookie::Cookies;
-use crate::request::{Files, Request};
+use crate::request::Request;
+use crate::request::form::Form;
+use crate::request::parse::parse_content_type;
 use crate::response::Response;
 use crate::server::HTTP3;
 use crate::utils::url::parse_query_params;
@@ -47,7 +49,7 @@ impl Handler {
     pub async fn handle(&mut self) -> Result<Request> {
         let headers = self.get_headers();
         
-        Ok(Request{
+        let req = Request{
             ip: "127.0.0.1".to_owned(),
             host: self.get_host(&headers),
             headers: headers,
@@ -57,20 +59,25 @@ impl Handler {
             query: parse_query_params(self.request.uri().query().unwrap_or(""))?,
             protocol: HTTP3.to_string(),
             body: vec![],
-            values: Values::new(),
-            files: Files::new(),
+            form: Form::new(),
             session: None,
             cookies: Box::new(Cookies::new(Values::new())),
-        })
+        };
+
+        return Ok(parse_content_type(req).await.unwrap());
     }
 
-    pub async fn write(mut self, res: &mut Response) -> Result<()> {
+    pub async fn write(mut self, req: &mut Request, res: &mut Response) -> Result<()> {
         let mut builder = http::Response::builder()
             .status(res.status_code)
             .header("content-length", format!("{}", res.body.len()));
 
         for (k, v) in &mut res.headers {
             builder = builder.header(k.clone(), v.clone());
+        }
+
+        for cookie in &mut req.cookies.new_cookie {
+            builder = builder.header("Set-Cookie", cookie.parse());
         }
 
         let response = builder.body(()).unwrap();

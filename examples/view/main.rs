@@ -40,7 +40,7 @@ fn main() {
         });
 
         return res.view("index.html", Some(data));
-    }, None);
+    });
 
     println!("Running Server: {}", server.address());
 

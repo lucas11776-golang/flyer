@@ -22,9 +22,9 @@ fn main() {
     let mut server = server("127.0.0.1", 9999);
 
     server.router().group("/", |router| {
-        router.get("/", home_view, None);
-        router.get("cookie", cookie, None);
-    }, None);
+        router.get("/", home_view);
+        router.get("cookie", cookie);
+    });
 
     print!("\r\n\r\nRunning server: {}\r\n\r\n", server.address());
 

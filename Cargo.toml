@@ -1,6 +1,6 @@
 [package]
 name = "flyer"
-version = "0.0.50"
+version = "0.1.0"
 authors = ["Themba Lucas Ngubeni <thembangubeni04@email.com>"]
 license = "MIT"
 description = "HTTP framework for rust"
@@ -39,3 +39,6 @@ tungstenite = "0.28.0"
 futures = "0.3.31"
 cookie = "0.18.1"
 aes-gcm = "0.10.3"
+multer = "3.1.0"
+async-std = "1.13.2"
+tokio-util = "0.7.17"
