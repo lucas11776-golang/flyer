@@ -9,7 +9,7 @@ use http::{HeaderMap, Request as HttpRequest, Response as HttpResponse};
 use reqwest::Url;
 use tokio::io::{AsyncRead, AsyncWrite, BufReader};
 
-use crate::{cookie::Cookies, request::{form::Form, parse::parse_content_type}, utils::Headers};
+use crate::{cookie::Cookies, request::{form::Form, parser::parse_content_type}, utils::Headers};
 use crate::response::{Response};
 use crate::request::Request;
 use crate::utils::url::parse_query_params;

@@ -2,7 +2,10 @@
 use multer::Multipart;
 use tokio_util::io::ReaderStream;
 
-use crate::{request::{Request, form::File}, utils::url::parse_query_params};
+use crate::{
+    request::{Request, form::File},
+    utils::url::parse_query_params
+};
 
 pub(crate) async fn parse_content_type(req: Request) -> std::io::Result<Request> {
     return Ok(
@@ -45,6 +48,10 @@ async fn parse_multipart_form(mut req: Request) -> std::io::Result<Request> {
         let filename = field.file_name().as_mut().unwrap().to_string();
         let content_type = field.content_type().as_mut().unwrap().to_string();
         let data = field.bytes().await.as_mut().unwrap().to_vec();
+
+        if data.len() == 0 {
+            continue;
+        }
 
         req.form.files.insert(name, File {
             name: filename,

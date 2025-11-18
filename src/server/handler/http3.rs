@@ -9,7 +9,7 @@ use h3_quinn::BidiStream;
 use crate::cookie::Cookies;
 use crate::request::Request;
 use crate::request::form::Form;
-use crate::request::parse::parse_content_type;
+use crate::request::parser::parse_content_type;
 use crate::response::Response;
 use crate::server::HTTP3;
 use crate::utils::url::parse_query_params;

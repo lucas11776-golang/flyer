@@ -1,4 +1,5 @@
 pub mod functions;
+pub mod session_functions;
 
 use std::io::Result;
 

@@ -1,10 +1,11 @@
 pub mod parser;
 
-use std::io::Result;
 use serde::Serialize;
 
 use crate::{
-    cookie::Cookie, utils::{Headers, Values}, view::ViewData, ws::Writer
+    utils::{Headers, Values},
+    view::ViewData,
+    ws::Writer
 };
 
 pub struct Response {
@@ -21,7 +22,6 @@ pub struct ViewBag {
     pub(crate) view: String,
     pub(crate) data: Option<ViewData>,
 }
-
 
 impl Response {
     pub fn new() -> Self {
@@ -94,9 +94,16 @@ impl Response {
         return self.html(&html).status_code(307);
     }
 
-
     pub fn with_error(&mut self, name: &str, error: &str) -> &mut Response {
         self.errors.insert(name.to_string(), error.to_string());
+
+        return self;
+    }
+
+    pub fn with_errors(&mut self, errors: Values) -> &mut Response {
+        for (name, error) in errors {
+            self.with_error(name.as_str(), error.as_str());
+        }
 
         return self;
     }

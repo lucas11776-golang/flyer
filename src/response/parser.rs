@@ -19,7 +19,5 @@ pub fn parse(response: &mut Response, cookies: Option<&mut Vec<Cookie>>) -> Resu
 
     res.push(format!("\r\n{}", String::from_utf8(response.body.clone()).unwrap()));
 
-    println!("{}", res.join("\r\n"));
-
     return Ok(res.join("\r\n"));
 }

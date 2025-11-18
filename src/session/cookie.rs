@@ -23,7 +23,6 @@ pub struct SessionCookieManager {
     encryption_key: String,
 }
 
-
 pub(crate) struct SessionCookie {
     pub(crate) values: Values,
     pub(crate) errors: Values,
@@ -75,7 +74,7 @@ pub(crate) fn parse_raw_cookie(encryption_key: String, raw_cookie: Option<&Strin
 }
 
 impl SessionManager for SessionCookieManager {
-    fn setup<'a>(&mut self, req: &'a mut Request, res: &'a mut Response) -> Result<(&'a mut Request, &'a mut Response)> {
+    fn setup<'a>(&mut self, req: &'a mut Request, mut res: &'a mut Response) -> Result<(&'a mut Request, &'a mut Response)> {
         let cookies = cookie_parse(req.header("cookie")).unwrap();
         let raw_cookie = cookies.get(&self.cookie_name);
         req.session = Some(Box::new(parse_raw_cookie(self.encryption_key.to_owned(), raw_cookie).unwrap()));
@@ -84,11 +83,13 @@ impl SessionManager for SessionCookieManager {
     }
 
     // TODO: set domain as global maybe have configuration struct in `new_session_manager`.
-    fn teardown<'a>(&mut self, req: &'a mut Request, res: &'a mut Response) -> Result<(&'a mut Request, &'a mut Response)> {        
+    fn teardown<'a>(&mut self, req: &'a mut Request, mut res: &'a mut Response) -> Result<(&'a mut Request, &'a mut Response)> {        
         // TODO: do not like is - (working with unsafe...)
         unsafe {
             // TODO: loosening performance here in downcast ref.
-            let session = (req.session.as_ref().unwrap() as &dyn Any).downcast_ref_unchecked::<Box<SessionCookie>>();
+            let session = (req.session.as_mut().unwrap() as &mut dyn Any).downcast_mut_unchecked::<Box<SessionCookie>>();
+
+            session.set_errors(res.errors.clone());
 
             let data = serde_json::to_string(&CookieStorage {
                 values: session.values.clone(),
@@ -101,7 +102,9 @@ impl SessionManager for SessionCookieManager {
 
             cookie.set_expires(OffsetDateTime::now_utc() + DurationCookie::seconds(self.expires.as_secs().try_into().unwrap()));
 
-            return Ok((req, res.header("Set-Cookie", &cookie.to_string())));
+            res = res.header("Set-Cookie", &cookie.to_string());
+
+            return Ok((req, res));
         };
     }
 }

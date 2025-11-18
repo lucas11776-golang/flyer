@@ -1,0 +1,67 @@
+
+use std::collections::HashMap;
+
+use tera::{Value, to_value};
+
+use crate::utils::Values;
+
+pub(crate) struct SessionFunctions;
+
+impl SessionFunctions {
+    pub fn session(value: Values) -> impl Fn(&HashMap<String, Value>) -> tera::Result<tera::Value>  {
+        return move |args: &HashMap<String, Value>| -> tera::Result<tera::Value> {
+            let session = value.get(args.get("name").unwrap().as_str().unwrap());
+
+            if session.is_none() {
+                return Ok(to_value("").unwrap());
+            }
+
+            return Ok(to_value(session.unwrap()).unwrap());
+        };
+    }
+
+    pub fn session_has(value: Values) -> impl Fn(&HashMap<String, Value>) -> tera::Result<tera::Value>  {
+        return move |args: &HashMap<String, Value>| -> tera::Result<tera::Value> {
+            let session = value.get(args.get("name").unwrap().as_str().unwrap());
+
+            if session.is_none() {
+                return Ok(to_value(true).unwrap());
+            }
+
+            return Ok(to_value(false).unwrap());
+        };
+    }
+
+    pub fn error_has(value: Values) -> impl Fn(&HashMap<String, Value>) -> tera::Result<tera::Value>  {
+        return move |args: &HashMap<String, Value>| -> tera::Result<tera::Value> {
+            let error = value.get(args.get("name").unwrap().as_str().unwrap());
+            let class = args.get("class");
+
+            if error.is_none() && class.is_none() {
+                return Ok(to_value(false).unwrap());
+            }
+
+            if error.is_some() && class.is_none() {
+                return Ok(to_value(true).unwrap());
+            }
+
+            if error.is_none() {
+                return Ok(to_value("").unwrap());
+            }
+
+            return Ok(to_value(class.unwrap())?);
+        };
+    }
+
+    pub fn error(value: Values) -> impl Fn(&HashMap<String, Value>) -> tera::Result<tera::Value>  {
+        return move |args: &HashMap<String, Value>| -> tera::Result<tera::Value> {
+            let session = value.get(args.get("name").unwrap().as_str().unwrap());
+
+            if session.is_none() {
+                return Ok(to_value("").unwrap());
+            }
+
+            return Ok(to_value(session.unwrap()).unwrap());
+        };
+    }
+}
