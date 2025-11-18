@@ -30,7 +30,6 @@ use crate::server::TlsPathConfig;
 use crate::session::SessionManager;
 use crate::view::View;
 
-#[derive(Default)]
 pub struct HTTP {
     pub(crate) host: String,
     pub(crate) port: i32,
@@ -108,9 +107,9 @@ impl HTTP {
             web: vec![],
             ws: vec![],
             path: vec!["/".to_string()],
-            middleware: vec![],
+            middlewares: vec![],
             group: None,
-            nodes: vec![],
+            router_nodes: vec![],
             not_found_callback: None,
         }));
 

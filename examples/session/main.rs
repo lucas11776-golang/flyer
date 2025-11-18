@@ -3,7 +3,7 @@ use std::time::Duration;
 use flyer::{
     request::Request,
     response::Response,
-    router::Next,
+    router::next::Next,
     server,
     session::cookie::new_session_manager
 };
@@ -55,14 +55,10 @@ fn main() {
         .session(new_session_manager(Duration::from_hours(2), "session_cookie_key_name", "encryption"));
 
     server.router().group("/", |router| {
-        router.get("/", home_view)
-            .middleware(auth);
-        router.get("register", register)
-            .middleware(guest);
-        router.get("login", login)
-            .middleware(guest);
-        router.get("logout", logout)
-            .middleware(auth);
+        router.get("/", home_view).middleware(auth);
+        router.get("register", register).middleware(guest);
+        router.get("login", login).middleware(guest);
+        router.get("logout", logout).middleware(auth);
     });
 
     server.router().not_found(page_not_found);

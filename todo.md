@@ -1,8 +1,8 @@
 # TODO
 
-# Refactor websocket
+# Refactor code
 
-- Cleanup websocket http1.
+- Cleanup package structure.
 
 
 # WORKING ON MAKING MIDDLEWARE ASYNC

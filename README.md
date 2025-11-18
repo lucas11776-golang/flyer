@@ -80,29 +80,29 @@ fn main() {
 use flyer::{server, request::Request, response::Response};
 
 pub async fn index<'a>(_req: &'a mut Request, res: &'a mut Response) -> &'a mut Response {
-    return res
+    return res.html("<h1>Users List</h1>");
 }
 
 pub async fn store<'a>(_req: &'a mut Request, res: &'a mut Response) -> &'a mut Response {
-    return res
+    return res.redirect("users/1");
 }
 
-pub async fn view<'a>(_req: &'a mut Request, res: &'a mut Response) -> &'a mut Response {
-    return res
+pub async fn view<'a>(req: &'a mut Request, res: &'a mut Response) -> &'a mut Response {
+    return res.html(format!("<h1>User {}</h1>", req.parameter("user")).as_str());
 }
 
-pub async fn update<'a>(_req: &'a mut Request, res: &'a mut Response) -> &'a mut Response {
-    return res
+pub async fn update<'a>(req: &'a mut Request, res: &'a mut Response) -> &'a mut Response {
+    return res.redirect(format!("users/{}", req.parameter("user")).as_str());
 }
 
 pub async fn destroy<'a>(_req: &'a mut Request, res: &'a mut Response) -> &'a mut Response {
-    return res
+    return res.redirect("users")
 }
 
 fn main() {
     let mut server = server("127.0.0.1", 9999);
     
-    server.router().group("api", |router| {
+    server.router().group("/", |router| {
         router.group("users", |router| {
             router.get("/", index);
             router.post("/", store);
@@ -281,7 +281,7 @@ use std::time::Duration;
 use flyer::{
     request::Request,
     response::Response,
-    router::Next,
+    router::next::Next,
     server,
     session::cookie::new_session_manager
 };
@@ -333,14 +333,10 @@ fn main() {
         .session(new_session_manager(Duration::from_hours(2), "session_cookie_key_name", "encryption"));
 
     server.router().group("/", |router| {
-        router.get("/", home_view)
-            .middleware(auth);
-        router.get("register", register)
-            .middleware(guest);
-        router.get("login", login)
-            .middleware(guest);
-        router.get("logout", logout)
-            .middleware(auth);
+        router.get("/", home_view).middleware(auth);
+        router.get("register", register).middleware(guest);
+        router.get("login", login).middleware(guest);
+        router.get("logout", logout).middleware(auth);
     });
 
     server.router().not_found(page_not_found);

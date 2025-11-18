@@ -1,25 +1,26 @@
 use std::mem::transmute_copy;
 
-
 use crate::{
     request::Request,
     response::Response,
     router::{
         Middleware,
-        Next,
         Route,
         Router,
+        RouterNodes,
         WebRoute,
-        WsRoute
+        WebRoutes,
+        WsRoute,
+        WsRoutes,
+        next::Next
     }
 };
 
-#[derive(Default)]
 pub struct GroupRouter {
+    pub(crate) web: WebRoutes,
+    pub(crate) ws: WsRoutes,
+    pub(crate) nodes: RouterNodes,
     pub(crate) not_found_callback: Option<Box<WebRoute>>,
-    pub(crate) web: Vec<Route<Box<WebRoute>>>,
-    pub(crate) ws: Vec<Route<Box<WsRoute>>>,
-    pub(crate) nodes: Vec<Box<Router>>,
 }
 
 impl <'r>GroupRouter {
@@ -49,7 +50,7 @@ impl <'r>GroupRouter {
             not_found = unsafe { transmute_copy(&mut router.not_found_callback) };
         }
         
-        for node in &mut router.nodes {
+        for node in &mut router.router_nodes {
             let (_web, _ws, _not_found) = GroupRouter::get_router_in_nodes(node);
 
             web.extend(_web);

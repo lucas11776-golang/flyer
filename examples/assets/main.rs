@@ -1,5 +1,4 @@
 use flyer::{server, view::view_data};
-use serde::Serialize;
 
 /*
 

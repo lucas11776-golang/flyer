@@ -1,5 +1,6 @@
+use flyer::router::next::Next;
 use flyer::{server};
-use flyer::{request::Request, response::Response, router::Next};
+use flyer::{request::Request, response::Response};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
