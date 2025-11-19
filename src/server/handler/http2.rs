@@ -33,12 +33,9 @@ where
         };
     }
     
-    pub async fn handle(&mut self) -> Option<Result<(HttpRequest<h2::RecvStream> , SendResponse<Bytes>)>> {
-        while let Some(result) = self.conn.accept().await {
-            return Some(Ok(result.unwrap()))
-        }
-
-        return None;
+    pub async fn handle(&mut self) -> Option<std::result::Result<(HttpRequest<h2::RecvStream>, SendResponse<Bytes>), h2::Error>>  {
+        // TODO: connection hugs when Switching from HTTP2 -> HTTP1
+        return self.conn.accept().await;
     }
 
     pub async fn write(&mut self, mut send: SendResponse<Bytes>, req: &mut Request, res: &mut Response) -> Result<()> {
