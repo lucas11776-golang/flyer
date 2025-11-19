@@ -1,6 +1,5 @@
 use std::io::Result;
 use std::net::SocketAddr;
-use std::pin::Pin;
 
 use bytes::Bytes;
 

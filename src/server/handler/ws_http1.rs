@@ -1,5 +1,4 @@
 use std::{io::Result};
-use std::pin::Pin;
 
 use base64::Engine;
 use base64::engine::general_purpose;

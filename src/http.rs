@@ -4,12 +4,11 @@ use std::mem::transmute_copy;
 use futures::join;
 use rustls::ServerConfig;
 use tokio::runtime::Runtime;
-use tokio_rustls::TlsAcceptor;
 
 use crate::assets::Assets;
 use crate::router::group::GroupRouter;
 use crate::router::Router;
-use crate::server::{get_tls_acceptor, get_tls_config, server_config};
+use crate::server::{get_tls_config, server_config};
 use crate::server::tcp::TcpServer;
 use crate::server::udp::UdpServer;
 use crate::server::TlsPathConfig;

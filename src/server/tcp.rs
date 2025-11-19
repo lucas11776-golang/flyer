@@ -2,7 +2,7 @@ use std::{
     io::Result,
     net::SocketAddr,
 };
-use std::pin::{pin, Pin};
+use std::pin::Pin;
 
 use rustls::ServerConfig;
 use tokio::net::TcpListener;

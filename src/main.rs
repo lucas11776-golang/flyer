@@ -1,7 +1,7 @@
 use std::{fs::File, io::Write, time::Duration};
 
 use flyer::{
-    request::Request, response::Response, server, server_tls, session::cookie::new_session_manager, view::view_data
+    request::Request, response::Response, server_tls, session::cookie::new_session_manager, view::view_data
 };
 
 pub async fn home<'a>(_req: &'a mut Request, res: &'a mut Response) -> &'a mut Response {
