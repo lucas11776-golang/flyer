@@ -17,16 +17,16 @@ use crate::utils::Values;
 
 pub const H2_PREFACE: &[u8] = b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n";
 
-pub(crate) struct Handler<'a, RW> {
+pub(crate) struct Handler<RW> {
     addr: SocketAddr,
-    conn: Box<server::Connection< Pin<&'a mut BufReader<RW>>, Bytes>>,
+    conn: Box<server::Connection< BufReader<RW>, Bytes>>,
 }
 
-impl <'a, RW>Handler<'a, RW>
+impl <'a, RW>Handler<RW>
 where
     RW: AsyncRead + AsyncWrite + Unpin + Send + Sync
 {
-    pub async fn new(addr: SocketAddr, rw: Pin<&'a mut BufReader<RW>>) -> Self {
+    pub async fn new(addr: SocketAddr, rw: BufReader<RW>) -> Self {
         return Self {
             addr: addr,
             conn: Box::new(server::handshake(rw).await.unwrap()),

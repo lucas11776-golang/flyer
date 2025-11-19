@@ -52,15 +52,15 @@ impl <'a>TcpServer<'a> {
         match &self.acceptor {
             Some(acceptor) => {
                 let _ = match acceptor.accept(stream).await {
-                    Ok(stream) => self.handle_connection(pin!(BufReader::new(stream)), addr).await.unwrap(),
+                    Ok(stream) => self.handle_connection(BufReader::new(stream), addr).await.unwrap(),
                     Err(_) => {}, // TODO: Log
                 };
             },
-            None => self.handle_connection(pin!(BufReader::new(stream)), addr).await.unwrap(),
+            None => self.handle_connection(BufReader::new(stream), addr).await.unwrap(),
         }
     }
 
-    async fn handle_connection<RW>(&mut self, mut rw: Pin<&mut BufReader<RW>>, addr:  SocketAddr) -> Result<()>
+    async fn handle_connection<RW>(&mut self, mut rw: BufReader<RW>, addr:  SocketAddr) -> Result<()>
     where
         RW: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static
     {
@@ -79,7 +79,7 @@ impl <'a>TcpServer<'a> {
         }
     }
 
-    async fn handle_web_socket<RW>(&mut self, rw: Pin<&mut BufReader<RW>>, req: &mut Request, res: &mut Response) -> Result<()>
+    async fn handle_web_socket<RW>(&mut self, rw: BufReader<RW>, req: &mut Request, res: &mut Response) -> Result<()>
     where
         RW: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static
     {
@@ -95,7 +95,7 @@ impl <'a>TcpServer<'a> {
         return Ok(handler.handle(route, req, res).await.unwrap());
     }
  
-    async fn http_1_protocol<RW>(&mut self, mut rw: Pin<&mut BufReader<RW>>, addr: SocketAddr) -> Result<()>
+    async fn http_1_protocol<RW>(&mut self, mut rw: BufReader<RW>, addr: SocketAddr) -> Result<()>
     where
         RW: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static
     {
@@ -122,7 +122,7 @@ impl <'a>TcpServer<'a> {
         return Ok(handler.write(&mut req, &mut res).await.unwrap());
     }
 
-    async fn http_2_protocol<RW>(&mut self, rw: Pin<&mut BufReader<RW>>, addr: SocketAddr) -> Result<()>
+    async fn http_2_protocol<RW>(&mut self, rw: BufReader<RW>, addr: SocketAddr) -> Result<()>
     where
         RW: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static
     {

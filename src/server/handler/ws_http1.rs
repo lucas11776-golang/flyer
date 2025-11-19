@@ -44,9 +44,9 @@ pub struct Writer {
     pub(crate) sender: UnboundedSender<Payload>
 }
 
-pub(crate) struct Handler<'a ,RW> {
-    pub sink: futures::stream::SplitSink<WebSocketStream<Pin<&'a mut BufReader<RW>>>, Message>,
-    pub stream: futures::stream::SplitStream<WebSocketStream<Pin<&'a mut BufReader<RW>>>>,
+pub(crate) struct Handler<RW> {
+    pub sink: futures::stream::SplitSink<WebSocketStream<BufReader<RW>>, Message>,
+    pub stream: futures::stream::SplitStream<WebSocketStream<BufReader<RW>>>,
     pub receiver: UnboundedReceiver<Payload>,
     pub ws: Ws
 }
@@ -73,11 +73,11 @@ impl WriterInterface for Writer {
     }
 }
 
-impl <'a, RW>Handler<'a, RW>
+impl <'a, RW>Handler<RW>
 where
     RW: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static
 {
-    pub async fn new(rw: Pin<&'a mut BufReader<RW>>, req: &'a mut Request, res: &'a mut Response) -> Result<(Self, &'a mut Request, &'a mut Response)> {
+    pub async fn new(rw: BufReader<RW>, req: &'a mut Request, res: &'a mut Response) -> Result<(Self, &'a mut Request, &'a mut Response)> {
         let (rw, req, res) = Self::handshake(rw, req, res).await.unwrap();
         let (sink, stream) = WebSocketStream::from_raw_socket(rw, Server, None).await.split();
         let (tx, rx) = unbounded_channel::<Payload>();
@@ -165,14 +165,13 @@ where
         Ok(())
     }
 
-    async fn handshake(mut rw: Pin<&'a mut BufReader<RW>>, req: &'a mut Request, res: &'a mut Response) -> Result<(Pin<&'a mut BufReader<RW>>, &'a mut Request, &'a mut Response)> {
+    async fn handshake(mut rw: BufReader<RW>, req: &'a mut Request, res: &'a mut Response) -> Result<(BufReader<RW>, &'a mut Request, &'a mut Response)> {
         let res = res.status_code(101)
             .header("Upgrade", "websocket")
             .header("Connection", "Upgrade")
             .header("Sec-WebSocket-Accept", Self::get_sec_web_socket_accept(req.header("sec-websocket-key")).as_str());
 
-        rw.as_mut()
-            .write(parse(res, Some(&mut req.cookies.new_cookie)).unwrap().as_bytes())
+        rw.write(parse(res, Some(&mut req.cookies.new_cookie)).unwrap().as_bytes())
             .await
             .unwrap();
 
