@@ -2,8 +2,9 @@ use std::{
     io::Result,
     net::SocketAddr,
 };
-use std::pin::{pin, Pin};
+use std::pin::Pin;
 
+use rustls::ServerConfig;
 use tokio::net::TcpListener;
 use tokio_rustls::TlsAcceptor;
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, BufReader};
@@ -13,7 +14,7 @@ use crate::response::Response;
 use crate::server::handler::{http1, http2, ws_http1};
 use crate::server::handler::http2::H2_PREFACE;
 use crate::server::helpers::{setup, teardown};
-use crate::server::{HTTP1, HTTP2, Protocol};
+use crate::server::{HTTP1, HTTP2, Protocol, get_tls_acceptor};
 use crate::HTTP;
 
 pub(crate) struct TcpServer<'a> {
@@ -23,10 +24,10 @@ pub(crate) struct TcpServer<'a> {
 }
 
 impl <'a>TcpServer<'a> {
-    pub async fn new(http: &'a mut HTTP, tls: Option<TlsAcceptor>) -> Result<TcpServer<'a>> {
+    pub async fn new(http: &'a mut HTTP, config: Option<ServerConfig>) -> Result<TcpServer<'a>> {
         return Ok(TcpServer{
             listener: TcpListener::bind(format!("{}", http.address())).await.unwrap(),
-            acceptor: tls,
+            acceptor: config.and_then(|config| get_tls_acceptor(config)),
             http: http,
         });
     }
@@ -51,15 +52,15 @@ impl <'a>TcpServer<'a> {
         match &self.acceptor {
             Some(acceptor) => {
                 let _ = match acceptor.accept(stream).await {
-                    Ok(stream) => self.handle_connection(pin!(BufReader::new(stream)), addr).await.unwrap(),
+                    Ok(stream) => self.handle_connection(BufReader::new(stream), addr).await.unwrap(),
                     Err(_) => {}, // TODO: Log
                 };
             },
-            None => self.handle_connection(pin!(BufReader::new(stream)), addr).await.unwrap(),
+            None => self.handle_connection(BufReader::new(stream), addr).await.unwrap(),
         }
     }
 
-    async fn handle_connection<RW>(&mut self, mut rw: Pin<&mut BufReader<RW>>, addr:  SocketAddr) -> Result<()>
+    async fn handle_connection<RW>(&mut self, mut rw: BufReader<RW>, addr:  SocketAddr) -> Result<()>
     where
         RW: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static
     {
@@ -78,7 +79,7 @@ impl <'a>TcpServer<'a> {
         }
     }
 
-    async fn handle_web_socket<RW>(&mut self, rw: Pin<&mut BufReader<RW>>, req: &mut Request, res: &mut Response) -> Result<()>
+    async fn handle_web_socket<RW>(&mut self, rw: BufReader<RW>, req: &mut Request, res: &mut Response) -> Result<()>
     where
         RW: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static
     {
@@ -94,7 +95,7 @@ impl <'a>TcpServer<'a> {
         return Ok(handler.handle(route, req, res).await.unwrap());
     }
  
-    async fn http_1_protocol<RW>(&mut self, mut rw: Pin<&mut BufReader<RW>>, addr: SocketAddr) -> Result<()>
+    async fn http_1_protocol<RW>(&mut self, mut rw: BufReader<RW>, addr: SocketAddr) -> Result<()>
     where
         RW: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static
     {
@@ -121,7 +122,7 @@ impl <'a>TcpServer<'a> {
         return Ok(handler.write(&mut req, &mut res).await.unwrap());
     }
 
-    async fn http_2_protocol<RW>(&mut self, rw: Pin<&mut BufReader<RW>>, addr: SocketAddr) -> Result<()>
+    async fn http_2_protocol<RW>(&mut self, rw: BufReader<RW>, addr: SocketAddr) -> Result<()>
     where
         RW: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static
     {
@@ -133,9 +134,6 @@ impl <'a>TcpServer<'a> {
                     let (request, send) = result.unwrap();
                     let mut req = handler.get_http_request(request).await.unwrap();
                     let mut res = Response::new();
-
-
-                    // println!("\r\n\r\n\r\n\r\n\r\nPACKET_ID {}\r\n\r\n\r\n\r\n\r\n", send.stream_id().as_u32());
 
                     (req, res) = self.handle(req, res).await.unwrap();
 
@@ -149,6 +147,8 @@ impl <'a>TcpServer<'a> {
 
     async fn handle<'h>(&mut self, mut req: Request, mut res: Response) -> Result<(Request, Response)> {
         (req, res) = setup(self.http, req, res).await.unwrap();
+
+        res.request_headers = req.headers.clone();
 
         let resp = self.http.router.match_web_routes(&mut req, &mut res).await;
 

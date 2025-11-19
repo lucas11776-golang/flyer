@@ -1,16 +1,21 @@
-use std::io::Result;
+pub mod parser;
+
 use serde::Serialize;
 
 use crate::{
-    cookie::Cookie, utils::Headers, view::ViewData, ws::Writer
+    utils::{Headers, Values},
+    view::ViewData,
+    ws::Writer
 };
 
 pub struct Response {
     pub ws: Option<Box<dyn Writer + Send + Sync + 'static>>,
     pub(crate) status_code: u16,
     pub(crate) headers: Headers,
+    pub(crate) request_headers: Headers,
     pub(crate) body: Vec<u8>,
     pub(crate) view: Option<ViewBag>,
+    pub(crate) errors: Values,
 }
 
 #[derive(Clone)]
@@ -19,34 +24,16 @@ pub struct ViewBag {
     pub(crate) data: Option<ViewData>,
 }
 
-pub fn parse(response: &mut Response, cookies: Option<&mut Vec<Cookie>>) -> Result<String> {
-    let mut res: Vec<String> = vec![format!("HTTP/1.0 {} {}", response.status_code, "OK")];
-
-    for (k, v) in response.headers.clone() {
-        res.push(format!("{}: {}", k, v));
-    }
-
-    res.push(format!("Content-Length: {}", response.body.len()));
-    
-    if let Some(cookies) = cookies {
-        for cookie in cookies {
-            res.push(format!("Set-Cookie: {}", cookie.parse()));
-        }
-    }
-
-    res.push(format!("\r\n{}", String::from_utf8(response.body.clone()).unwrap()));
-
-    return Ok(res.join("\r\n"));
-}
-
 impl Response {
     pub fn new() -> Self {
         return Self {
             ws: None,
             status_code: 200,
             headers: Headers::new(),
+            request_headers: Headers::new(),
             body: vec![],
             view: None,
+            errors: Values::new(),
         };
     }
 
@@ -107,5 +94,29 @@ impl Response {
         "#, to);
 
         return self.html(&html).status_code(307);
+    }
+
+    pub fn back(&mut self) -> &mut Self {
+        let redirect = self.request_headers.get("referer");
+
+        if redirect.is_none() {
+            return self.redirect("/");
+        }
+
+        return self.redirect(&redirect.unwrap().clone());
+    }
+
+    pub fn with_error(&mut self, name: &str, error: &str) -> &mut Response {
+        self.errors.insert(name.to_string(), error.to_string());
+
+        return self;
+    }
+
+    pub fn with_errors(&mut self, errors: Values) -> &mut Response {
+        for (name, error) in errors {
+            self.with_error(name.as_str(), error.as_str());
+        }
+
+        return self;
     }
 }

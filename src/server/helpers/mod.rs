@@ -29,6 +29,7 @@ pub(crate) async fn teardown<'a>(http: &'a mut HTTP, mut req: Request, mut res: 
         (req, res) = http.view.as_mut().unwrap().render(req, res).unwrap();
     }
 
+
     if !req.is_asset() && http.session_manager.is_some() {
         http.session_manager
             .as_mut()

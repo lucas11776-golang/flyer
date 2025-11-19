@@ -12,6 +12,7 @@
 - Middleware
 - Session
 - Cookie
+- Multipart-Form
 - WebSocket
 
 
@@ -386,35 +387,144 @@ fn main() {
 ```
 
 
-### Websocket
+### Multipart-Form
 
-```rust
-use std::time::Duration;
+Create file called `index.html` in folder called views and copy the content below in the file.
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <base href="http://127.0.0.1:9999/">
+  <title>Upload File</title>
+  <style>
+    body {
+      text-align: center !important;
+    }
+  </style>
+</head>
+<body>
+  <nav>
+    <h1>Upload File</h1>
+  </nav>
+  <hr>
+  <form method="post" action="/upload" enctype="multipart/form-data">
+    <p style="color: red;">{{ error(name="file") }}</p>
+    <p style="color: red;">{{ error_has(name="file") }}</p>
+    <p style="color: red;">{{ error_has(name="file", class="is-invalid") }}</p>
+    <input type="file" name="file" placeholder="Image">
+    <br>
+    <br>
+    <br>
+    <button type="submit">Upload File</button>
+  </form>
+</body>
+</html>
+```
+
+The next step to insert code below in `main.rs`.
+
+```rs
+use std::{fs::File, io::Write, time::Duration};
 
 use flyer::{
     request::Request,
     response::Response,
-    server,
+    server, 
+    session::cookie::new_session_manager,
+    view::view_data
 };
 
-pub async fn home_view<'a>(req: &'a mut Request, res: &'a mut Response) -> &'a mut Response {
-    req.cookies()
-        .set("user_id", "1")
-        .set_expires(Duration::from_hours(2));
-
-    return res.html("<h1>Cookie has been set visit route /cookie</h1>");
+pub async fn home<'a>(req: &'a mut Request, res: &'a mut Response) -> &'a mut Response {
+    return res.view("index.html", Some(view_data()));
 }
 
-pub async fn cookie<'a>(req: &'a mut Request, res: &'a mut Response) -> &'a mut Response {
-    return res.html(format!("<h1>User ID cookie is {}</h1>", req.cookies().get("user_id")).as_str());
+pub async fn upload<'a>(req: &'a mut Request, res: &'a mut Response) -> &'a mut Response {
+    if req.file("file").is_none() {
+        return res.with_error("file", "The file is required.")
+            .back();
+    }
+
+    let uploaded = req.file("file").unwrap();
+    let mut file = File::create(uploaded.name.as_str()).unwrap();
+
+    file.write(&uploaded.content).unwrap();
+
+    return res.redirect("/");
+}
+
+fn main() {
+    let mut server = server("127.0.0.1", 9999)
+        .session(new_session_manager(Duration::from_hours(2), "session_cookie_key_name", "encryption"))
+        .view("views");
+
+    server.router().group("/", |router| {
+        router.get("/", home);
+        router.post("upload", upload);
+    });
+
+    print!("\r\n\r\nRunning server: {}\r\n\r\n", server.address());
+
+    server.listen();
+}
+```
+
+### Websocket
+
+```rust
+use flyer::router::next::Next;
+use flyer::{server};
+use flyer::{request::Request, response::Response};
+use serde::{Deserialize, Serialize};
+
+#[derive(Serialize, Deserialize)]
+pub struct Message<'a> {
+    message: &'a str
+}
+
+pub async fn auth<'a>(req: &'a mut Request, res: &'a mut Response, next: &'a mut Next) -> &'a mut Response {
+    if req.header("authorization") != "jwt.token" {
+        let writer = res.ws.as_mut().unwrap();
+
+        writer.write(serde_json::to_vec(&Message{message: "Unauthorized Access"}).unwrap());
+        
+        return res;
+    }
+
+    return next.handle(res);
 }
 
 fn main() {
     let mut server = server("127.0.0.1", 9999);
 
-    server.router().group("/", |router| {
-        router.get("/", home_view);
-        router.get("cookie", cookie);
+    server.router().group("", |router| {
+        router.ws("/", async |_req, ws| {
+            ws.on(async |event, writer| {
+                match event {
+                    flyer::ws::Event::Ready() => todo!(),
+                    flyer::ws::Event::Text(_items) => writer.write("Hello This Public Route".into()),
+                    flyer::ws::Event::Binary(_items) => todo!(),
+                    flyer::ws::Event::Ping(_items) => todo!(),
+                    flyer::ws::Event::Pong(_items) => todo!(),
+                    flyer::ws::Event::Close(_reason) => todo!(),
+                }
+            });
+        });
+
+        router.ws("/private", async |_req, ws| {
+            ws.on(async |event, writer| {
+                match event {
+                    flyer::ws::Event::Ready() => todo!(),
+                    flyer::ws::Event::Text(_items) => writer.write("Hello This Private Route".into()),
+                    flyer::ws::Event::Binary(_items) => todo!(),
+                    flyer::ws::Event::Ping(_items) => todo!(),
+                    flyer::ws::Event::Pong(_items) => todo!(),
+                    flyer::ws::Event::Close(_reason) => todo!(),
+                }
+            });
+        }).middleware(auth);
     });
 
     print!("\r\n\r\nRunning server: {}\r\n\r\n", server.address());

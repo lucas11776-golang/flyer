@@ -1,11 +1,11 @@
-use std::{collections::HashMap, io::Result};
+use std::io::Result;
 
-use tera::{Tera, Value, to_value};
+use tera::Tera;
 
 use crate::{
     request::Request,
     response::ViewBag,
-    utils::Values
+    view::session_functions::SessionFunctions
 };
 
 pub(crate) struct Functions<'a> {
@@ -13,8 +13,6 @@ pub(crate) struct Functions<'a> {
     req: &'a mut Request,
 }
 
-
-// TODO: name according...
 impl <'a>Functions<'a> {
     pub fn new(render: &'a mut Tera, req: &'a mut Request) -> Functions<'a> {
         return Self { 
@@ -23,54 +21,22 @@ impl <'a>Functions<'a> {
         }
     }
 
-    pub fn session(value: Values) -> impl Fn(&HashMap<String, Value>) -> tera::Result<tera::Value>  {
-        return move |args: &HashMap<String, Value>| -> tera::Result<tera::Value> {
-            if args.get("name").is_none() {
-                return Ok(to_value("")?);
-            }
-
-            let session = value.get(args.get("name").unwrap().as_str().unwrap());
-
-            if session.is_none() {
-                return Ok(to_value("")?);
-            }
-
-            return Ok(to_value(session.unwrap())?);
-        };
-    }
-
-    pub fn session_has(value: Values) -> impl Fn(&HashMap<String, Value>) -> tera::Result<tera::Value>  {
-        return move |args: &HashMap<String, Value>| -> tera::Result<tera::Value> {
-            if args.get("name").is_none() {
-                return Ok(to_value("")?);
-            }
-
-            return Ok(to_value(value.get(args.get("name").unwrap().as_str().unwrap()).is_some())?);
-        };
-    }
-
-    pub fn error_has(_value: Values) -> impl Fn(&HashMap<String, Value>) -> tera::Result<tera::Value>  {
-        return move |_args: &HashMap<String, Value>| -> tera::Result<tera::Value> {
-
-
-            return Ok(to_value("Hello World")?);
-        };
+    fn register_session_functions(&mut self) {
+        self.render.register_function("session", SessionFunctions::session(self.req.session.as_mut().unwrap().values()));
+        self.render.register_function("session_has", SessionFunctions::session_has(self.req.session.as_mut().unwrap().values()));
+        self.render.register_function("error_has", SessionFunctions::error_has(self.req.session.as_mut().unwrap().errors()));
+        self.render.register_function("error", SessionFunctions::error(self.req.session.as_mut().unwrap().errors()));
     }
 
     pub fn render(&mut self, bag: &'a mut ViewBag) -> Result<Vec<u8>> {
-        if self.req.session.is_some() {
-            self.render.register_function("session", Functions::session(self.req.session.as_mut().unwrap().values()));
-            self.render.register_function("session_has", Functions::session_has(self.req.session.as_mut().unwrap().values()));
-            self.render.register_function("error_has", Functions::error_has(self.req.session.as_mut().unwrap().errors()));
-        }
+        self.register_session_functions();
 
-        return Ok(
-            self.render
-                .render(&format!("{}", bag.view), &bag.data.as_mut().unwrap().context)
-                .unwrap()
-                .into()
-        );
+        let rendered = self.render
+            .render(&format!("{}", bag.view), &bag.data.as_mut().unwrap().context)
+            .unwrap()
+            .into();
+
+        return Ok(rendered);
     }
 
 }
-
