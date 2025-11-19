@@ -1,5 +1,8 @@
 
-use multer::Multipart;
+use std::io::Result;
+
+use bytes::Bytes;
+use multer::{Field, Multipart};
 use tokio_util::io::ReaderStream;
 
 use crate::{
@@ -27,18 +30,17 @@ fn get_multipart_header_boundary(header: String) -> std::io::Result<String> {
     return Ok(boundary);
 }
 
-// TODO: Fix for HTTP2 error `received with incomplete data`
 async fn parse_multipart_form(mut req: Request) -> std::io::Result<Request> {
     let boundary = get_multipart_header_boundary(req.header("content-type")).unwrap();
     let body = req.body.clone();
     let stream = ReaderStream::new(body.as_slice());
     let mut multipart = Multipart::new(stream,  boundary);
 
-    while let Some(field) = multipart.next_field().await.unwrap() {
+    while let Some(field) = multipart.next_field().await.or::<Result<Option<Field>>>(Ok(None)).unwrap() {
         if field.file_name().is_none() {
             req.form.values.insert(
                 field.name().as_mut().unwrap().to_string(),
-                field.text().await.unwrap().to_string(),
+                field.text().await.or::<Result<String>>(Ok("".to_string())).unwrap().to_string(),
             );
 
             continue;
@@ -47,8 +49,8 @@ async fn parse_multipart_form(mut req: Request) -> std::io::Result<Request> {
         let name = field.name().as_mut().unwrap().to_string();
         let filename = field.file_name().as_mut().unwrap().to_string();
         let content_type = field.content_type().as_mut().unwrap().to_string();
-        let data = field.bytes().await.as_mut().unwrap().to_vec();
-
+        let data = field.bytes().await.as_mut().or::<&mut Bytes>(Ok(&mut bytes::Bytes::new())).unwrap().to_vec();
+        
         if data.len() == 0 {
             continue;
         }

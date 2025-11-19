@@ -4,6 +4,7 @@ use std::{
 };
 use std::pin::{pin, Pin};
 
+use rustls::ServerConfig;
 use tokio::net::TcpListener;
 use tokio_rustls::TlsAcceptor;
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, BufReader};
@@ -13,7 +14,7 @@ use crate::response::Response;
 use crate::server::handler::{http1, http2, ws_http1};
 use crate::server::handler::http2::H2_PREFACE;
 use crate::server::helpers::{setup, teardown};
-use crate::server::{HTTP1, HTTP2, Protocol};
+use crate::server::{HTTP1, HTTP2, Protocol, get_tls_acceptor};
 use crate::HTTP;
 
 pub(crate) struct TcpServer<'a> {
@@ -23,10 +24,10 @@ pub(crate) struct TcpServer<'a> {
 }
 
 impl <'a>TcpServer<'a> {
-    pub async fn new(http: &'a mut HTTP, tls: Option<TlsAcceptor>) -> Result<TcpServer<'a>> {
+    pub async fn new(http: &'a mut HTTP, config: Option<ServerConfig>) -> Result<TcpServer<'a>> {
         return Ok(TcpServer{
             listener: TcpListener::bind(format!("{}", http.address())).await.unwrap(),
-            acceptor: tls,
+            acceptor: config.and_then(|config| get_tls_acceptor(config)),
             http: http,
         });
     }

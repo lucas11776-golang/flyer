@@ -71,7 +71,7 @@ where
             .cloned()
             .or_else(|| headers.get(":authority").cloned())
             .unwrap_or_default();
-        let body = recv.data().await.unwrap().unwrap().to_vec();
+        let body = recv.data().await.or(Some(Ok(Bytes::new()))).unwrap().unwrap().to_vec();
 
         let request = Request {
             ip: self.addr.ip().to_string(),
