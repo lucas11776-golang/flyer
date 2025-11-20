@@ -61,8 +61,9 @@ where
 
         let method: String = parts[0].to_string();
         let target: String = parts[1].to_string();
-        let mut headers: Headers = self.get_headers().await.unwrap();
-        let body: Vec<u8> = self.get_body(&mut headers).await.unwrap();
+        let mut headers: Headers = self.fetch_headers().await.unwrap();
+
+        let body: Vec<u8> = self.fetch_body(&mut headers).await.unwrap();
 
         let (path, query) = if let Some(i) = target.find('?') {
             (target[..i].to_string(), target[i + 1..].to_string())
@@ -100,7 +101,7 @@ where
         Ok(())
     }
 
-    async fn get_headers(&mut self) -> Result<Headers> {
+    async fn fetch_headers(&mut self) -> Result<Headers> {
         let mut headers: Headers = Headers::new();
 
         loop {
@@ -125,7 +126,7 @@ where
         return Ok(headers)
     }
 
-    async fn get_body_transfer_encoding(&mut self) -> Result<Vec<u8>> {
+    async fn fetch_body_transfer_encoding(&mut self) -> Result<Vec<u8>> {
         let mut body: Vec<u8> = Vec::new();
 
         loop {
@@ -161,7 +162,7 @@ where
         return Ok(body);
     }
 
-    async fn get_body_content_length(&mut self, size: usize) -> Result<Vec<u8>> {
+    async fn fetch_body_content_length(&mut self, size: usize) -> Result<Vec<u8>> {
         let mut body = vec![0u8; size];
 
         tokio::io::AsyncReadExt::read_exact(&mut self.rw, &mut body).await?;
@@ -169,16 +170,16 @@ where
         return Ok(body)
     }
 
-    async fn get_body(&mut self, headers: &mut Headers) -> Result<Vec<u8>> {
+    async fn fetch_body(&mut self, headers: &mut Headers) -> Result<Vec<u8>> {
         if let Some(te) = headers.get("transfer-encoding") && te.eq_ignore_ascii_case("chunked") {
-            return self.get_body_transfer_encoding().await;
+            return self.fetch_body_transfer_encoding().await;
         } 
         
         if let Some(cl) = headers.get("content-length") {
             let size = cl.parse::<usize>()
                 .map_err(|_| IoError::new(ErrorKind::InvalidData, "bad content-length"))?;
 
-            return self.get_body_content_length(size).await;
+            return self.fetch_body_content_length(size).await;
         }
 
         return Ok(vec![]);
