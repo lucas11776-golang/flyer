@@ -1,4 +1,5 @@
 
+use std::io::Result;
 use std::mem::transmute_copy;
 
 use futures::join;
@@ -77,38 +78,39 @@ impl HTTP {
     pub fn router<'a>(&mut self) -> &mut Router {
         let idx = self.router.nodes.len();
 
-        self.router.nodes.push(Box::new(Router{
-            web: vec![],
-            ws: vec![],
-            path: vec!["/".to_string()],
-            middlewares: vec![],
-            group: None,
-            router_nodes: vec![],
-            not_found_callback: None,
-        }));
+        self.router.nodes.push(Box::new(Router::new()));
 
         return &mut self.router.nodes[idx];
     }
 
     pub fn listen(&mut self) {
-        let udp_http: &mut HTTP = unsafe { transmute_copy(&self) };
-        let mut tls_server_config: Option<ServerConfig> = None;
-
-        if self.tls.is_some() {
-            tls_server_config = Some(server_config(get_tls_config(&self.tls.as_mut().unwrap()).unwrap()).unwrap());
-        }
-
-        let udp_tls_server_config: Option<ServerConfig> = unsafe { transmute_copy(&tls_server_config) };
-
         self.router.setup();
+
+        let (udp_server_config, tcp_server_config) = self.get_servers_config().unwrap();
+        let (udp_server_http, tcp_server_http) = self.get_server_http().unwrap();
 
         Runtime::new().unwrap().block_on(async {
             join!(
-                HTTP::udp_server(udp_http, udp_tls_server_config),
-                HTTP::tcp_server(self, tls_server_config),
+                HTTP::udp_server(udp_server_http, udp_server_config),
+                HTTP::tcp_server(tcp_server_http, tcp_server_config),
             );
-
         });
+    }
+
+    fn get_servers_config(&mut self) -> Result<(Option<ServerConfig>, Option<ServerConfig>)> {
+        let mut server_config_one: Option<ServerConfig> = None;
+        let mut server_config_two: Option<ServerConfig> = None;
+
+        if self.tls.is_some() {
+            server_config_one = Some(server_config(get_tls_config(&self.tls.as_mut().unwrap())?)?);
+            server_config_two = unsafe { transmute_copy(&server_config_one) };
+        }
+
+        return Ok((server_config_one, server_config_two));
+    }
+
+    fn get_server_http(&mut self) -> Result<(&mut HTTP, &mut HTTP)> {
+        return Ok((unsafe{ transmute_copy(&self) }, self));
     }
 
     async fn tcp_server(http: &mut HTTP, config: Option<ServerConfig>) {

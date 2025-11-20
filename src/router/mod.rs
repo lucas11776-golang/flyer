@@ -41,6 +41,19 @@ pub struct Router {
 }
 
 impl <'r>Router {
+
+    pub fn new() -> Router {
+        return Self {
+            web: vec![],
+            ws: vec![],
+            path: vec!["/".to_string()],
+            middlewares: vec![],
+            group: None,
+            router_nodes: vec![],
+            not_found_callback: None,
+        }
+    }
+
     pub fn get<C>(&mut self, path: &str, callback: C) -> &mut Route<Box<WebRoute>>
     where
         C: for<'a> AsyncFn<(&'a mut Request, &'a mut Response), Output = &'a mut Response> + Send + Sync + 'static,
