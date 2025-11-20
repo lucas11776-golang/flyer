@@ -84,11 +84,10 @@ impl HTTP {
     }
 
     pub fn listen(&mut self) {
-        // TODO: must find a better way.
         self.router.setup();
 
         let (udp_server_config, tcp_server_config) = self.get_servers_config().unwrap();
-        let (tcp_server_http, udp_server_http) = self.get_server_http().unwrap();
+        let (udp_server_http, tcp_server_http) = self.get_server_http().unwrap();
 
         Runtime::new().unwrap().block_on(async {
             join!(
@@ -103,8 +102,8 @@ impl HTTP {
         let mut server_config_two: Option<ServerConfig> = None;
 
         if self.tls.is_some() {
-            server_config_one = Some(server_config(get_tls_config(&self.tls.as_mut().unwrap()).unwrap()).unwrap());
-            server_config_two = unsafe { transmute_copy(&server_config_one) };
+            server_config_two = Some(server_config(get_tls_config(&self.tls.as_mut().unwrap())?)?);
+            server_config_one = unsafe { transmute_copy(&server_config_two) };
         }
 
         return Ok((server_config_one, server_config_two));
