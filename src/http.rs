@@ -102,8 +102,8 @@ impl HTTP {
         let mut server_config_two: Option<ServerConfig> = None;
 
         if self.tls.is_some() {
-            server_config_two = Some(server_config(get_tls_config(&self.tls.as_mut().unwrap())?)?);
-            server_config_one = unsafe { transmute_copy(&server_config_two) };
+            server_config_one = Some(server_config(get_tls_config(&self.tls.as_mut().unwrap())?)?);
+            server_config_two = unsafe { transmute_copy(&server_config_one) };
         }
 
         return Ok((server_config_one, server_config_two));
