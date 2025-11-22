@@ -63,8 +63,8 @@ impl HTTP {
         return self;
     }
 
-    pub fn assets(mut self, path: &str, max_size_kilobytes: usize, expires_in_seconds: u128) -> Self {
-        self.assets = Some(Assets::new(path.to_owned(), max_size_kilobytes, expires_in_seconds));
+    pub fn assets(mut self, path: &str, max_size_kilobytes_cache_size: usize, expires_in_seconds: u128) -> Self {
+        self.assets = Some(Assets::new(path.to_owned(), max_size_kilobytes_cache_size, expires_in_seconds));
 
         return self;
     }
@@ -84,7 +84,7 @@ impl HTTP {
     }
 
     pub fn listen(&mut self) {
-        self.router.setup();
+        self.router.resolve_nodes();
 
         let (udp_server_config, tcp_server_config) = self.get_servers_config().unwrap();
         let (udp_server_http, tcp_server_http) = self.get_server_http().unwrap();

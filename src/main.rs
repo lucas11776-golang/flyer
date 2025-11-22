@@ -26,7 +26,8 @@ fn main() {
     let mut server = server_tls("127.0.0.1", 9999, "host.key", "host.cert")
     // let mut server = server("127.0.0.1", 9999)
         .session(new_session_manager(Duration::from_hours(2), "session_cookie_key_name", "encryption"))
-        .view("views");
+        .view("views")
+        .assets("assets", 1024, Duration::from_hours(2).as_millis());
 
     server.router().group("/", |router| {
         router.get("/", home);

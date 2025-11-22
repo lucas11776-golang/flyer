@@ -11,7 +11,6 @@ use crate::request::Request;
 use crate::request::form::Form;
 use crate::request::parser::parse_content_type;
 use crate::response::Response;
-use crate::server::HTTP3;
 use crate::utils::url::parse_query_params;
 use crate::utils::Values;
 
@@ -57,7 +56,7 @@ impl Handler {
             path: self.request.uri().path().to_string(),
             parameters: Values::new(),
             query: parse_query_params(self.request.uri().query().unwrap_or(""))?,
-            protocol: HTTP3.to_string(),
+            protocol: "HTTP/3.0".to_string(),
             body: vec![],
             form: Form::new(),
             session: None,

@@ -6,13 +6,16 @@ use std::io::Result;
 use serde::{Serialize};
 use tera::{Context, Tera};
 
-use crate::{request::Request, response::Response, view::functions::Functions};
+use crate::{
+    request::Request,
+    response::Response,
+    view::functions::Functions
+};
 
 pub(crate) struct View {
     pub(crate) render: Tera
 }
 
-#[derive(Clone)]
 pub struct ViewData {
     pub(crate) context: Context, 
 }
@@ -47,9 +50,7 @@ impl View {
             bag.data = Some(view_data());
         }
 
-        let mut helper = Functions::new(&mut self.render, &mut req);
-
-        res.body = helper.render(bag).unwrap();
+        res.body = Functions::new(&mut self.render, &mut req).render(bag).unwrap();
 
         return Ok((req, res));   
     }

@@ -14,7 +14,7 @@ use crate::response::Response;
 use crate::server::handler::{http1, http2, ws_http1};
 use crate::server::handler::http2::H2_PREFACE;
 use crate::server::helpers::{setup, teardown};
-use crate::server::{HTTP1, HTTP2, Protocol, get_tls_acceptor};
+use crate::server::{Protocol, get_tls_acceptor};
 use crate::HTTP;
 
 pub(crate) struct TcpServer<'a> {
@@ -65,7 +65,7 @@ impl <'a>TcpServer<'a> {
         RW: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static
     {
         match self.connection_protocol(rw.fill_buf().await?) {
-            HTTP2 => self.http_2_protocol(rw, addr).await.unwrap(),
+            Protocol::HTTP2 => self.http_2_protocol(rw, addr).await.unwrap(),
             _ => self.http_1_protocol(rw, addr).await.unwrap()
         }
 
@@ -74,8 +74,8 @@ impl <'a>TcpServer<'a> {
 
     fn connection_protocol(&'_ mut self, buffer: &[u8]) -> Protocol {
         match buffer.len() >= H2_PREFACE.len() && &buffer[..H2_PREFACE.len()] == H2_PREFACE {
-            true => HTTP2,
-            false => HTTP1,
+            true => Protocol::HTTP2,
+            false => Protocol::HTTP1,
         }
     }
 

@@ -16,7 +16,6 @@ use crate::request::form::Form;
 use crate::request::parser::parse_content_type;
 use crate::response::parser::parse;
 use crate::response::{Response};
-use crate::server::HTTP1;
 use crate::utils::url::parse_query_params;
 use crate::utils::{Headers, Values};
 use crate::request::Request;
@@ -84,7 +83,7 @@ where
             path: path,
             parameters: Values::new(),
             query: parse_query_params(&query).unwrap(),
-            protocol: HTTP1.to_string(),
+            protocol: "HTTP/1.1".to_string(),
             headers: headers,
             body: body,
             form: Form::new(),

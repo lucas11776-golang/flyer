@@ -8,7 +8,7 @@ use std::{io::Result as IoResult, sync::Arc};
 use rustls::{
     ServerConfig,
     pki_types::{
-        pem::{PemObject},
+        pem::PemObject,
         CertificateDer,
         PrivateKeyDer
     }
@@ -17,11 +17,11 @@ use tokio_rustls::TlsAcceptor;
 
 use crate::HTTP;
 
-type Protocol = i32;
-
-const HTTP1: Protocol = 1;
-const HTTP2: Protocol = 2;
-const HTTP3: Protocol = 3;
+pub enum Protocol {
+    HTTP1,
+    HTTP2,
+    HTTP3
+}
 
 pub trait Server<'a> {
     fn new(http: &'a mut HTTP) -> &'a mut Self;

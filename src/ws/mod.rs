@@ -2,7 +2,7 @@ use futures::{executor::block_on};
 
 pub const SEC_WEB_SOCKET_ACCEPT_STATIC: &str = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 
-pub(crate) type OnEvent = dyn Fn(Event, &mut Box<dyn Writer + Send + Sync>) -> () + Send + Sync + 'static;
+pub(crate) type OnEvent = dyn Fn(Event, &mut Box<dyn Writer + Send + Sync>) + Send + Sync + 'static;
 
 #[derive(Debug)]
 pub struct Reason {

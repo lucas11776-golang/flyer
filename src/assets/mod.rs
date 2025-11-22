@@ -27,10 +27,10 @@ pub(crate) struct Assets {
 
 // TODO: Refactor
 impl Assets {
-    pub fn new(path: String, max_size_kilobytes: usize, expires_in_seconds: u128) -> Self {
+    pub fn new(path: String, max_size_kilobytes_cache_size: usize, expires_in_seconds: u128) -> Self {
         return Self {
             path: path.trim_end_matches("/").to_owned(),
-            max_size: max_size_kilobytes * 1000,
+            max_size: max_size_kilobytes_cache_size * 1000,
             expires: expires_in_seconds,
             cache: Cache::new(),
         }

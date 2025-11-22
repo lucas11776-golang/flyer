@@ -61,13 +61,8 @@ where
         let path = Url::parse(request.uri().to_string().as_str()).unwrap().path().to_string();
         let query = parse_query_params(request.uri().query().unwrap_or(""))?;
         let headers = self.hashmap_to_headers(request.headers());
-        let mut recv = request.into_body();
-        let host = headers
-            .get("host")
-            .cloned()
-            .or_else(|| headers.get(":authority").cloned())
-            .unwrap_or_default();
-        let body = recv.data().await.or(Some(Ok(Bytes::new()))).unwrap().unwrap().to_vec();
+        let host = headers.get("host").cloned().or_else(|| headers.get(":authority").cloned()).unwrap_or_default();
+        let body = request.into_body().data().await.or(Some(Ok(Bytes::new()))).unwrap().unwrap().to_vec();
 
         let request = Request {
             ip: self.addr.ip().to_string(),
@@ -83,7 +78,6 @@ where
             session: None,
             cookies: Box::new(Cookies::new(Values::new())),
         };
-
 
         return Ok(parse_content_type(request).await.unwrap());
     }
