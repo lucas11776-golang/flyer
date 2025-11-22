@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use flyer::{server, view::view_data};
 
 /*
@@ -36,6 +38,7 @@ TODO: Create file called `index.html` in folder called `views` and copy the cont
 
 fn main() {
     let mut server = server("127.0.0.1", 8888)
+        .assets("assets", 1024, Duration::from_hours(2).as_millis())
         .view("views");
 
     server.router().get("/", async |_req, res| {

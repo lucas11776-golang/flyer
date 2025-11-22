@@ -64,10 +64,10 @@ where
         let host = headers.get("host").cloned().or_else(|| headers.get(":authority").cloned()).unwrap_or_default();
         let body = request.into_body().data().await.or(Some(Ok(Bytes::new()))).unwrap().unwrap().to_vec();
 
-        let request = Request {
+        let mut req = Request {
             ip: self.addr.ip().to_string(),
             host: host,
-            method: method,
+            method: method.to_uppercase(),
             path: path,
             parameters: Values::new(),
             query: query,
@@ -79,17 +79,18 @@ where
             cookies: Box::new(Cookies::new(Values::new())),
         };
 
-        return Ok(parse_content_type(request).await.unwrap());
+        if req.method == "POST" || req.method == "PATCH" || req.method == "PUT" {
+            req = parse_content_type(req).await.unwrap();
+        }
+
+        return Ok(req);
     }
 
     fn hashmap_to_headers(&mut self, map: &HeaderMap) -> Headers {
         let mut headers = Headers::new();
 
         for (k, v) in map.iter() {
-            headers.insert(
-                k.as_str().to_string(),
-                v.to_str().unwrap_or_default().to_string()
-            );
+            headers.insert(k.as_str().to_string(), v.to_str().unwrap_or_default().to_string());
         }
 
         return headers;

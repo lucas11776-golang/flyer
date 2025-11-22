@@ -76,10 +76,10 @@ where
             .or_else(|| headers.get("host").cloned())
             .unwrap_or_default();
 
-        let req = Request {
+        let mut req = Request {
             ip: self.addr.ip().to_string(),
             host: host,
-            method: method,
+            method: method.to_uppercase(),
             path: path,
             parameters: Values::new(),
             query: parse_query_params(&query).unwrap(),
@@ -91,7 +91,11 @@ where
             cookies: Box::new(Cookies::new(Values::new())),
         };
 
-        return Some(Ok(parse_content_type(req).await.unwrap()));
+        if req.method == "POST" || req.method == "PATCH" || req.method == "PUT" {
+            req = parse_content_type(req).await.unwrap();
+        }
+
+        return Some(Ok(req));
     }
 
     pub async fn write(&mut self, req: &mut Request, res: &mut Response) -> Result<()> {

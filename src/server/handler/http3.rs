@@ -48,11 +48,11 @@ impl Handler {
     pub async fn handle(&mut self) -> Result<Request> {
         let headers = self.get_headers();
         
-        let req = Request{
-            ip: "127.0.0.1".to_owned(),
+        let mut req = Request{
+            ip: "127.0.0.1".to_owned(), // TODO: Get real request ip address
             host: self.get_host(&headers),
             headers: headers,
-            method: self.request.method().to_string(),
+            method: self.request.method().to_string().to_uppercase(),
             path: self.request.uri().path().to_string(),
             parameters: Values::new(),
             query: parse_query_params(self.request.uri().query().unwrap_or(""))?,
@@ -63,7 +63,11 @@ impl Handler {
             cookies: Box::new(Cookies::new(Values::new())),
         };
 
-        return Ok(parse_content_type(req).await.unwrap());
+        if req.method == "POST" || req.method == "PATCH" || req.method == "PUT" {
+            req = parse_content_type(req).await.unwrap();
+        }
+
+        return Ok(req);
     }
 
     pub async fn write(mut self, req: &mut Request, res: &mut Response) -> Result<()> {
