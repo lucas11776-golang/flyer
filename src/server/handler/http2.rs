@@ -8,7 +8,7 @@ use http::{HeaderMap, Request as HttpRequest, Response as HttpResponse};
 use reqwest::Url;
 use tokio::io::{AsyncRead, AsyncWrite, BufReader};
 
-use crate::{cookie::Cookies, request::{form::Form, parser::parse_content_type}, utils::Headers};
+use crate::{cookie::Cookies, request::{form::{Files, Form}, parser::parse_content_type}, utils::Headers};
 use crate::response::{Response};
 use crate::request::Request;
 use crate::utils::url::parse_query_params;
@@ -74,7 +74,7 @@ where
             protocol: "HTTP/2.0".to_string(),
             headers: headers,
             body: body,
-            form: Form::new(),
+            form: Form::new(Values::new(), Files::new()),
             session: None,
             cookies: Box::new(Cookies::new(Values::new())),
         };

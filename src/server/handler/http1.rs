@@ -12,7 +12,7 @@ use tokio::io::{
 };
 
 use crate::cookie::Cookies;
-use crate::request::form::Form;
+use crate::request::form::{Files, Form};
 use crate::request::parser::parse_content_type;
 use crate::response::parser::parse;
 use crate::response::{Response};
@@ -86,7 +86,7 @@ where
             protocol: "HTTP/1.1".to_string(),
             headers: headers,
             body: body,
-            form: Form::new(),
+            form: Form::new(Values::new(), Files::new()),
             session: None,
             cookies: Box::new(Cookies::new(Values::new())),
         };

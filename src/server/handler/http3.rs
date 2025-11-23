@@ -8,7 +8,7 @@ use h3_quinn::BidiStream;
 
 use crate::cookie::Cookies;
 use crate::request::Request;
-use crate::request::form::Form;
+use crate::request::form::{Files, Form};
 use crate::request::parser::parse_content_type;
 use crate::response::Response;
 use crate::utils::url::parse_query_params;
@@ -58,7 +58,7 @@ impl Handler {
             query: parse_query_params(self.request.uri().query().unwrap_or(""))?,
             protocol: "HTTP/3.0".to_string(),
             body: vec![],
-            form: Form::new(),
+            form: Form::new(Values::new(), Files::new()),
             session: None,
             cookies: Box::new(Cookies::new(Values::new())),
         };

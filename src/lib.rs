@@ -13,6 +13,7 @@ pub mod view;
 pub mod server;
 pub mod assets;
 pub mod cookie;
+pub mod validation;
 
 use crate::{http::HTTP, server::TlsPathConfig};
 

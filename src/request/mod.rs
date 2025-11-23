@@ -5,7 +5,7 @@ use std::cmp::Ordering;
 
 use crate::{
     cookie::Cookies,
-    request::form::{File, Form},
+    request::form::{File, Files, Form},
     session::Session,
     utils::{Headers, Values}
 };
@@ -38,7 +38,7 @@ impl Request {
             protocol: "HTTP/1.1".to_string(),
             headers: headers,
             body: body,
-            form: Form::new(),
+            form: Form::new(Values::new(), Files::new()),
             cookies: Box::new(Cookies::new(Values::new())),
         }
     }

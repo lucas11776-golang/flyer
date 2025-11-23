@@ -1,7 +1,13 @@
 use std::{fs::File, io::Write, time::Duration};
 
 use flyer::{
-    request::Request, response::Response, server_tls, session::cookie::new_session_manager, view::view_data
+    request::Request,
+    response::Response,
+    router::next::Next,
+    server_tls,
+    session::cookie::new_session_manager,
+    validation::{Rules, Validator, rules},
+    view::view_data
 };
 
 pub async fn home<'a>(_req: &'a mut Request, res: &'a mut Response) -> &'a mut Response {
@@ -9,17 +15,20 @@ pub async fn home<'a>(_req: &'a mut Request, res: &'a mut Response) -> &'a mut R
 }
 
 pub async fn upload<'a>(req: &'a mut Request, res: &'a mut Response) -> &'a mut Response {
-    if req.file("file").is_none() {
-        return res.with_error("file", "The file is required.")
-            .back();
-    }
-
     let uploaded = req.file("file").unwrap();
     let mut file = File::create(uploaded.name.as_str()).unwrap();
 
     file.write(&uploaded.content).unwrap();
 
     return res.redirect("/");
+}
+
+async fn register_form<'a>(req: &'a mut Request, res: &'a mut Response, next: &'a mut Next) -> &'a mut Response {
+    let mut rules = Rules::new();
+
+    rules.insert(String::from("file"), vec![(rules::required, vec![])]);
+
+    return Validator::handle(req, res, next, rules).await;
 }
 
 fn main() {
@@ -31,7 +40,7 @@ fn main() {
 
     server.router().group("/", |router| {
         router.get("/", home);
-        router.post("upload", upload);
+        router.post("upload", upload).middleware(register_form);
     });
 
     print!("\r\n\r\nRunning server: {}\r\n\r\n", server.address());
