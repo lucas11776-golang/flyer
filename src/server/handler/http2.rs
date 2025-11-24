@@ -8,7 +8,7 @@ use http::{HeaderMap, Request as HttpRequest, Response as HttpResponse};
 use reqwest::Url;
 use tokio::io::{AsyncRead, AsyncWrite, BufReader};
 
-use crate::{cookie::Cookies, request::{form::Form, parser::parse_content_type}, utils::Headers};
+use crate::{cookie::Cookies, request::{form::{Files, Form}, parser::parse_content_type}, utils::Headers};
 use crate::response::{Response};
 use crate::request::Request;
 use crate::utils::url::parse_query_params;
@@ -61,41 +61,36 @@ where
         let path = Url::parse(request.uri().to_string().as_str()).unwrap().path().to_string();
         let query = parse_query_params(request.uri().query().unwrap_or(""))?;
         let headers = self.hashmap_to_headers(request.headers());
-        let mut recv = request.into_body();
-        let host = headers
-            .get("host")
-            .cloned()
-            .or_else(|| headers.get(":authority").cloned())
-            .unwrap_or_default();
-        let body = recv.data().await.or(Some(Ok(Bytes::new()))).unwrap().unwrap().to_vec();
+        let host = headers.get("host").cloned().or_else(|| headers.get(":authority").cloned()).unwrap_or_default();
+        let body = request.into_body().data().await.or(Some(Ok(Bytes::new()))).unwrap().unwrap().to_vec();
 
-        let request = Request {
+        let mut req = Request {
             ip: self.addr.ip().to_string(),
             host: host,
-            method: method,
+            method: method.to_uppercase(),
             path: path,
             parameters: Values::new(),
             query: query,
             protocol: "HTTP/2.0".to_string(),
             headers: headers,
             body: body,
-            form: Form::new(),
+            form: Form::new(Values::new(), Files::new()),
             session: None,
             cookies: Box::new(Cookies::new(Values::new())),
         };
 
+        if req.method == "POST" || req.method == "PATCH" || req.method == "PUT" {
+            req = parse_content_type(req).await.unwrap();
+        }
 
-        return Ok(parse_content_type(request).await.unwrap());
+        return Ok(req);
     }
 
     fn hashmap_to_headers(&mut self, map: &HeaderMap) -> Headers {
         let mut headers = Headers::new();
 
         for (k, v) in map.iter() {
-            headers.insert(
-                k.as_str().to_string(),
-                v.to_str().unwrap_or_default().to_string()
-            );
+            headers.insert(k.as_str().to_string(), v.to_str().unwrap_or_default().to_string());
         }
 
         return headers;

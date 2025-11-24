@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap};
 
 use crate::utils::Values;
 
@@ -6,9 +6,8 @@ pub type Files = HashMap<String, File>;
 
 pub struct File {
     pub name: String,
-    pub content_type: String,
+    pub mime: String,
     pub content: Vec<u8>,
-    pub size: usize,
 }
 
 pub struct Form {
@@ -16,11 +15,21 @@ pub struct Form {
     pub files: Files,
 }
 
-impl Form {
-    pub(crate) fn new() -> Self {
+impl File {
+    pub fn new(name: &str, mime: &str, content: Vec<u8>) -> File {
         return Self {
-            values: Values::new(),
-            files: Files::new()
+            name: name.to_string(),
+            mime: mime.to_string(),
+            content: content,
+        }
+    }
+}
+
+impl Form {
+    pub fn new(values: Values, files: Files) -> Self {
+        return Self {
+            values: values,
+            files: files
         }
     } 
 }

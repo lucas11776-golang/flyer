@@ -17,6 +17,9 @@ pub trait Session: Send + Sync {
     fn set_errors(&mut self, errors: Values);
     fn get_error(&mut self, key: &str) -> String;
     fn remove_error(&mut self, key: &str);
+    fn set_old(&mut self, old: Values);
+    fn old_values(&mut self) -> Values;
+    fn old(&mut self, key: &str) -> String;
 }
 
 pub trait SessionManager: Send + Sync {

@@ -18,7 +18,6 @@ pub struct Response {
     pub(crate) errors: Values,
 }
 
-#[derive(Clone)]
 pub struct ViewBag {
     pub(crate) view: String,
     pub(crate) data: Option<ViewData>,

@@ -55,12 +55,7 @@ async fn parse_multipart_form(mut req: Request) -> std::io::Result<Request> {
             continue;
         }
 
-        req.form.files.insert(name, File {
-            name: filename,
-            content_type: content_type,
-            size: data.len(),
-            content: data,
-        });
+        req.form.files.insert(name, File::new(filename.as_str(), content_type.as_str(), data));
     }
 
     return Ok(req);

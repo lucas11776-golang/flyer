@@ -1,6 +1,7 @@
 #![feature(async_fn_traits)]
 #![feature(unboxed_closures)]
 #![feature(downcast_unchecked)]
+#![feature(type_alias_impl_trait)]
 
 pub mod http;
 pub mod request;
@@ -13,6 +14,7 @@ pub mod view;
 pub mod server;
 pub mod assets;
 pub mod cookie;
+pub mod validation;
 
 use crate::{http::HTTP, server::TlsPathConfig};
 

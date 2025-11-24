@@ -12,7 +12,8 @@
 - Middleware
 - Session
 - Cookie
-- Multipart-Form
+- Multipart Form
+- Form Validation
 - WebSocket
 
 
@@ -211,10 +212,13 @@ And also create file called `index.html` in folder called `views` and copy the c
 The next step to insert code below in `main.rs`.
 
 ```rs
+use std::time::Duration;
+
 use flyer::{server, view::view_data};
 
 fn main() {
     let mut server = server("127.0.0.1", 8888)
+        .assets("assets", 1024, Duration::from_hours(2).as_millis())
         .view("views");
 
     server.router().get("/", async |_req, res| {
@@ -470,6 +474,13 @@ fn main() {
     server.listen();
 }
 ```
+
+
+### Form Validation
+
+```rust
+```
+
 
 ### Websocket
 

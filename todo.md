@@ -1,5 +1,8 @@
 # TODO
 
+# Validation
+- Make the rule async DB operation or blocking operations will occur.
+
 # FIX HTTP2 Multipart FORM
 - Getting error `received with incomplete data`
 

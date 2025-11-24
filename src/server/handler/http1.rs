@@ -12,11 +12,10 @@ use tokio::io::{
 };
 
 use crate::cookie::Cookies;
-use crate::request::form::Form;
+use crate::request::form::{Files, Form};
 use crate::request::parser::parse_content_type;
 use crate::response::parser::parse;
 use crate::response::{Response};
-use crate::server::HTTP1;
 use crate::utils::url::parse_query_params;
 use crate::utils::{Headers, Values};
 use crate::request::Request;
@@ -77,22 +76,26 @@ where
             .or_else(|| headers.get("host").cloned())
             .unwrap_or_default();
 
-        let req = Request {
+        let mut req = Request {
             ip: self.addr.ip().to_string(),
             host: host,
-            method: method,
+            method: method.to_uppercase(),
             path: path,
             parameters: Values::new(),
             query: parse_query_params(&query).unwrap(),
-            protocol: HTTP1.to_string(),
+            protocol: "HTTP/1.1".to_string(),
             headers: headers,
             body: body,
-            form: Form::new(),
+            form: Form::new(Values::new(), Files::new()),
             session: None,
             cookies: Box::new(Cookies::new(Values::new())),
         };
 
-        return Some(Ok(parse_content_type(req).await.unwrap()));
+        if req.method == "POST" || req.method == "PATCH" || req.method == "PUT" {
+            req = parse_content_type(req).await.unwrap();
+        }
+
+        return Some(Ok(req));
     }
 
     pub async fn write(&mut self, req: &mut Request, res: &mut Response) -> Result<()> {
