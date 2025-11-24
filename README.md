@@ -12,7 +12,8 @@
 - Middleware
 - Session
 - Cookie
-- Multipart-Form
+- Multipart Form
+- Form Validation
 - WebSocket
 
 
@@ -473,6 +474,13 @@ fn main() {
     server.listen();
 }
 ```
+
+
+### Form Validation
+
+```rust
+```
+
 
 ### Websocket
 
