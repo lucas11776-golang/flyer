@@ -26,6 +26,8 @@ pub struct SessionCookieManager {
 pub(crate) struct SessionCookie {
     pub(crate) values: Values,
     pub(crate) errors: Values,
+    pub(crate) old: Values,
+    pub(crate) new_old: Values,
     pub(crate) new_errors: Values,
 }
 
@@ -33,12 +35,15 @@ pub(crate) struct SessionCookie {
 pub(crate) struct CookieStorage {
     pub values: Values,
     pub errors: Values,
+    pub old: Values,
 }
 
-pub(crate) fn new_session_cookie(values: Values, errors: Values) -> SessionCookie {
+pub(crate) fn new_session_cookie(values: Values, errors: Values, old: Values) -> SessionCookie {
     return SessionCookie {
         values: values,
         errors: errors,
+        old: old,
+        new_old: Values::new(),
         new_errors: Values::new(),
     }
 }
@@ -53,24 +58,24 @@ pub fn new_session_manager(expires: Duration, cookie_name: &str, encryption_key:
 
 pub(crate) fn parse_raw_cookie(encryption_key: String, raw_cookie: Option<&String>) -> Result<SessionCookie> {
     if raw_cookie.is_none() {
-        return Ok(new_session_cookie(Values::new(), Values::new()));
+        return Ok(new_session_cookie(Values::new(), Values::new(), Values::new()));
     }
 
     let payload = decrypt(&encryption_key, raw_cookie.unwrap());
 
     if payload.is_err() {
-        return Ok(new_session_cookie(Values::new(), Values::new()));
+        return Ok(new_session_cookie(Values::new(), Values::new(), Values::new()));
     }
 
     let result = serde_json::from_str::<CookieStorage>(&payload.unwrap());
 
     if result.is_err() {
-        return Ok(new_session_cookie(Values::new(), Values::new()));
+        return Ok(new_session_cookie(Values::new(), Values::new(), Values::new()));
     }
 
     let storage = result.unwrap();
 
-    return Ok(new_session_cookie(storage.values, storage.errors));
+    return Ok(new_session_cookie(storage.values, storage.errors, storage.old));
 }
 
 impl SessionManager for SessionCookieManager {
@@ -94,6 +99,7 @@ impl SessionManager for SessionCookieManager {
             let data = serde_json::to_string(&CookieStorage {
                 values: session.values.clone(),
                 errors: session.new_errors.clone(),
+                old: session.old.clone(),
             });
 
             // TODO: also encrypt will take time.
@@ -165,5 +171,19 @@ impl Session for SessionCookie {
 
     fn remove_error(&mut self, key: &str) {
         self.errors.remove(key);
+    }
+
+    fn set_old(&mut self, values: Values) {
+        for (key, value) in values {
+            self.new_old.insert(key, value);
+        }
+    }
+
+    fn old_values(&mut self) -> Values {
+        return self.old.clone();
+    }
+
+    fn old(&mut self, key: &str) -> String {
+        return self.old.get(key).or(Some(&String::new())).unwrap().to_string();
     }
 }

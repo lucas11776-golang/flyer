@@ -1,6 +1,6 @@
 pub mod rules;
 
-use std::collections::HashMap;
+use async_std::task::block_on;
 
 use crate::{
     request::{Request, form::{Files, Form}},
@@ -8,8 +8,16 @@ use crate::{
     router::next::Next, utils::Values
 };
 
-pub type Rule = fn (&Form, String, Vec<String>) -> Option<String>;
-pub type Rules = HashMap<String, Vec<(Rule, Vec<String>)>>;
+pub type Rule = dyn Fn(&Form, String, Vec<String>) -> Option<String> + 'static;
+
+pub struct Field {
+    pub(crate) name: String,
+    pub(crate) rules: Vec<(Box<Rule>, Vec<String>)>
+}
+
+pub struct Rules {
+    pub(crate) fields: Vec<Field>
+}
 
 #[allow(dead_code)]
 pub struct Validator<'a> {
@@ -17,6 +25,43 @@ pub struct Validator<'a> {
     pub(crate) rules: Rules,
     pub(crate) errors: Values,
     pub(crate) validated: Form,
+}
+
+impl Field {
+    pub(crate) fn new(field: &str) -> Field {
+        return Self {
+            name: field.to_string(),
+            rules: Vec::new()
+        }
+    }
+
+    pub fn add<R>(&mut self, callback: R, args: Vec<&str>) -> &mut Field
+    where
+        R: for<'a> AsyncFn<(&'a Form, String, Vec<String>), Output = Option<String>> + Send + Sync + 'static
+    {
+        self.rules.push((
+            Box::new(move |form, field, args| block_on(callback(form, field, args))),
+            args.iter().map(|v| v.to_string()).collect()
+        ));
+
+        return self;
+    }
+}
+
+impl<'a> Rules {
+    pub fn new() -> Rules {
+        return Self {
+            fields: Vec::new(),
+        }
+    }
+
+    pub fn field(&mut self, field: &str) -> &mut Field {
+        let idx = self.fields.len();
+
+        self.fields.push(Field::new(field));
+
+        return &mut self.fields[idx];
+    }
 }
 
 impl <'a>Validator<'a> {
@@ -30,9 +75,9 @@ impl <'a>Validator<'a> {
     }
 
     pub async fn validate(&mut self) -> bool {
-        for (field, validators) in  &mut self.rules {
-            if let Some(error) = Self::validate_field(self.form, field.to_string(), validators).await {
-                self.errors.insert(field.to_string(), error);
+        for field in &mut self.rules.fields {
+            if let Some(error) = Self::validate_field(self.form, field) {
+                self.errors.insert(field.name.to_string(), error);
             }
         }
 
@@ -40,10 +85,13 @@ impl <'a>Validator<'a> {
     }
 
     pub async fn handle(req: &'a mut Request, res: &'a mut Response, next: &'a mut Next, rules: Rules) -> &'a mut Response {
+        let session = req.session();
         let mut validator = Self::new(&req.form, rules);
-        println!("FORM: {:?}", req.form.values);
 
         if !validator.validate().await {
+
+            // session.set_old(req.form.values.clone());
+
             return res.with_errors(validator.errors).back();
         }
 
@@ -54,9 +102,10 @@ impl <'a>Validator<'a> {
         return Values::new();
     }
 
-    async fn validate_field(form: &Form, field: String, validators: &mut Vec<(Rule, Vec<String>)>) -> Option<String> {
-        for (rule, args) in validators {
-            if let Some(error) = rule(form, field.to_string(), args.to_vec()) {
+
+    fn validate_field(form: &Form, field: &mut Field) -> Option<String> {
+        for (rule, args) in &mut field.rules {
+            if let Some(error) = rule(form, field.name.clone(), args.to_vec()) {
                 return Some(error)
             }
         }

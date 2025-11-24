@@ -8,9 +8,9 @@ use crate::utils::Values;
 pub(crate) struct SessionFunctions;
 
 impl SessionFunctions {
-    pub fn session(value: Values) -> impl Fn(&HashMap<String, Value>) -> tera::Result<tera::Value>  {
+    pub fn session(values: Values) -> impl Fn(&HashMap<String, Value>) -> tera::Result<tera::Value>  {
         return move |args: &HashMap<String, Value>| -> tera::Result<tera::Value> {
-            let session = value.get(args.get("name").unwrap().as_str().unwrap());
+            let session = values.get(args.get("name").unwrap().as_str().unwrap());
 
             if session.is_none() {
                 return Ok(to_value("").unwrap());
@@ -20,9 +20,9 @@ impl SessionFunctions {
         };
     }
 
-    pub fn session_has(value: Values) -> impl Fn(&HashMap<String, Value>) -> tera::Result<tera::Value>  {
+    pub fn session_has(values: Values) -> impl Fn(&HashMap<String, Value>) -> tera::Result<tera::Value>  {
         return move |args: &HashMap<String, Value>| -> tera::Result<tera::Value> {
-            let session = value.get(args.get("name").unwrap().as_str().unwrap());
+            let session = values.get(args.get("name").unwrap().as_str().unwrap());
 
             if session.is_none() {
                 return Ok(to_value(true).unwrap());
@@ -32,9 +32,9 @@ impl SessionFunctions {
         };
     }
 
-    pub fn error_has(value: Values) -> impl Fn(&HashMap<String, Value>) -> tera::Result<tera::Value>  {
+    pub fn error_has(values: Values) -> impl Fn(&HashMap<String, Value>) -> tera::Result<tera::Value>  {
         return move |args: &HashMap<String, Value>| -> tera::Result<tera::Value> {
-            let error = value.get(args.get("name").unwrap().as_str().unwrap());
+            let error = values.get(args.get("name").unwrap().as_str().unwrap());
             let class = args.get("class");
 
             if error.is_none() && class.is_none() {
@@ -53,15 +53,26 @@ impl SessionFunctions {
         };
     }
 
-    pub fn error(value: Values) -> impl Fn(&HashMap<String, Value>) -> tera::Result<tera::Value>  {
+    pub fn error(values: Values) -> impl Fn(&HashMap<String, Value>) -> tera::Result<tera::Value>  {
         return move |args: &HashMap<String, Value>| -> tera::Result<tera::Value> {
-            let session = value.get(args.get("name").unwrap().as_str().unwrap());
+            let session = values.get(args.get("name").unwrap().as_str().unwrap());
 
             if session.is_none() {
                 return Ok(to_value("").unwrap());
             }
 
             return Ok(to_value(session.unwrap()).unwrap());
+        };
+    }
+
+    pub fn old(values: Values) -> impl Fn(&HashMap<String, Value>) -> tera::Result<tera::Value>  {
+        return move |args: &HashMap<String, Value>| -> tera::Result<tera::Value> {
+        
+
+            println!("VALUES {:?}", values);
+
+
+            return Ok(to_value(values.get(args.get("name").unwrap().as_str().unwrap()).or(Some(&String::new())).unwrap()).unwrap());
         };
     }
 }

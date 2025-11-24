@@ -1,6 +1,7 @@
 #![feature(async_fn_traits)]
 #![feature(unboxed_closures)]
 #![feature(downcast_unchecked)]
+#![feature(type_alias_impl_trait)]
 
 pub mod http;
 pub mod request;

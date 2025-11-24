@@ -3,13 +3,14 @@ use std::time::Duration;
 use serde::{Deserialize, Serialize};
 
 use flyer::{
-    request::Request,
+    request::{Request, form::Form},
     response::Response,
     router::next::Next,
     server,
     session::cookie::new_session_manager,
     validation::{Rules, Validator, rules}
 };
+use tokio::time::sleep;
 
 #[derive(Serialize, Deserialize)]
 pub struct Token {
@@ -19,7 +20,7 @@ pub struct Token {
 }
 
 pub async fn index<'a>(_req: &'a mut Request, res: &'a mut Response) -> &'a mut Response {
-    return res.view("login.html", None);
+    return res.view("register.html", None);
 }
 
 pub async fn login<'a>(_req: &'a mut Request, res: &'a mut Response) -> &'a mut Response {
@@ -30,11 +31,33 @@ pub async fn login<'a>(_req: &'a mut Request, res: &'a mut Response) -> &'a mut 
     });
 }
 
+pub async fn email_exists(form: &Form, field: String, _args: Vec<String>) -> Option<String> {
+    let users_table = vec!["jeo@doe.com", "jane@deo.com"];
+
+    sleep(Duration::from_secs(2)).await; // Database call simulation 
+
+    for email in users_table {
+        if form.values.get(&field).unwrap().eq(email) {
+            return Some(format!("The {} already exists in database", field))
+        }
+    }
+
+    return Some(format!("The {} is required", field))
+}
+
 async fn login_form<'a>(req: &'a mut Request, res: &'a mut Response, next: &'a mut Next) -> &'a mut Response {
     let mut rules = Rules::new();
 
-    rules.field("email").add(rules::required, vec![]).add(rules::string, vec![]);
-    rules.field("password").add(rules::required, vec![]).add(rules::string, vec![]);
+    rules.field("email")
+        .add(rules::required, vec![])
+        .add(rules::string, vec![])
+        .add(email_exists, vec![]);
+    rules.field("password")
+        .add(rules::required, vec![])
+        .add(rules::string, vec![])
+        .add(rules::min, vec!["8"])
+        .add(rules::max, vec!["21"])
+        .add(rules::confirmed, vec![]);
 
     return Validator::handle(req, res, next, rules).await;
 }

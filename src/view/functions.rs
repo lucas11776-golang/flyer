@@ -26,6 +26,7 @@ impl <'a>Functions<'a> {
         self.render.register_function("session_has", SessionFunctions::session_has(self.req.session.as_mut().unwrap().values()));
         self.render.register_function("error_has", SessionFunctions::error_has(self.req.session.as_mut().unwrap().errors()));
         self.render.register_function("error", SessionFunctions::error(self.req.session.as_mut().unwrap().errors()));
+        self.render.register_function("old", SessionFunctions::old(self.req.session.as_mut().unwrap().old_values()));
     }
 
     pub fn render(&mut self, bag: &'a mut ViewBag) -> Result<Vec<u8>> {
