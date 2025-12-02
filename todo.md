@@ -50,3 +50,5 @@
 - Remove unsafe blocks.
 
 <!-- // #[allow(deprecated)] -->
+
+# Rewrite docs

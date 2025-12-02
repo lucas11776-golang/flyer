@@ -29,3 +29,19 @@ pub fn timestamp() -> Result<u128> {
             .as_millis()
     );
 }
+
+pub fn load_env(path: &str) {
+    dotenv::from_filename(path).unwrap();
+}
+
+
+pub fn env(name: &str) -> String {
+    let var = dotenv::var(name);
+
+    if var.is_err() {
+        return String::new();
+    }
+    
+    return var.unwrap();
+}
+
