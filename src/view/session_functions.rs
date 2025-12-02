@@ -67,11 +67,6 @@ impl SessionFunctions {
 
     pub fn old(values: Values) -> impl Fn(&HashMap<String, Value>) -> tera::Result<tera::Value>  {
         return move |args: &HashMap<String, Value>| -> tera::Result<tera::Value> {
-        
-
-            println!("VALUES {:?}", values);
-
-
             return Ok(to_value(values.get(args.get("name").unwrap().as_str().unwrap()).or(Some(&String::new())).unwrap()).unwrap());
         };
     }

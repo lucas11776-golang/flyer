@@ -1,5 +1,9 @@
 # TODO
 
+# Fix multi
+
+- Multiple request freeze.
+
 # Validation
 - Make the rule async DB operation or blocking operations will occur.
 

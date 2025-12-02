@@ -40,8 +40,7 @@ pub struct Router {
     pub(crate) not_found_callback: Option<Box<WebRoute>>,
 }
 
-impl <'r>Router {
-
+impl Router {
     pub fn new() -> Router {
         return Self {
             web: vec![],

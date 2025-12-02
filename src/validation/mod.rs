@@ -85,14 +85,12 @@ impl <'a>Validator<'a> {
     }
 
     pub async fn handle(req: &'a mut Request, res: &'a mut Response, next: &'a mut Next, rules: Rules) -> &'a mut Response {
-        let session = req.session();
         let mut validator = Self::new(&req.form, rules);
 
         if !validator.validate().await {
-
-            // session.set_old(req.form.values.clone());
-
-            return res.with_errors(validator.errors).back();
+            return res.with_old(req.form.values.clone())
+                .with_errors(validator.errors)
+                .back();
         }
 
         return next.handle(res);
@@ -101,7 +99,6 @@ impl <'a>Validator<'a> {
     pub fn errors(&mut self) -> Values {
         return Values::new();
     }
-
 
     fn validate_field(form: &Form, field: &mut Field) -> Option<String> {
         for (rule, args) in &mut field.rules {
