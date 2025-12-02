@@ -30,14 +30,16 @@ pub type Group = for<'a> fn(&'a mut Router);
 
 pub type RouterNodes = Vec<Box<Router>>;
 
+pub type RouteNotFoundCallback = Option<Box<WebRoute>>;
+
 pub struct Router {
     pub(crate) web: WebRoutes,
     pub(crate) ws: WsRoutes,
     pub(crate) path: Vec<String>,
     pub(crate) middlewares: Middlewares,
     pub(crate) group: Option<Group>,
-    pub(crate) router_nodes: RouterNodes,
-    pub(crate) not_found_callback: Option<Box<WebRoute>>,
+    pub(crate) nodes: RouterNodes,
+    pub(crate) not_found: Option<Box<WebRoute>>,
 }
 
 impl Router {
@@ -48,8 +50,8 @@ impl Router {
             path: vec!["/".to_string()],
             middlewares: vec![],
             group: None,
-            router_nodes: vec![],
-            not_found_callback: None,
+            nodes: vec![],
+            not_found: None,
         }
     }
 
@@ -125,7 +127,7 @@ impl Router {
     where
         C: for<'a> AsyncFn<(&'a mut Request, &'a mut Response), Output = &'a mut Response> + Send + Sync + 'static
     {
-        self.not_found_callback = Some(Box::new(move |req, res| block_on(callback(req, res))));
+        self.not_found = Some(Box::new(move |req, res| block_on(callback(req, res))));
     }
 
     pub fn ws<C>(&mut self, path: &str, callback: C) -> &mut Route<Box<WsRoute>>
@@ -147,20 +149,20 @@ impl Router {
     }
 
     pub fn group<'g>(&'g mut self , path: &str, group: Group) -> GroupRoute<'g> {
-        let idx = self.router_nodes.len();
+        let idx = self.nodes.len();
         let path = join_paths(self.path.join("/"), path.to_string());
         let middlewares: Middlewares = unsafe { mem::transmute_copy(&mut self.middlewares) };
 
-        self.router_nodes.push(Box::new(Router{
+        self.nodes.push(Box::new(Router{
             web: vec![],
             ws: vec![],
             path: path,
             middlewares,
             group: Some(group),
-            router_nodes: vec![],
-            not_found_callback: None,
+            nodes: vec![],
+            not_found: None,
         }));
 
-        return GroupRoute::new(&mut self.router_nodes[idx])
+        return GroupRoute::new(&mut self.nodes[idx])
     }
 }

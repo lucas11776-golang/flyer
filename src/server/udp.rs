@@ -68,7 +68,7 @@ impl <'a>UdpServer<'a> {
 
         res.request_headers = req.headers.clone();
 
-        let resp = self.http.router.match_web_routes(&mut req, &mut res).await;
+        let resp = self.http.router.web_match(&mut req, &mut res).await;
 
         if resp.is_none() && self.http.assets.is_some() {
             (req, res) = self.http.assets.as_mut().unwrap().handle(req, res).unwrap();
