@@ -1,9 +1,10 @@
 
+use core::arch;
 use std::collections::HashMap;
 
 use tera::{Value, to_value};
 
-use crate::utils::Values;
+use crate::utils::{Values, env};
 
 pub(crate) struct SessionFunctions;
 
@@ -68,6 +69,24 @@ impl SessionFunctions {
     pub fn old(values: Values) -> impl Fn(&HashMap<String, Value>) -> tera::Result<tera::Value>  {
         return move |args: &HashMap<String, Value>| -> tera::Result<tera::Value> {
             return Ok(to_value(values.get(args.get("name").unwrap().as_str().unwrap()).or(Some(&String::new())).unwrap()).unwrap());
+        };
+    }
+
+    pub fn env() -> impl Fn(&HashMap<String, Value>) -> tera::Result<tera::Value>  {
+        return move |args: &HashMap<String, Value>| -> tera::Result<tera::Value> {
+            return Ok(to_value(env(&args.get("name").unwrap().to_string())).unwrap());
+        };
+    }
+
+    pub fn url() -> impl Fn(&HashMap<String, Value>) -> tera::Result<tera::Value>  {
+        return move |args: &HashMap<String, Value>| -> tera::Result<tera::Value> {
+            let mut path = String::new();
+
+            if let Some(p) = args.get("path") {
+                path = p.as_str().unwrap().trim_start_matches("/").trim_end_matches("/").to_owned();
+            }
+
+            return Ok(to_value(format!("{}/{}", env("APP_URL").trim_end_matches("/"), path)).unwrap());
         };
     }
 }

@@ -7,3 +7,4 @@ Cargo.lock
 .gitignore
 host.cert
 host.key
+.env

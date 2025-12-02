@@ -12,6 +12,7 @@ use crate::server::tcp::TcpServer;
 use crate::server::udp::UdpServer;
 use crate::server::TlsPathConfig;
 use crate::session::SessionManager;
+use crate::utils::load_env;
 use crate::view::View;
 
 pub struct HTTP {
@@ -37,6 +38,12 @@ impl HTTP {
             session_manager: None,
             assets: None,
         };
+    }
+
+    pub fn env(self, path: &str) -> Self {
+        load_env(path);
+
+        return self;
     }
 
     pub fn host(&self) -> String {
