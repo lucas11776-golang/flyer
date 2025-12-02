@@ -1,4 +1,4 @@
-use std::mem::transmute_copy;
+use std::mem::{take, transmute_copy};
 
 use crate::{
     request::Request,
@@ -34,11 +34,18 @@ impl GroupRouter {
     }
     
     pub fn init(&mut self) {
+
+
         for mut node in &mut self.nodes {
             let (web, ws, not_found) = GroupRouter::resolve_router_nodes(&mut node);
 
+
+
+
             self.web.extend(web);
             self.ws.extend(ws);
+
+
 
             if not_found.is_some() {
                 self.not_found_callback = not_found;
@@ -105,28 +112,36 @@ impl GroupRouter {
         return Some(res);
     }
 
+    // TODO: working ref...
     fn resolve_router_nodes(router: &mut Box<Router>) -> (Vec<Route<Box<WebRoute>>>, Vec<Route<Box<WsRoute>>>, Option<Box<WebRoute>>) {
-        let mut web: Vec<Route<Box<WebRoute>>> = vec![];
-        let mut ws: Vec<Route<Box<WsRoute>>> = vec![];
-        let mut not_found: Option<Box<WebRoute>> = None;
+        let mut web: Vec<Route<Box<WebRoute>>> = take(&mut router.web);
+        let mut ws: Vec<Route<Box<WsRoute>>> = take(&mut router.ws);
+        let mut not_found: Option<Box<WebRoute>> = take(&mut router.not_found_callback);
 
-        if router.group .is_some() {
-            router.group.as_mut().unwrap()(router);
-            // TODO: fix arch
-            web.extend::<Vec<Route<Box<WebRoute>>>>(unsafe { transmute_copy(&mut router.web) });
-            ws.extend::<Vec<Route<Box<WsRoute>>>>(unsafe { transmute_copy(&mut router.ws) });
+        if let Some(group) = router.group {
+            group(router);
+
+            web.extend(take(&mut router.web));
+            ws.extend(take(&mut router.ws));
+
+            if router.not_found_callback.is_some() {
+                not_found = take(&mut router.not_found_callback);
+            }
         }
 
         if router.not_found_callback.is_some() {
-            // TODO: fix arch
-            not_found = unsafe { transmute_copy(&mut router.not_found_callback) };
+            not_found = take(&mut router.not_found_callback);
         }
         
         for node in &mut router.router_nodes {
-            let (_web, _ws, _not_found) = GroupRouter::resolve_router_nodes(node);
+            let (temp_web, temp_ws, temp_not_found) = GroupRouter::resolve_router_nodes(node);
 
-            web.extend(_web);
-            ws.extend(_ws);
+            web.extend(temp_web);
+            ws.extend(temp_ws);
+
+            if temp_not_found.is_some() {
+                not_found = temp_not_found;
+            }
         }
 
         return (web, ws, not_found);

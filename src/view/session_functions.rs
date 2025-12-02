@@ -1,5 +1,3 @@
-
-use core::arch;
 use std::collections::HashMap;
 
 use tera::{Value, to_value};

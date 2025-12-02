@@ -1,4 +1,4 @@
-# Flyer - Web Framework
+# Flyer - Web Framework - supports HTTP/1.1, HTTP/2.0 and HTTP/3.0
 
 ## Getting Started
 
