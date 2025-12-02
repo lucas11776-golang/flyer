@@ -1,5 +1,3 @@
-
-use std::io::Result;
 use std::mem::transmute_copy;
 
 use futures::join;
@@ -84,33 +82,20 @@ impl HTTP {
     }
 
     pub fn listen(&mut self) {
-        self.router.resolve_nodes();
+        self.router.init();
 
-        let (udp_server_config, tcp_server_config) = self.get_servers_config().unwrap();
-        let (udp_server_http, tcp_server_http) = self.get_server_http().unwrap();
+        let mut config: Option<ServerConfig> = None;
+
+        if self.tls.is_some() {
+            config = Some(server_config(get_tls_config(&self.tls.as_mut().unwrap()).unwrap()).unwrap());
+        }
 
         Runtime::new().unwrap().block_on(async {
             join!(
-                HTTP::udp_server(udp_server_http, udp_server_config),
-                HTTP::tcp_server(tcp_server_http, tcp_server_config),
+                HTTP::udp_server(unsafe { transmute_copy(&self) }, config.clone()),
+                HTTP::tcp_server(self, config),
             );
         });
-    }
-
-    fn get_servers_config(&mut self) -> Result<(Option<ServerConfig>, Option<ServerConfig>)> {
-        let mut server_config_one: Option<ServerConfig> = None;
-        let mut server_config_two: Option<ServerConfig> = None;
-
-        if self.tls.is_some() {
-            server_config_one = Some(server_config(get_tls_config(&self.tls.as_mut().unwrap())?)?);
-            server_config_two = unsafe { transmute_copy(&server_config_one) };
-        }
-
-        return Ok((server_config_one, server_config_two));
-    }
-
-    fn get_server_http(&mut self) -> Result<(&mut HTTP, &mut HTTP)> {
-        return Ok((unsafe{ transmute_copy(&self) }, self));
     }
 
     async fn tcp_server(http: &mut HTTP, config: Option<ServerConfig>) {
@@ -132,5 +117,4 @@ impl HTTP {
             .listen()
             .await;
     }
-
 }

@@ -23,7 +23,7 @@ pub struct GroupRouter {
     pub(crate) not_found_callback: Option<Box<WebRoute>>,
 }
 
-impl <'r>GroupRouter {
+impl GroupRouter {
     pub fn new() -> Self {
         return GroupRouter {
             web: vec![],
@@ -33,7 +33,7 @@ impl <'r>GroupRouter {
         }
     }
     
-    pub fn resolve_nodes(&mut self) {
+    pub fn init(&mut self) {
         for mut node in &mut self.nodes {
             let (web, ws, not_found) = GroupRouter::resolve_router_nodes(&mut node);
 
@@ -46,7 +46,7 @@ impl <'r>GroupRouter {
         }
     }
 
-    pub async fn match_web_routes(&mut self, req: &'r mut Request, res: &'r mut Response) -> Option<&'r mut Response> {
+    pub async fn match_web_routes<'g>(&mut self, req: &'g mut Request, res: &'g mut Response) -> Option<&'g mut Response> {
         for route in &mut self.web {
             let (is_match, parameters) = route.is_match(req);
 
@@ -72,7 +72,7 @@ impl <'r>GroupRouter {
         return None;
     }
 
-    pub async fn match_ws_routes<'a>(&'a mut self, req: &'a mut Request, res: &'a mut Response) -> Option<(&'a mut Route<Box<WsRoute>>, &'a mut Request, &'a mut Response)> {
+    pub async fn match_ws_routes<'g>(&'g mut self, req: &'g mut Request, res: &'g mut Response) -> Option<(&'g mut Route<Box<WsRoute>>, &'g mut Request, &'g mut Response)> {
         for route in &mut self.ws {
             let (is_match, parameters) = route.is_match(req);
 
@@ -91,7 +91,7 @@ impl <'r>GroupRouter {
         return None;
     }
 
-    fn handle_middlewares(middlewares: &Vec<Box<Middleware>>, req: &'r mut Request, res: &'r mut Response) -> Option<&'r mut Response> {
+    fn handle_middlewares<'g>(middlewares: &Vec<Box<Middleware>>, req: &'g mut Request, res: &'g mut Response) -> Option<&'g mut Response> {
         for middleware in  middlewares {
             let mut next = Next::new();
 
@@ -112,12 +112,13 @@ impl <'r>GroupRouter {
 
         if router.group .is_some() {
             router.group.as_mut().unwrap()(router);
-
+            // TODO: fix arch
             web.extend::<Vec<Route<Box<WebRoute>>>>(unsafe { transmute_copy(&mut router.web) });
             ws.extend::<Vec<Route<Box<WsRoute>>>>(unsafe { transmute_copy(&mut router.ws) });
         }
 
         if router.not_found_callback.is_some() {
+            // TODO: fix arch
             not_found = unsafe { transmute_copy(&mut router.not_found_callback) };
         }
         

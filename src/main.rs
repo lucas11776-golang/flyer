@@ -6,7 +6,7 @@ use flyer::{
     request::Request,
     response::Response,
     router::next::Next,
-    server,
+    server_tls,
     session::cookie::new_session_manager,
     validation::{Rules, Validator, rules}
 };
@@ -40,7 +40,7 @@ async fn login_form<'a>(req: &'a mut Request, res: &'a mut Response, next: &'a m
 }
 
 fn main() {
-    let mut server = server("127.0.0.1", 9999)
+    let mut server = server_tls("127.0.0.1", 9999, "host.key", "host.cert")
         .session(new_session_manager(Duration::from_hours(2), "session_cookie_key_name", "encryption"))
         .view("views")
         .assets("assets", 1024, Duration::from_hours(2).as_millis());

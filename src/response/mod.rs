@@ -16,6 +16,7 @@ pub struct Response {
     pub(crate) body: Vec<u8>,
     pub(crate) view: Option<ViewBag>,
     pub(crate) errors: Values,
+    pub(crate) old: Values,
 }
 
 pub struct ViewBag {
@@ -33,6 +34,7 @@ impl Response {
             body: vec![],
             view: None,
             errors: Values::new(),
+            old: Values::new(),
         };
     }
 
@@ -114,6 +116,14 @@ impl Response {
     pub fn with_errors(&mut self, errors: Values) -> &mut Response {
         for (name, error) in errors {
             self.with_error(name.as_str(), error.as_str());
+        }
+
+        return self;
+    }
+
+    pub(crate) fn with_old(&mut self, old: Values) -> &mut Response {
+        for (k, v) in old {
+            self.old.insert(k, v);
         }
 
         return self;

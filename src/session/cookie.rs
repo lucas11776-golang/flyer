@@ -87,22 +87,19 @@ impl SessionManager for SessionCookieManager {
         return Ok((req, res));
     }
 
-    // TODO: set domain as global maybe have configuration struct in `new_session_manager`.
     fn teardown<'a>(&mut self, req: &'a mut Request, mut res: &'a mut Response) -> Result<(&'a mut Request, &'a mut Response)> {        
-        // TODO: do not like is - (working with unsafe...)
         unsafe {
-            // TODO: loosening performance here in downcast ref.
             let session = (req.session.as_mut().unwrap() as &mut dyn Any).downcast_mut_unchecked::<Box<SessionCookie>>();
 
             session.set_errors(res.errors.clone());
+            session.set_old(res.old.clone());
 
             let data = serde_json::to_string(&CookieStorage {
                 values: session.values.clone(),
                 errors: session.new_errors.clone(),
-                old: session.old.clone(),
+                old: session.new_old.clone(),
             });
 
-            // TODO: also encrypt will take time.
             let payload = encrypt(self.encryption_key.as_str(), data.unwrap().as_str()).unwrap();
             let mut cookie = Cookie::new(self.cookie_name.clone(), payload);
 
