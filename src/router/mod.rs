@@ -151,6 +151,9 @@ impl Router {
     pub fn group<'g>(&'g mut self , path: &str, group: Group) -> GroupRoute<'g> {
         let idx = self.nodes.len();
         let path = join_paths(self.path.join("/"), path.to_string());
+
+
+        // TODO: Copy of middlewares fix (compile-time error) - Segment Error
         let middlewares: Middlewares = unsafe { mem::transmute_copy(&mut self.middlewares) };
 
         self.nodes.push(Box::new(Router{
