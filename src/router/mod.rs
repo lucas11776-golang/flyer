@@ -153,7 +153,7 @@ impl Router {
         let path = join_paths(self.path.join("/"), path.to_string());
 
 
-        // TODO: Copy of middlewares fix (compile-time error) - Segment Error
+        // TODO: Copy of middlewares fix (runtime-time error) - Segment Error
         let middlewares: Middlewares = unsafe { mem::transmute_copy(&mut self.middlewares) };
 
         self.nodes.push(Box::new(Router{
