@@ -2,7 +2,7 @@ pub mod group;
 pub mod route;
 pub mod next;
 
-use std::mem;
+use std::collections::HashMap;
 
 use futures::executor::block_on;
 
@@ -26,18 +26,43 @@ pub type Middleware = dyn for<'a> Fn(&'a mut Request, &'a mut Response, &'a mut 
 
 pub type Middlewares = Vec<Box<Middleware>>;
 
+pub type MiddlewaresPointers = Vec<String>;
+
 pub type Group = for<'a> fn(&'a mut Router);
 
 pub type RouterNodes = Vec<Box<Router>>;
+
+pub type RouteNotFoundCallback = Option<Box<WebRoute>>;
+
+use lazy_static::lazy_static;
+use std::sync::Mutex;
+
+pub(crate) type MiddlewaresHolder = HashMap<String, Box<Middleware>>;
+
+lazy_static! {
+    pub(crate) static ref GLOBAL_MIDDLEWARE_VTABLE: Mutex<MiddlewaresHolder> = Mutex::new(MiddlewaresHolder::new());
+}
+
+pub(crate) fn register_middleware_vtable(middleware: Box<Middleware>) -> String {
+    let pointer = format!("{:p}", &middleware);
+
+    GLOBAL_MIDDLEWARE_VTABLE.lock().unwrap().insert(pointer.clone(), middleware);
+
+    return pointer;
+}
+
+pub(crate) fn call_middleware_vtable<'a>(pointer: String, req: &'a mut Request, res: &'a mut Response, next: &'a mut Next) -> &'a mut Response {
+    return GLOBAL_MIDDLEWARE_VTABLE.lock().as_mut().unwrap().get(&pointer).unwrap()(req, res, next);
+}
 
 pub struct Router {
     pub(crate) web: WebRoutes,
     pub(crate) ws: WsRoutes,
     pub(crate) path: Vec<String>,
-    pub(crate) middlewares: Middlewares,
+    pub(crate) middlewares: MiddlewaresPointers,
     pub(crate) group: Option<Group>,
-    pub(crate) router_nodes: RouterNodes,
-    pub(crate) not_found_callback: Option<Box<WebRoute>>,
+    pub(crate) nodes: RouterNodes,
+    pub(crate) not_found: Option<Box<WebRoute>>,
 }
 
 impl Router {
@@ -48,8 +73,8 @@ impl Router {
             path: vec!["/".to_string()],
             middlewares: vec![],
             group: None,
-            router_nodes: vec![],
-            not_found_callback: None,
+            nodes: vec![],
+            not_found: None,
         }
     }
 
@@ -109,7 +134,7 @@ impl Router {
     {
         let idx = self.web.len();
         let path = join_paths(self.path.join("/"), path.to_string()).join("/");
-        let middlewares: Vec<Box<Middleware>> = unsafe { mem::transmute_copy(&mut self.middlewares) };
+        let middlewares = self.middlewares.clone();
 
         self.web.push(Route{
             path: path,
@@ -125,7 +150,7 @@ impl Router {
     where
         C: for<'a> AsyncFn<(&'a mut Request, &'a mut Response), Output = &'a mut Response> + Send + Sync + 'static
     {
-        self.not_found_callback = Some(Box::new(move |req, res| block_on(callback(req, res))));
+        self.not_found = Some(Box::new(move |req, res| block_on(callback(req, res))));
     }
 
     pub fn ws<C>(&mut self, path: &str, callback: C) -> &mut Route<Box<WsRoute>>
@@ -134,7 +159,7 @@ impl Router {
     {
         let idx = self.web.len();
         let path = join_paths(self.path.join("/"), path.to_string()).join("/");
-        let middlewares: Middlewares = unsafe { mem::transmute_copy(&mut self.middlewares) };
+        let middlewares = self.middlewares.clone();
 
         self.ws.push(Route{
             path: path,
@@ -147,20 +172,20 @@ impl Router {
     }
 
     pub fn group<'g>(&'g mut self , path: &str, group: Group) -> GroupRoute<'g> {
-        let idx = self.router_nodes.len();
+        let idx = self.nodes.len();
         let path = join_paths(self.path.join("/"), path.to_string());
-        let middlewares: Middlewares = unsafe { mem::transmute_copy(&mut self.middlewares) };
+        let middlewares = self.middlewares.clone();
 
-        self.router_nodes.push(Box::new(Router{
+        self.nodes.push(Box::new(Router{
             web: vec![],
             ws: vec![],
             path: path,
-            middlewares,
+            middlewares: middlewares,
             group: Some(group),
-            router_nodes: vec![],
-            not_found_callback: None,
+            nodes: vec![],
+            not_found: None,
         }));
 
-        return GroupRoute::new(&mut self.router_nodes[idx])
+        return GroupRoute::new(&mut self.nodes[idx])
     }
 }

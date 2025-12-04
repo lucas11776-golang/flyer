@@ -84,7 +84,7 @@ impl <'a>TcpServer<'a> {
         RW: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static
     {
         let (mut handler, req, res) = ws_http1::Handler::new(rw, req, res).await.unwrap();
-        let result = self.http.router.match_ws_routes(req, res).await;
+        let result = self.http.router.ws_match(req, res).await;
 
         if result.is_none() {
             return Ok(())
@@ -150,7 +150,7 @@ impl <'a>TcpServer<'a> {
 
         res.request_headers = req.headers.clone();
 
-        let resp = self.http.router.match_web_routes(&mut req, &mut res).await;
+        let resp = self.http.router.web_match(&mut req, &mut res).await;
 
         if resp.is_none() && self.http.assets.is_some() {
             (req, res) = self.http.assets.as_mut().unwrap().handle(req, res).unwrap();

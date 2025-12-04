@@ -2,7 +2,7 @@ use regex::Regex;
 use once_cell::sync::Lazy;
 use futures::executor::block_on;
 
-use crate::router::{Middleware, Next, Router};
+use crate::router::{MiddlewaresPointers, Next, Router, register_middleware_vtable};
 use crate::utils::Values;
 use crate::request::Request;
 use crate::response::Response;
@@ -18,7 +18,7 @@ pub struct Route<R> {
     pub(crate) path: String,
     pub(crate) method: String,
     pub(crate) route: R,
-    pub(crate) middlewares: Vec<Box<Middleware>>,
+    pub(crate) middlewares: MiddlewaresPointers,
 }
 
 impl <'r>GroupRoute<'r> {
@@ -32,7 +32,9 @@ impl <'r>GroupRoute<'r> {
     where
         C: for<'a> AsyncFn<(&'a mut Request, &'a mut Response, &'a mut Next), Output = &'a mut Response> + Send + Sync + 'static,
     {
-        self.router.middlewares.push(Box::new(move |req, res, next| block_on(callback(req, res, next))));
+        self.router
+            .middlewares
+            .push(register_middleware_vtable(Box::new(move |req, res, next| block_on(callback(req, res, next)))));
 
         return self;
     }
@@ -43,7 +45,8 @@ impl <'r, R> Route<R> {
     where
         C: for<'a> AsyncFn<(&'a mut Request, &'a mut Response, &'a mut Next), Output = &'a mut Response> + Send + Sync + 'static,
     {
-        self.middlewares.push(Box::new(move |req, res, next| block_on(callback(req, res, next))));
+        self.middlewares
+            .push(register_middleware_vtable(Box::new(move |req, res, next| block_on(callback(req, res, next)))));
 
         return self;
     }
