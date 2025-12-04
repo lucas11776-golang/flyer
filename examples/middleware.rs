@@ -27,14 +27,25 @@ pub async fn auth<'a>(req: &'a mut Request, res: &'a mut Response, next: &mut Ne
     return next.handle(res);
 }
 
+pub async fn verified<'a>(req: &'a mut Request, res: &'a mut Response, next: &mut Next) -> &'a mut Response {
+    // Some logic to check user in database
+    return next.handle(res);
+}
+
 fn main() {
     let mut server = server("127.0.0.1", 9999);
-    
-    server.router().get("api/users/{user}", async |req, res| {
-        return res.json(&User{
-            id: req.parameter("user").parse().unwrap(),
-            email: "joe@deo.com".to_owned()
-        })
+
+    server.router().group("api", |router| {
+        router.group("users", |router| {
+            router.group("{user}", |router| {
+                router.get("/", async |req, res| {
+                    return res.json(&User{
+                        id: req.parameter("user").parse().unwrap(),
+                        email: "joe@deo.com".to_owned()
+                    });
+                }).middleware(verified);
+            });
+        });
     }).middleware(auth);
 
     print!("\r\n\r\nRunning server: {}\r\n\r\n", server.address());

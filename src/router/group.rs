@@ -5,7 +5,7 @@ use crate::{
     response::Response,
     router::{
         Group,
-        Middleware,
+        MiddlewaresPointers,
         Route,
         RouteNotFoundCallback,
         Router,
@@ -13,6 +13,7 @@ use crate::{
         WebRoutes,
         WsRoute,
         WsRoutes,
+        call_middleware_vtable,
         next::Next
     }
 };
@@ -64,7 +65,7 @@ impl GroupRouter {
             req.parameters = parameters;
 
             // TODO: fix
-            if Self::handle_middlewares(&route.middlewares, req, res).is_none() {
+            if Self::handle_middlewares(route.middlewares.clone(), req, res).is_none() {
                 return Some(res)
             }
 
@@ -91,7 +92,7 @@ impl GroupRouter {
             req.parameters = parameters;
 
             // TODO: fix
-            if Self::handle_middlewares(&route.middlewares, req, res).is_none() {
+            if Self::handle_middlewares(route.middlewares.clone(), req, res).is_none() {
                 return None;
             }
 
@@ -101,11 +102,13 @@ impl GroupRouter {
         return None;
     }
 
-    fn handle_middlewares<'g>(middlewares: &Vec<Box<Middleware>>, req: &'g mut Request, res: &'g mut Response) -> Option<&'g mut Response> {
-        for middleware in  middlewares {
+    fn handle_middlewares<'g>(middlewares: MiddlewaresPointers, req: &'g mut Request, res: &'g mut Response) -> Option<&'g mut Response> {
+        
+        
+        for pointer in  middlewares {
             let mut next = Next::new();
 
-            middleware(req, res, &mut next);
+            call_middleware_vtable(pointer, req, res, &mut next);
 
             if !next.is_move {
                 return None;

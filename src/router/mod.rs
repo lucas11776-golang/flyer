@@ -2,7 +2,7 @@ pub mod group;
 pub mod route;
 pub mod next;
 
-use std::mem;
+use std::collections::HashMap;
 
 use futures::executor::block_on;
 
@@ -26,17 +26,40 @@ pub type Middleware = dyn for<'a> Fn(&'a mut Request, &'a mut Response, &'a mut 
 
 pub type Middlewares = Vec<Box<Middleware>>;
 
+pub type MiddlewaresPointers = Vec<String>;
+
 pub type Group = for<'a> fn(&'a mut Router);
 
 pub type RouterNodes = Vec<Box<Router>>;
 
 pub type RouteNotFoundCallback = Option<Box<WebRoute>>;
 
+use lazy_static::lazy_static;
+use std::sync::Mutex;
+
+pub(crate) type MiddlewaresHolder = HashMap<String, Box<Middleware>>;
+
+lazy_static! {
+    pub(crate) static ref GLOBAL_MIDDLEWARE_VTABLE: Mutex<MiddlewaresHolder> = Mutex::new(MiddlewaresHolder::new());
+}
+
+pub(crate) fn register_middleware_vtable(middleware: Box<Middleware>) -> String {
+    let pointer = format!("{:p}", &middleware);
+
+    GLOBAL_MIDDLEWARE_VTABLE.lock().unwrap().insert(pointer.clone(), middleware);
+
+    return pointer;
+}
+
+pub(crate) fn call_middleware_vtable<'a>(pointer: String, req: &'a mut Request, res: &'a mut Response, next: &'a mut Next) -> &'a mut Response {
+    return GLOBAL_MIDDLEWARE_VTABLE.lock().as_mut().unwrap().get(&pointer).unwrap()(req, res, next);
+}
+
 pub struct Router {
     pub(crate) web: WebRoutes,
     pub(crate) ws: WsRoutes,
     pub(crate) path: Vec<String>,
-    pub(crate) middlewares: Middlewares,
+    pub(crate) middlewares: MiddlewaresPointers,
     pub(crate) group: Option<Group>,
     pub(crate) nodes: RouterNodes,
     pub(crate) not_found: Option<Box<WebRoute>>,
@@ -111,7 +134,7 @@ impl Router {
     {
         let idx = self.web.len();
         let path = join_paths(self.path.join("/"), path.to_string()).join("/");
-        let middlewares: Vec<Box<Middleware>> = unsafe { mem::transmute_copy(&mut self.middlewares) };
+        let middlewares = self.middlewares.clone();
 
         self.web.push(Route{
             path: path,
@@ -136,7 +159,7 @@ impl Router {
     {
         let idx = self.web.len();
         let path = join_paths(self.path.join("/"), path.to_string()).join("/");
-        let middlewares: Middlewares = unsafe { mem::transmute_copy(&mut self.middlewares) };
+        let middlewares = self.middlewares.clone();
 
         self.ws.push(Route{
             path: path,
@@ -151,16 +174,13 @@ impl Router {
     pub fn group<'g>(&'g mut self , path: &str, group: Group) -> GroupRoute<'g> {
         let idx = self.nodes.len();
         let path = join_paths(self.path.join("/"), path.to_string());
-
-
-        // TODO: Copy of middlewares fix (runtime-time error) - Segment Error
-        let middlewares: Middlewares = unsafe { mem::transmute_copy(&mut self.middlewares) };
+        let middlewares = self.middlewares.clone();
 
         self.nodes.push(Box::new(Router{
             web: vec![],
             ws: vec![],
             path: path,
-            middlewares,
+            middlewares: middlewares,
             group: Some(group),
             nodes: vec![],
             not_found: None,
