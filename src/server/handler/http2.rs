@@ -3,10 +3,9 @@ use std::net::SocketAddr;
 
 use bytes::Bytes;
 
-use h2::{server, server::{SendResponse}};
-use http::{HeaderMap, Request as HttpRequest, Response as HttpResponse};
+use h2::server::SendResponse;
+use http::{HeaderMap, Response as HttpResponse};
 use reqwest::Url;
-use tokio::io::{AsyncRead, AsyncWrite, BufReader};
 
 use crate::{cookie::Cookies, request::{form::{Files, Form}, parser::parse_content_type}, utils::Headers};
 use crate::response::{Response};
@@ -16,47 +15,20 @@ use crate::utils::Values;
 
 pub const H2_PREFACE: &[u8] = b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n";
 
-pub(crate) struct Handler<RW> {
+pub(crate) struct Handler {
     addr: SocketAddr,
-    conn: Box<server::Connection< BufReader<RW>, Bytes>>,
+    send: SendResponse<bytes::Bytes>,
 }
 
-impl <'a, RW>Handler<RW>
-where
-    RW: AsyncRead + AsyncWrite + Unpin + Send + Sync
-{
-    pub async fn new(addr: SocketAddr, rw: BufReader<RW>) -> Self {
+impl Handler {
+    pub fn new(addr: SocketAddr, send: SendResponse<bytes::Bytes>) -> Self {
         return Self {
             addr: addr,
-            conn: Box::new(server::handshake(rw).await.unwrap()),
+            send: send
         };
     }
-    
-    pub async fn handle(&mut self) -> Option<std::result::Result<(HttpRequest<h2::RecvStream>, SendResponse<Bytes>), h2::Error>>  {
-        // TODO: connection hugs when Switching from HTTP2 -> HTTP1
-        return self.conn.accept().await;
-    }
 
-    pub async fn write(&mut self, mut send: SendResponse<Bytes>, req: &mut Request, res: &mut Response) -> Result<()> {
-        let mut builder = HttpResponse::builder().status(res.status_code);
-
-        for (k, v) in &mut res.headers {
-            builder = builder.header(k.clone(), v.clone());
-        }
-
-        for cookie in &mut req.cookies.new_cookie {
-            builder = builder.header("Set-Cookie", cookie.parse());
-        }
-
-        send.send_response(builder.body(()).unwrap(), false)
-            .unwrap()
-            .send_data(Bytes::from(res.body.clone()), true)
-            .unwrap();
-
-        Ok(())
-    }
-
-    pub async fn get_http_request(&mut self, request: HttpRequest<h2::RecvStream>) -> Result<Request> {
+    pub async fn handle(&mut self, request: http::Request<h2::RecvStream>,) -> Result<Request> {
         let method = request.method().to_string();
         let path = Url::parse(request.uri().to_string().as_str()).unwrap().path().to_string();
         let query = parse_query_params(request.uri().query().unwrap_or(""))?;
@@ -86,6 +58,25 @@ where
         return Ok(req);
     }
 
+    pub async fn write(&mut self, req: &mut Request, res: &mut Response) -> Result<()> {
+        let mut builder = HttpResponse::builder().status(res.status_code);
+
+        for (k, v) in &mut res.headers {
+            builder = builder.header(k.clone(), v.clone());
+        }
+
+        for cookie in &mut req.cookies.new_cookie {
+            builder = builder.header("Set-Cookie", cookie.parse());
+        }
+
+        self.send.send_response(builder.body(()).unwrap(), false)
+            .unwrap()
+            .send_data(Bytes::from(res.body.clone()), true)
+            .unwrap();
+
+        Ok(())
+    }
+
     fn hashmap_to_headers(&mut self, map: &HeaderMap) -> Headers {
         let mut headers = Headers::new();
 
@@ -95,4 +86,5 @@ where
 
         return headers;
     }
+
 }

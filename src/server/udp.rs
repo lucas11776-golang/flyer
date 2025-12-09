@@ -32,38 +32,34 @@ impl <'a>UdpServer {
 
     pub async fn listen(&mut self) {
         while let Some(incoming) = self.listener.accept().await {
-            tokio_scoped::scope(|scope| {
-                scope.spawn(async {
-                    match incoming.await {
-                        Ok(conn) => self.connection(conn).await,
-                        Err(_) => {} // TODO: Log
-                    }
-                });
+            tokio::spawn(async move {
+                match incoming.await {
+                    Ok(conn) => Self::connection(conn).await,
+                    Err(_) => {}, // TODO: Log wait
+                }
             });
         }
     }
 
-    async fn connection(&mut self, conn: QuinnConnection) {
-        let mut server: H3ServerConnection<H3Connection, Bytes> = self.get_h3_server_connection(conn).await;
+    async fn connection(conn: QuinnConnection) {
+        let mut server: H3ServerConnection<H3Connection, Bytes> = Self::get_h3_server_connection(conn).await;
 
         while let Ok(Some(resolver)) = server.accept().await {
-            tokio_scoped::scope(|scope| {
-                scope.spawn(async {
-                    let (request, stream) = resolver.resolve_request().await.unwrap();
-                    let mut handler = http3::Handler::new(request, stream);
-                    let mut req = handler.handle().await.unwrap();
-                    let mut res = Response::new();
+            tokio::spawn(async move {
+                let (request, stream) = resolver.resolve_request().await.unwrap();
+                let mut handler = http3::Handler::new(request, stream);
+                let mut req = handler.handle().await.unwrap();
+                let mut res = Response::new();
 
-                    (req, res) = self.handle(req, res).await.unwrap();
+                (req, res) = Self::handle(req, res).await.unwrap();
 
-                    handler.write(&mut req, &mut res).await.unwrap();
-                });
+                handler.write(&mut req, &mut res).await.unwrap();
             });
         }
     }
 
     #[allow(static_mut_refs)]
-    async fn handle<'h>(&mut self, mut req: Request, mut res: Response) -> Result<(Request, Response)> {
+    async fn handle<'h>(mut req: Request, mut res: Response) -> Result<(Request, Response)> {
         unsafe {
             (req, res) = setup(req, res).await.unwrap();
 
@@ -79,7 +75,7 @@ impl <'a>UdpServer {
         }
     }
 
-    async fn get_h3_server_connection(&mut self, conn: QuinnConnection) -> H3ServerConnection<H3Connection, Bytes> {
+    async fn get_h3_server_connection(conn: QuinnConnection) -> H3ServerConnection<H3Connection, Bytes> {
         return H3ServerConnection::new(H3Connection::new(conn))
             .await
             .unwrap();

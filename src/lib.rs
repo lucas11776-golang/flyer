@@ -24,7 +24,13 @@ use crate::{
     assets::Assets,
     http::HTTP_CONTAINER,
     router::Router,
-    server::{TlsPathConfig, get_tls_config, server_config, tcp::TcpServer, udp::UdpServer},
+    server::{
+        TlsPathConfig,
+        get_tls_config,
+        server_config,
+        tcp::TcpServer,
+        udp::UdpServer
+    },
     session::SessionManager,
     utils::load_env, view::View
 };
@@ -106,16 +112,11 @@ impl Server {
                 config = Some(server_config(get_tls_config(&HTTP_CONTAINER.tls.as_mut().unwrap()).unwrap()).unwrap());
             }
 
-            Runtime::new().unwrap().block_on(async {
-                join!(
-                    Self::udp_server(config.clone()),
-                    Self::tcp_server(config),
-                );
-            });
+            Runtime::new().unwrap().block_on(async { join!(Self::udp(config.clone()), Self::tcp(config)) });
         }
     }
 
-    async fn tcp_server(config: Option<ServerConfig>) {
+    async fn tcp(config: Option<ServerConfig>) {
         TcpServer::new(config)
             .await
             .unwrap()
@@ -123,7 +124,7 @@ impl Server {
             .await;
     }
 
-    async fn udp_server(config: Option<ServerConfig>) {
+    async fn udp(config: Option<ServerConfig>) {
         if config.is_none() {
             return;
         }

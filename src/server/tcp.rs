@@ -1,9 +1,8 @@
-use std::{
-    io::Result,
-    net::SocketAddr,
-};
+use std::sync::LazyLock;
+use std::{io::Result, net::SocketAddr};
 use std::pin::Pin;
 
+use h2::server;
 use rustls::ServerConfig;
 use tokio::net::TcpListener;
 use tokio_rustls::TlsAcceptor;
@@ -17,17 +16,21 @@ use crate::server::handler::http2::H2_PREFACE;
 use crate::server::helpers::{setup, teardown};
 use crate::server::{Protocol, get_tls_acceptor};
 
+static mut TLS_ACCEPTOR: LazyLock<Option<TlsAcceptor>> = LazyLock::new(|| None);
+
 pub(crate) struct TcpServer {
     listener: TcpListener,
-    acceptor: Option<TlsAcceptor>,
 }
 
 impl <'a>TcpServer {
     #[allow(static_mut_refs)]
     pub async fn new(config: Option<ServerConfig>) -> Result<TcpServer> {
+        if config.is_some() {
+            unsafe { let _ = TLS_ACCEPTOR.insert(get_tls_acceptor(config.unwrap()).unwrap());  };
+        }
+
         return Ok(TcpServer{
             listener: TcpListener::bind(format!("{}", unsafe { HTTP_CONTAINER.address() })).await.unwrap(),
-            acceptor: config.and_then(|config| get_tls_acceptor(config)),
         });
     }
 
@@ -35,10 +38,8 @@ impl <'a>TcpServer {
         loop {
             match self.listener.accept().await {
                 Ok((stream, addr)) => {
-                    let acceptor = self.acceptor.clone();
-
                     tokio::spawn(async move {
-                        Self::new_connection(stream, addr, &acceptor).await    
+                        Self::new_connection(stream, addr).await    
                     });
                 },
                 Err(_) => {}, // TODO: Log
@@ -46,18 +47,27 @@ impl <'a>TcpServer {
         }
     }
 
-    async fn new_connection<RW>(stream: RW, addr: SocketAddr, acceptor: &Option<TlsAcceptor>)
+    #[allow(static_mut_refs)]
+    async fn new_connection<RW>(stream: RW, addr: SocketAddr)
     where
         RW: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static
     {
-        match acceptor {
-            Some(acceptor) => {
-                let _ = match acceptor.accept(stream).await {
-                    Ok(stream) => Self::handle_connection(BufReader::new(stream), addr).await.unwrap(),
-                    Err(_) => {}, // TODO: Log
-                };
-            },
-            None => Self::handle_connection(BufReader::new(stream), addr).await.unwrap(),
+        unsafe {
+            match TLS_ACCEPTOR.as_mut() {
+                Some(acceptor) => {
+                    match acceptor.accept(stream).await {
+                        Ok(stream) => {
+                            let handled = Self::handle_connection(BufReader::new(stream), addr).await;
+
+                            if handled.is_ok() {
+                                handled.unwrap()
+                            }
+                        },
+                        Err(_) => {}, // TODO: Log
+                    }
+                },
+                None => Self::handle_connection(BufReader::new(stream), addr).await.unwrap(),
+            }
         }
     }
 
@@ -130,19 +140,22 @@ impl <'a>TcpServer {
     where
         RW: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static
     {
-        let mut handler = http2::Handler::new(addr, rw).await;
+        let mut conn = server::handshake(rw).await.unwrap();
 
-        while let Some(result) = handler.handle().await {
-            tokio_scoped::scope(|scope| {
-                scope.spawn(async {
-                    let (request, send) = result.unwrap();
-                    let mut req = handler.get_http_request(request).await.unwrap();
-                    let mut res = Response::new();
+        while let Some(result) = conn.accept().await {
+            if result.is_err() {
+                continue;
+            }
 
-                    (req, res) = Self::handle(req, res).await.unwrap();
+            tokio::spawn(async move {
+                let (request, send) = result.unwrap();
+                let mut handler = http2::Handler::new(addr, send);
+                let mut req = handler.handle(request).await.unwrap();
+                let mut res = Response::new();
 
-                    handler.write(send, &mut req, &mut res).await.unwrap();
-                });
+                (req, res) = Self::handle(req, res).await.unwrap();
+
+                handler.write( &mut req, &mut res).await.unwrap();
             });
         }
 
