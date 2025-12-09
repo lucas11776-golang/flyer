@@ -1,6 +1,7 @@
 
+use std::cell::RefCell;
 use std::collections::HashMap;
-use std::sync::Mutex;
+use std::sync::{LazyLock, Mutex, RwLock};
 
 use lazy_static::lazy_static;
 
@@ -10,20 +11,40 @@ use crate::router::Middleware;
 use crate::router::next::Next;
 
 
-pub(crate) type Middlewares = HashMap<String, Box<Middleware>>;
+struct Container {
+    middlewares:LazyLock<HashMap<String, Box<Middleware>>>
+}  
 
-lazy_static! {
-    pub(crate) static ref MIDDLEWARES: Mutex<Middlewares> = Mutex::new(Middlewares::new());
+impl Container {
+    pub fn new() -> Self {
+        return Self {
+            middlewares: LazyLock::new(|| HashMap::new())
+        }
+    }
+
+    pub fn insert(&mut self, call: Box<Middleware>) -> String {
+        let reference = format!("{:p}", &call);
+
+        self.middlewares.insert(reference.clone(), call);
+
+        return reference;
+    }
+
+    pub fn call<'a>(&mut self, reference: String, req: &'a mut Request, res: &'a mut Response, next: &'a mut Next) -> &'a mut Response {
+        return self.middlewares.get(&reference).unwrap().call((req, res, next));
+    }
 }
 
-pub(crate) fn register(middleware: Box<Middleware>) -> String {
-    let pointer = format!("{:p}", &middleware);
 
-    MIDDLEWARES.lock().unwrap().insert(pointer.clone(), middleware);
+static mut VTABLE: LazyLock<RwLock<Container>> = LazyLock::new(|| RwLock::new(Container::new()));
 
-    return pointer;
+
+#[allow(static_mut_refs)]
+pub(crate) fn register(call: Box<Middleware>) -> String {
+    return unsafe { VTABLE.get_mut().unwrap().insert(call) };
 }
 
-pub(crate) fn call<'a>(pointer: String, req: &'a mut Request, res: &'a mut Response, next: &'a mut Next) -> &'a mut Response {
-    return MIDDLEWARES.lock().as_mut().unwrap().get(&pointer).unwrap()(req, res, next);
+#[allow(static_mut_refs)]
+pub(crate) fn call<'a>(reference: String, req: &'a mut Request, res: &'a mut Response, next: &'a mut Next) -> &'a mut Response {
+    return unsafe { VTABLE.get_mut().unwrap().call(reference, req, res, next) };
 }

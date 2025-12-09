@@ -2,6 +2,7 @@
 #![feature(unboxed_closures)]
 #![feature(downcast_unchecked)]
 #![feature(type_alias_impl_trait)]
+#![feature(fn_traits)]
 
 pub mod http;
 pub mod request;

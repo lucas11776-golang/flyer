@@ -36,6 +36,7 @@ impl <'a>TcpServer<'a> {
         loop {
             match self.listener.accept().await {
                 Ok((stream, addr)) => {
+                    println!("REQUEST");
                     tokio_scoped::scope(|scope| {
                         scope.spawn(self.new_connection(stream, addr));
                     });
