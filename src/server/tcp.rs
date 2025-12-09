@@ -9,26 +9,25 @@ use tokio::net::TcpListener;
 use tokio_rustls::TlsAcceptor;
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, BufReader};
 
+use crate::http::HTTP_CONTAINER;
 use crate::request::Request;
 use crate::response::Response;
 use crate::server::handler::{http1, http2, ws_http1};
 use crate::server::handler::http2::H2_PREFACE;
 use crate::server::helpers::{setup, teardown};
 use crate::server::{Protocol, get_tls_acceptor};
-use crate::HTTP;
 
-pub(crate) struct TcpServer<'a> {
+pub(crate) struct TcpServer {
     listener: TcpListener,
     acceptor: Option<TlsAcceptor>,
-    http: &'a mut HTTP
 }
 
-impl <'a>TcpServer<'a> {
-    pub async fn new(http: &'a mut HTTP, config: Option<ServerConfig>) -> Result<TcpServer<'a>> {
+impl <'a>TcpServer {
+    #[allow(static_mut_refs)]
+    pub async fn new(config: Option<ServerConfig>) -> Result<TcpServer> {
         return Ok(TcpServer{
-            listener: TcpListener::bind(format!("{}", http.address())).await.unwrap(),
+            listener: TcpListener::bind(format!("{}", unsafe { HTTP_CONTAINER.address() })).await.unwrap(),
             acceptor: config.and_then(|config| get_tls_acceptor(config)),
-            http: http,
         });
     }
 
@@ -36,9 +35,10 @@ impl <'a>TcpServer<'a> {
         loop {
             match self.listener.accept().await {
                 Ok((stream, addr)) => {
-                    println!("REQUEST");
-                    tokio_scoped::scope(|scope| {
-                        scope.spawn(self.new_connection(stream, addr));
+                    let acceptor = self.acceptor.clone();
+
+                    tokio::spawn(async move {
+                        Self::new_connection(stream, addr, &acceptor).await    
                     });
                 },
                 Err(_) => {}, // TODO: Log
@@ -46,57 +46,60 @@ impl <'a>TcpServer<'a> {
         }
     }
 
-    async fn new_connection<RW>(&mut self, stream: RW, addr: SocketAddr)
+    async fn new_connection<RW>(stream: RW, addr: SocketAddr, acceptor: &Option<TlsAcceptor>)
     where
         RW: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static
     {
-        match &self.acceptor {
+        match acceptor {
             Some(acceptor) => {
                 let _ = match acceptor.accept(stream).await {
-                    Ok(stream) => self.handle_connection(BufReader::new(stream), addr).await.unwrap(),
+                    Ok(stream) => Self::handle_connection(BufReader::new(stream), addr).await.unwrap(),
                     Err(_) => {}, // TODO: Log
                 };
             },
-            None => self.handle_connection(BufReader::new(stream), addr).await.unwrap(),
+            None => Self::handle_connection(BufReader::new(stream), addr).await.unwrap(),
         }
     }
 
-    async fn handle_connection<RW>(&mut self, mut rw: BufReader<RW>, addr:  SocketAddr) -> Result<()>
+    async fn handle_connection<RW>(mut rw: BufReader<RW>, addr:  SocketAddr) -> Result<()>
     where
         RW: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static
     {
-        match self.connection_protocol(rw.fill_buf().await?) {
-            Protocol::HTTP2 => self.http_2_protocol(rw, addr).await.unwrap(),
-            _ => self.http_1_protocol(rw, addr).await.unwrap()
+        match Self::connection_protocol(rw.fill_buf().await?) {
+            Protocol::HTTP2 => Self::http_2_protocol(rw, addr).await.unwrap(),
+            _ => Self::http_1_protocol(rw, addr).await.unwrap()
         }
 
         Ok(())
     }
 
-    fn connection_protocol(&'_ mut self, buffer: &[u8]) -> Protocol {
+    fn connection_protocol(buffer: &[u8]) -> Protocol {
         match buffer.len() >= H2_PREFACE.len() && &buffer[..H2_PREFACE.len()] == H2_PREFACE {
             true => Protocol::HTTP2,
             false => Protocol::HTTP1,
         }
     }
 
-    async fn handle_web_socket<RW>(&mut self, rw: BufReader<RW>, req: &mut Request, res: &mut Response) -> Result<()>
+    #[allow(static_mut_refs)]
+    async fn handle_web_socket<RW>(rw: BufReader<RW>, req: &mut Request, res: &mut Response) -> Result<()>
     where
         RW: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static
     {
-        let (mut handler, req, res) = ws_http1::Handler::new(rw, req, res).await.unwrap();
-        let result = self.http.router.ws_match(req, res).await;
+        unsafe {
+            let (mut handler, req, res) = ws_http1::Handler::new(rw, req, res).await.unwrap();
+            let result = HTTP_CONTAINER.router.ws_match(req, res).await;
 
-        if result.is_none() {
-            return Ok(())
+            if result.is_none() {
+                return Ok(())
+            }
+
+            let (route, req, res) = result.unwrap();
+
+            return Ok(handler.handle(route, req, res).await.unwrap());
         }
-
-        let (route, req, res) = result.unwrap();
-
-        return Ok(handler.handle(route, req, res).await.unwrap());
     }
  
-    async fn http_1_protocol<RW>(&mut self, mut rw: BufReader<RW>, addr: SocketAddr) -> Result<()>
+    async fn http_1_protocol<RW>(mut rw: BufReader<RW>, addr: SocketAddr) -> Result<()>
     where
         RW: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static
     {
@@ -111,19 +114,19 @@ impl <'a>TcpServer<'a> {
         let mut res = Response::new();
 
         if req.header("upgrade") == "websocket" {
-            (req, res) = setup(self.http, req, res).await.unwrap();
+            (req, res) = setup(req, res).await.unwrap();
 
-            self.handle_web_socket(rw, &mut req, &mut res).await.unwrap();
+            Self::handle_web_socket(rw, &mut req, &mut res).await.unwrap();
 
             return Ok(())
         }
 
-        (req, res) = self.handle(req, res).await.unwrap();
+        (req, res) = Self::handle(req, res).await.unwrap();
 
         return Ok(handler.write(&mut req, &mut res).await.unwrap());
     }
 
-    async fn http_2_protocol<RW>(&mut self, rw: BufReader<RW>, addr: SocketAddr) -> Result<()>
+    async fn http_2_protocol<RW>(rw: BufReader<RW>, addr: SocketAddr) -> Result<()>
     where
         RW: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static
     {
@@ -136,7 +139,7 @@ impl <'a>TcpServer<'a> {
                     let mut req = handler.get_http_request(request).await.unwrap();
                     let mut res = Response::new();
 
-                    (req, res) = self.handle(req, res).await.unwrap();
+                    (req, res) = Self::handle(req, res).await.unwrap();
 
                     handler.write(send, &mut req, &mut res).await.unwrap();
                 });
@@ -146,18 +149,21 @@ impl <'a>TcpServer<'a> {
         return Ok(())   
     }
 
-    async fn handle<'h>(&mut self, mut req: Request, mut res: Response) -> Result<(Request, Response)> {
-        (req, res) = setup(self.http, req, res).await.unwrap();
+    #[allow(static_mut_refs)]
+    async fn handle<'h>(mut req: Request, mut res: Response) -> Result<(Request, Response)> {
+        unsafe {
+            (req, res) = setup(req, res).await.unwrap();
 
-        res.request_headers = req.headers.clone();
+            res.request_headers = req.headers.clone();
 
-        let resp = self.http.router.web_match(&mut req, &mut res).await;
+            let resp = HTTP_CONTAINER.router.web_match(&mut req, &mut res).await;
 
-        if resp.is_none() && self.http.assets.is_some() {
-            (req, res) = self.http.assets.as_mut().unwrap().handle(req, res).unwrap();
+            if resp.is_none() && HTTP_CONTAINER.assets.is_some() {
+                (req, res) = HTTP_CONTAINER.assets.as_mut().unwrap().handle(req, res).unwrap();
+            }
+
+            return Ok(teardown(req, res).await.unwrap());
         }
-
-        return Ok(teardown(self.http, req, res).await.unwrap());
     }
 }
 

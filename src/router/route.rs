@@ -1,6 +1,6 @@
+use async_std::task::block_on;
 use regex::Regex;
 use once_cell::sync::Lazy;
-use futures::executor::block_on;
 
 use crate::router::middleware::register;
 use crate::router::{MiddlewaresPointers, Next, Router};

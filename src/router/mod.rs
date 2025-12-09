@@ -3,7 +3,9 @@ pub mod route;
 pub mod next;
 pub mod middleware;
 
-use futures::executor::block_on;
+// use futures::executor::block_on;
+
+use async_std::task::block_on;
 
 use crate::router::next::Next;
 use crate::router::route::{GroupRoute, Route};

@@ -1,21 +1,14 @@
-use std::mem::transmute_copy;
-
-use futures::join;
-use rustls::ServerConfig;
-use tokio::runtime::Runtime;
+use std::sync::{LazyLock};
 
 use crate::assets::Assets;
 use crate::router::group::GroupRouter;
-use crate::router::Router;
-use crate::server::{get_tls_config, server_config};
-use crate::server::tcp::TcpServer;
-use crate::server::udp::UdpServer;
 use crate::server::TlsPathConfig;
 use crate::session::SessionManager;
-use crate::utils::load_env;
 use crate::view::View;
 
-pub struct HTTP {
+pub(crate) static mut HTTP_CONTAINER: LazyLock<HTTP> = LazyLock::new(|| HTTP::new());
+
+pub(crate) struct HTTP {
     pub(crate) host: String,
     pub(crate) port: i32,
     pub(crate) tls: Option<TlsPathConfig>,
@@ -27,11 +20,11 @@ pub struct HTTP {
 }
 
 impl HTTP {
-    pub fn new(host: &str, port: i32, tls: Option<TlsPathConfig>) -> HTTP {
+    pub fn new() -> HTTP {
         return Self {
-            host: host.to_owned(),
-            port: port,
-            tls: tls,
+            host: String::from("127.0.0.1"),
+            port: 80,
+            tls: None,
             request_max_size: 1024,
             router: GroupRouter::new(),
             view: None,
@@ -40,14 +33,26 @@ impl HTTP {
         };
     }
 
-    pub fn env(self, path: &str) -> Self {
-        load_env(path);
+    pub(crate) fn set_host(&mut self, host: &str) -> &mut Self {
+        unsafe { HTTP_CONTAINER.host = host.to_string(); }
+
+        return self;
+    }
+
+    pub(crate) fn set_port(&mut self, port: i32) -> &mut Self {
+        unsafe { HTTP_CONTAINER.port = port; }
+
+        return self;
+    }
+
+    pub(crate) fn set_tls(&mut self, tls: Option<TlsPathConfig>) -> &mut Self {
+        unsafe { HTTP_CONTAINER.tls = tls; }
 
         return self;
     }
 
     pub fn host(&self) -> String {
-        return self.host.to_owned();
+        return self.host.clone();
     }
 
     pub fn port(&self) -> i32 {
@@ -55,73 +60,6 @@ impl HTTP {
     }
 
     pub fn address(&self) -> String {
-        return std::format!("{0}:{1}", self.host(), self.port());
-    }
-
-    pub fn set_request_max_size(&mut self, size: i64) {
-        self.request_max_size = size;    
-    }
-
-    pub fn view(mut self, path: &str) -> Self {
-        self.view = Some(View::new(path));
-
-        return self;
-    }
-
-    pub fn assets(mut self, path: &str, max_size_kilobytes_cache_size: usize, expires_in_seconds: u128) -> Self {
-        self.assets = Some(Assets::new(path.to_owned(), max_size_kilobytes_cache_size, expires_in_seconds));
-
-        return self;
-    }
-
-    pub fn session(mut self, manager: impl SessionManager + 'static) -> Self {
-        self.session_manager = Some(Box::new(manager));
-
-        return self;
-    }
-
-    pub fn router<'a>(&mut self) -> &mut Router {
-        let idx = self.router.nodes.len();
-
-        self.router.nodes.push(Box::new(Router::new()));
-
-        return &mut self.router.nodes[idx];
-    }
-
-    pub fn listen(&mut self) {
-        self.router.init();
-
-        let mut config: Option<ServerConfig> = None;
-
-        if self.tls.is_some() {
-            config = Some(server_config(get_tls_config(&self.tls.as_mut().unwrap()).unwrap()).unwrap());
-        }
-
-        Runtime::new().unwrap().block_on(async {
-            join!(
-                HTTP::udp_server(unsafe { transmute_copy(&self) }, config.clone()),
-                HTTP::tcp_server(self, config),
-            );
-        });
-    }
-
-    async fn tcp_server(http: &mut HTTP, config: Option<ServerConfig>) {
-        TcpServer::new(http, config)
-            .await
-            .unwrap()
-            .listen()
-            .await;
-    }
-
-    async fn udp_server(http: &mut HTTP, config: Option<ServerConfig>) {
-        if config.is_none() {
-            return;
-        }
-
-        UdpServer::new(http, config.unwrap())
-            .await
-            .unwrap()
-            .listen()
-            .await;
+        return std::format!("{0}:{1}", self.host, self.port);
     }
 }
