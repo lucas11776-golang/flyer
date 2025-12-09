@@ -4,17 +4,7 @@ use crate::{
     request::Request,
     response::Response,
     router::{
-        Group,
-        MiddlewaresPointers,
-        Route,
-        RouteNotFoundCallback,
-        Router,
-        RouterNodes,
-        WebRoutes,
-        WsRoute,
-        WsRoutes,
-        call_middleware_vtable,
-        next::Next
+        Group, MiddlewaresPointers, Route, RouteNotFoundCallback, Router, RouterNodes, WebRoutes, WsRoute, WsRoutes, middleware::call, next::Next
     }
 };
 
@@ -103,12 +93,10 @@ impl GroupRouter {
     }
 
     fn handle_middlewares<'g>(middlewares: MiddlewaresPointers, req: &'g mut Request, res: &'g mut Response) -> Option<&'g mut Response> {
-        
-        
         for pointer in  middlewares {
             let mut next = Next::new();
 
-            call_middleware_vtable(pointer, req, res, &mut next);
+            call(pointer, req, res, &mut next);
 
             if !next.is_move {
                 return None;

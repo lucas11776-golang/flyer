@@ -1,10 +1,11 @@
 pub mod group;
 pub mod route;
 pub mod next;
+pub mod middleware;
 
-use std::collections::HashMap;
+// use futures::executor::block_on;
 
-use futures::executor::block_on;
+use async_std::task::block_on;
 
 use crate::router::next::Next;
 use crate::router::route::{GroupRoute, Route};
@@ -34,26 +35,6 @@ pub type RouterNodes = Vec<Box<Router>>;
 
 pub type RouteNotFoundCallback = Option<Box<WebRoute>>;
 
-use lazy_static::lazy_static;
-use std::sync::Mutex;
-
-pub(crate) type MiddlewaresHolder = HashMap<String, Box<Middleware>>;
-
-lazy_static! {
-    pub(crate) static ref GLOBAL_MIDDLEWARE_VTABLE: Mutex<MiddlewaresHolder> = Mutex::new(MiddlewaresHolder::new());
-}
-
-pub(crate) fn register_middleware_vtable(middleware: Box<Middleware>) -> String {
-    let pointer = format!("{:p}", &middleware);
-
-    GLOBAL_MIDDLEWARE_VTABLE.lock().unwrap().insert(pointer.clone(), middleware);
-
-    return pointer;
-}
-
-pub(crate) fn call_middleware_vtable<'a>(pointer: String, req: &'a mut Request, res: &'a mut Response, next: &'a mut Next) -> &'a mut Response {
-    return GLOBAL_MIDDLEWARE_VTABLE.lock().as_mut().unwrap().get(&pointer).unwrap()(req, res, next);
-}
 
 pub struct Router {
     pub(crate) web: WebRoutes,
@@ -88,7 +69,6 @@ impl Router {
     pub fn post<C>(&mut self, path: &str, callback: C) -> &mut Route<Box<WebRoute>>
     where
         C: for<'a> AsyncFn<(&'a mut Request, &'a mut Response), Output = &'a mut Response> + Send + Sync + 'static,
-        
     {
         return self.route("POST", path, callback);
     }

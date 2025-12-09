@@ -1,5 +1,10 @@
 # Flyer - Web Framework - supports HTTP/1.1, HTTP/2.0 and HTTP/3.0
 
+
+## Information
+
+Flyer web framework support concurrent request allowing you to run request without blocking each other.
+
 ## Getting Started
 
 ### Prerequisites

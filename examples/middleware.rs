@@ -27,7 +27,7 @@ pub async fn auth<'a>(req: &'a mut Request, res: &'a mut Response, next: &mut Ne
     return next.handle(res);
 }
 
-pub async fn verified<'a>(req: &'a mut Request, res: &'a mut Response, next: &mut Next) -> &'a mut Response {
+pub async fn verified<'a>(_req: &'a mut Request, res: &'a mut Response, next: &mut Next) -> &'a mut Response {
     // Some logic to check user in database
     return next.handle(res);
 }

@@ -12,22 +12,21 @@ use h3::server::Connection as H3ServerConnection;
 use h3_quinn::Connection as H3Connection;
 use rustls::ServerConfig;
 
+use crate::http::HTTP_CONTAINER;
 use crate::request::Request;
 use crate::response::Response;
 use crate::server::handler::http3;
-use crate::HTTP;
 use crate::server::helpers::{setup, teardown};
 
-pub(crate) struct UdpServer<'a> {
-    http: &'a mut HTTP,
+pub(crate) struct UdpServer {
     listener: Endpoint,
 }
 
-impl <'a>UdpServer<'a> {    
-    pub async fn new(http: &'a mut HTTP, tls: ServerConfig) -> Result<UdpServer<'a>> {
+impl <'a>UdpServer {    
+    #[allow(static_mut_refs)]
+    pub async fn new(tls: ServerConfig) -> Result<UdpServer> {
         return Ok(Self {
-            listener: UdpServer::get_endpoint(http.address().clone(), tls).unwrap(),
-            http: http,
+            listener: UdpServer::get_endpoint(unsafe { HTTP_CONTAINER.address() }, tls).unwrap(),
         });
     }
 
@@ -63,18 +62,21 @@ impl <'a>UdpServer<'a> {
         }
     }
 
+    #[allow(static_mut_refs)]
     async fn handle<'h>(&mut self, mut req: Request, mut res: Response) -> Result<(Request, Response)> {
-        (req, res) = setup(self.http, req, res).await.unwrap();
+        unsafe {
+            (req, res) = setup(req, res).await.unwrap();
 
-        res.request_headers = req.headers.clone();
+            res.request_headers = req.headers.clone();
 
-        let resp = self.http.router.web_match(&mut req, &mut res).await;
+            let resp = HTTP_CONTAINER.router.web_match(&mut req, &mut res).await;
 
-        if resp.is_none() && self.http.assets.is_some() {
-            (req, res) = self.http.assets.as_mut().unwrap().handle(req, res).unwrap();
+            if resp.is_none() && HTTP_CONTAINER.assets.is_some() {
+                (req, res) = HTTP_CONTAINER.assets.as_mut().unwrap().handle(req, res).unwrap();
+            }
+
+            return Ok(teardown(req, res).await.unwrap());
         }
-
-        return Ok(teardown(self.http, req, res).await.unwrap());
     }
 
     async fn get_h3_server_connection(&mut self, conn: QuinnConnection) -> H3ServerConnection<H3Connection, Bytes> {

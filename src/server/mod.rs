@@ -15,17 +15,10 @@ use rustls::{
 };
 use tokio_rustls::TlsAcceptor;
 
-use crate::HTTP;
-
 pub enum Protocol {
     HTTP1,
     HTTP2,
     HTTP3
-}
-
-pub trait Server<'a> {
-    fn new(http: &'a mut HTTP) -> &'a mut Self;
-    fn listen() -> IoResult<()>;
 }
 
 pub struct TlsConfig { 

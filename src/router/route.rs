@@ -1,8 +1,9 @@
+use async_std::task::block_on;
 use regex::Regex;
 use once_cell::sync::Lazy;
-use futures::executor::block_on;
 
-use crate::router::{MiddlewaresPointers, Next, Router, register_middleware_vtable};
+use crate::router::middleware::register;
+use crate::router::{MiddlewaresPointers, Next, Router};
 use crate::utils::Values;
 use crate::request::Request;
 use crate::response::Response;
@@ -34,7 +35,7 @@ impl <'r>GroupRoute<'r> {
     {
         self.router
             .middlewares
-            .push(register_middleware_vtable(Box::new(move |req, res, next| block_on(callback(req, res, next)))));
+            .push(register(Box::new(move |req, res, next| block_on(callback(req, res, next)))));
 
         return self;
     }
@@ -46,7 +47,7 @@ impl <'r, R> Route<R> {
         C: for<'a> AsyncFn<(&'a mut Request, &'a mut Response, &'a mut Next), Output = &'a mut Response> + Send + Sync + 'static,
     {
         self.middlewares
-            .push(register_middleware_vtable(Box::new(move |req, res, next| block_on(callback(req, res, next)))));
+            .push(register(Box::new(move |req, res, next| block_on(callback(req, res, next)))));
 
         return self;
     }
