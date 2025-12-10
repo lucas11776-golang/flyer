@@ -2,22 +2,17 @@
 
 # FIND WAY TO REMOVE BLOCK_ON
 
-- Will cause problems
+- Will cause problems.
 
 # Handler errors when doing final refactor...
 
-- TCP connection break etc...
+- Handler error check all unwraps and handle.
 
+
+# Rewrite docs
+
+- Writer docs with move information.
 
 # HTTP3 websocket
 
 - Check how websocket work in HTTP3
-
-
-# Change Architecture
-
-- Remove unsafe blocks.
-
-<!-- // #[allow(deprecated)] -->
-
-# Rewrite docs
