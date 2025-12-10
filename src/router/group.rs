@@ -1,10 +1,18 @@
-use std::mem::take;
 
 use crate::{
     request::Request,
     response::Response,
     router::{
-        Group, MiddlewaresPointers, Route, RouteNotFoundCallback, Router, RouterNodes, WebRoutes, WsRoute, WsRoutes, middleware::call, next::Next
+        MiddlewaresPointers,
+        Route,
+        RouteNotFoundCallback,
+        RouterNodes,
+        WebRoutes,
+        WsRoute,
+        WsRoutes,
+        middleware::call,
+        next::Next,
+        resolver::resolve_router_nodes
     }
 };
 
@@ -13,12 +21,6 @@ pub struct GroupRouter {
     pub(crate) ws: WsRoutes,
     pub(crate) nodes: RouterNodes,
     pub(crate) not_found_callback: RouteNotFoundCallback,
-}
-
-pub(crate) struct ResolvedRoutes {
-    pub web: WebRoutes,
-    pub ws: WsRoutes,
-    pub not_found: RouteNotFoundCallback,
 }
 
 impl GroupRouter {
@@ -32,16 +34,12 @@ impl GroupRouter {
     }
     
     pub fn init(&mut self) {
-        for mut node in take(&mut self.nodes) {
-            let resolved = self.resolve_router_nodes(&mut node);
+        let (web, ws, not_found) = resolve_router_nodes(&mut self.nodes);
 
-            self.web.extend(resolved.web);
-            self.ws.extend(resolved.ws);
+        self.web.extend(web);
+        self.ws.extend(ws);
 
-            if resolved.not_found.is_some() {
-                self.not_found_callback = resolved.not_found;
-            }
-        }
+        self.not_found_callback = not_found;
     }
 
     pub async fn web_match<'g>(&mut self, req: &'g mut Request, res: &'g mut Response) -> Option<&'g mut Response> {
@@ -104,62 +102,5 @@ impl GroupRouter {
         }
 
         return Some(res);
-    }
-
-    fn resolve_router_nodes(&mut self, router: &mut Box<Router>) -> ResolvedRoutes {
-        let mut resolved = ResolvedRoutes::new(
-            take(&mut router.web),
-            take(&mut router.ws), 
-            take(&mut router.not_found)
-        );
-
-        if let Some(group) = router.group {
-            resolved.resolve_group(router, group);
-        }
-
-        for node in &mut router.nodes {
-            resolved.extend(&mut self.resolve_router_nodes(node));
-        }
-
-        return resolved;
-    }
-}
-
-impl ResolvedRoutes {
-    pub fn new(web_routes: WebRoutes, ws_routes: WsRoutes, not_found_callback: RouteNotFoundCallback) -> Self {
-        return Self {
-            web: web_routes,
-            ws: ws_routes,
-            not_found: not_found_callback,
-        };
-    }
-
-    pub fn resolve_group(&mut self, router: &mut Router, group: Group) -> &mut Self {
-        group(router);
-
-        return self.append(
-            take(&mut router.web),
-            take(&mut router.ws),
-            take(&mut router.not_found)
-        );
-    }
-
-    pub fn extend(&mut self, resolved: &mut Self) -> &mut Self {
-        return self.append(
-            take(&mut resolved.web),
-            take(&mut resolved.ws),
-            take(&mut resolved.not_found)
-        );
-    }
-
-    pub fn append(&mut self, web_routes: WebRoutes, ws_routes: WsRoutes, not_found: RouteNotFoundCallback) -> &mut Self {
-        self.web.extend(web_routes);
-        self.ws.extend(ws_routes);
-
-        if not_found.is_some() {
-            self.not_found = not_found;
-        }
-
-        return self;
     }
 }

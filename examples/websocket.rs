@@ -10,10 +10,6 @@ pub struct Message<'a> {
 
 pub async fn auth<'a>(req: &'a mut Request, res: &'a mut Response, next: &'a mut Next) -> &'a mut Response {
     if req.header("authorization") != "jwt.token" {
-        let writer = res.ws.as_mut().unwrap();
-
-        writer.write(serde_json::to_vec(&Message{message: "Unauthorized Access"}).unwrap());
-        
         return res;
     }
 
@@ -37,7 +33,7 @@ fn main() {
             });
         });
 
-        router.ws("/private", async |_req, ws| {
+        let r = router.ws("private", async |_req, ws| {
             ws.on(async |event, writer| {
                 match event {
                     flyer::ws::Event::Ready() => todo!(),

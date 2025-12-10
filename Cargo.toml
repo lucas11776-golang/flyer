@@ -1,6 +1,6 @@
 [package]
 name = "flyer"
-version = "0.2.0"
+version = "0.2.1"
 authors = ["Themba Lucas Ngubeni <thembangubeni04@email.com>"]
 license = "MIT"
 description = "HTTP framework for rust"
@@ -44,3 +44,6 @@ async-std = "1.13.2"
 tokio-util = "0.7.17"
 dotenv = "0.15.0"
 lazy_static = "1.5.0"
+slog = "2.8.2"
+slog-async = "2.8.0"
+slog-term = "2.9.2"

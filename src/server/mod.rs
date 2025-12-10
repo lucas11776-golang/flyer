@@ -3,17 +3,24 @@ pub mod tcp;
 pub mod handler;
 pub mod helpers;
 
-use std::{io::Result as IoResult, sync::Arc};
+use rustls::ServerConfig;
+use tokio::{join, runtime::Runtime};
 
-use rustls::{
-    ServerConfig,
-    pki_types::{
-        pem::PemObject,
-        CertificateDer,
-        PrivateKeyDer
-    }
+use crate::{
+    assets::Assets,
+    http::HTTP_CONTAINER,
+    router::Router,
+    server::{
+        // tcp::TcpServer,
+        udp::UdpServer
+    },
+    session::SessionManager,
+    utils::{
+        load_env,
+        server::{TlsPathConfig, get_tls_config, server_config}
+    },
+    view::View
 };
-use tokio_rustls::TlsAcceptor;
 
 pub enum Protocol {
     HTTP1,
@@ -21,44 +28,98 @@ pub enum Protocol {
     HTTP3
 }
 
-pub struct TlsConfig { 
-    pub key: PrivateKeyDer<'static>,
-    pub cert: Vec<CertificateDer<'static>>
-}
+pub struct Server;
 
-pub struct TlsPathConfig {
-    pub key_path: String,
-    pub cert_path: String
-}
+impl Server {
+    #[allow(static_mut_refs)]
+    pub(crate) fn new(host: &str, port: i32, tls: Option<TlsPathConfig>) -> Self {
+        unsafe { HTTP_CONTAINER.set_host(host).set_port(port).set_tls(tls) };
 
-pub fn get_tls_config(tls: &TlsPathConfig) -> IoResult<TlsConfig> {
-    rustls::crypto::ring::default_provider()
-        .install_default()
-        .unwrap();
+        return Self {}
+    }
 
-    return Ok(TlsConfig {
-        key: PrivateKeyDer::from_pem_file(tls.key_path.clone())
-            .unwrap(),
-        cert: CertificateDer::pem_file_iter(tls.cert_path.clone())
+    pub fn env(self, path: &str) -> Self {
+        load_env(path);
+
+        return self;
+    }
+
+    #[allow(static_mut_refs)]
+    pub fn host(&self) -> String {
+        return unsafe { HTTP_CONTAINER.host() };
+    }
+
+    #[allow(static_mut_refs)]
+    pub fn port(&self) -> i32 {
+        return unsafe { HTTP_CONTAINER.port() };
+    }
+
+    #[allow(static_mut_refs)]
+    pub fn address(&self) -> String {
+        return unsafe { HTTP_CONTAINER.address()};
+    }
+
+    pub fn set_request_max_size(self, size: i64) -> Self {
+        unsafe { HTTP_CONTAINER.request_max_size = size; }
+
+        return self;
+    }
+
+    pub fn view(self, path: &str) -> Self {
+        unsafe { HTTP_CONTAINER.view = Some(View::new(path)); }
+
+        return self;
+    }
+
+    pub fn assets(self, path: &str, max_size_kilobytes_cache_size: usize, expires_in_seconds: u128) -> Self {
+        unsafe { HTTP_CONTAINER.assets = Some(Assets::new(path.to_owned(), max_size_kilobytes_cache_size, expires_in_seconds)); }
+
+        return self;
+    }
+
+    pub fn session(self, manager: impl SessionManager + 'static) -> Self {
+        unsafe { HTTP_CONTAINER.session_manager = Some(Box::new(manager)); }
+
+        return self;
+    }
+
+    #[allow(static_mut_refs)]
+    pub fn router<'a>(&mut self) -> &mut Router {
+        unsafe { 
+            let idx = HTTP_CONTAINER.router.nodes.len();
+
+            HTTP_CONTAINER.router.nodes.push(Box::new(Router::new()));
+
+            return &mut HTTP_CONTAINER.router.nodes[idx];
+        }
+    }
+
+    #[allow(static_mut_refs)]
+    pub fn listen(&mut self) {
+        unsafe { 
+            HTTP_CONTAINER.router.init();
+
+            let mut config: Option<ServerConfig> = None;
+
+            if HTTP_CONTAINER.tls.is_some() {
+                config = Some(server_config(get_tls_config(&HTTP_CONTAINER.tls.as_mut().unwrap()).unwrap()).unwrap());
+            }
+
+            Runtime::new().unwrap().block_on(async {
+                join!(Self::udp(config.clone()), tcp::listen(config))
+            });
+        }
+    }
+
+    async fn udp(config: Option<ServerConfig>) {
+        if config.is_none() {
+            return;
+        }
+
+        UdpServer::new(config.unwrap())
+            .await
             .unwrap()
-            .collect::<Result<Vec<_>, _>>()
-            .unwrap()
-    })
-}
-
-pub fn get_server_config(tls: &TlsPathConfig) -> IoResult<ServerConfig> {
-    return server_config(get_tls_config(tls)?);
-}
-
-pub fn server_config(config: TlsConfig) -> IoResult<ServerConfig> {
-    return Ok(
-        rustls::ServerConfig::builder()
-        .with_no_client_auth()
-        .with_single_cert(config.cert, config.key)
-        .unwrap()
-    );
-}
-
-pub fn get_tls_acceptor(config: ServerConfig) -> Option<TlsAcceptor> {
-    return Some(TlsAcceptor::from(Arc::new(config)));
+            .listen()
+            .await;
+    }
 }

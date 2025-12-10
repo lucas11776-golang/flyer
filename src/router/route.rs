@@ -16,10 +16,10 @@ pub struct GroupRoute<'r> {
 }
 
 pub struct Route<R> {
-    pub(crate) path: String,
+    pub path: String,
     pub(crate) method: String,
     pub(crate) route: R,
-    pub(crate) middlewares: MiddlewaresPointers,
+    pub middlewares: MiddlewaresPointers,
 }
 
 impl <'r>GroupRoute<'r> {
@@ -46,6 +46,10 @@ impl <'r, R> Route<R> {
     where
         C: for<'a> AsyncFn<(&'a mut Request, &'a mut Response, &'a mut Next), Output = &'a mut Response> + Send + Sync + 'static,
     {
+
+        // println!("ROUTE MIDDLEWARE {} {:?}", self.path.clone(), self.middlewares);
+
+
         self.middlewares
             .push(register(Box::new(move |req, res, next| block_on(callback(req, res, next)))));
 

@@ -4,6 +4,8 @@ pub mod url;
 pub mod string;
 pub mod encrypt;
 pub mod cookie;
+pub mod logger;
+pub mod server;
 
 pub type Values = HashMap<String, String>;
 
