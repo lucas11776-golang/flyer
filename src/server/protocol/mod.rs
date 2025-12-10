@@ -2,7 +2,7 @@ pub(crate) mod http;
 
 
 #[allow(unused)]
-pub enum HttpProtocol {
+pub enum Protocol {
     HTTP1,
     HTTP2,
     HTTP3

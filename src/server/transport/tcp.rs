@@ -9,10 +9,10 @@ use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, BufReader};
 
 use crate::request::Request;
 use crate::response::Response;
-use crate::server::handler::{http1, http2, ws_http1};
+use crate::server::handler::{http1, http1_ws, http2};
 use crate::server::handler::http2::H2_PREFACE;
 use crate::server::helpers::{setup, teardown};
-use crate::server::protocol::HttpProtocol;
+use crate::server::protocol::Protocol;
 use crate::server::protocol::http::GLOBAL_HTTP;
 use crate::utils::server::get_tls_acceptor;
 use crate::warn;
@@ -27,46 +27,62 @@ pub(crate) async fn listen() {
             TLS_ACCEPTOR.insert(get_tls_acceptor(config.clone()).unwrap());
         }
 
-        listen_connection(TcpListener::bind(format!("{}", GLOBAL_HTTP.address())).await.unwrap()).await;
+        listener(TcpListener::bind(format!("{}", GLOBAL_HTTP.address())).await.unwrap()).await;
     }
 }
 
 #[allow(static_mut_refs)]
-async fn listen_connection(listener: TcpListener) {
+async fn listener(listener: TcpListener) {
     while let Ok((stream, addr)) = listener.accept().await  {
         tokio::spawn(async move {
             match unsafe { TLS_ACCEPTOR.as_mut() } {
                 Some(acceptor) => {
                     match acceptor.accept(stream).await {
-                        // TODO: Handle unwrap
-                        Ok(rw) => connection(BufReader::new(rw), addr).await.unwrap(),
-                        Err(err) => { warn!("TLS connection error"; "error" => err); },
+                        Ok(rw) => connection(BufReader::new(rw), addr).await,
+                        Err(err) => warn!("TLS connection error"; "error" => err),
                     }
                 },
-                // TODO: Handle unwrap
-                None => connection(BufReader::new(stream), addr).await.unwrap(),
+                None => connection(BufReader::new(stream), addr).await,
             }
         });
     }
 }
 
-fn get_connection_protocol(buffer: &[u8]) -> HttpProtocol {
-    match buffer.len() >= H2_PREFACE.len() && &buffer[..H2_PREFACE.len()] == H2_PREFACE {
-        true => HttpProtocol::HTTP2,
-        false => HttpProtocol::HTTP1,
-    }
-}
 
-async fn connection<RW>(mut rw: BufReader<RW>, addr: SocketAddr) -> Result<()>
+async fn connection_protocol<RW>(rw: &mut BufReader<RW>) -> Result<Protocol>
 where
     RW: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static
 {
+    let buffer = rw.fill_buf().await.unwrap();
+
     Ok(
-        match get_connection_protocol(rw.fill_buf().await?) {
-            HttpProtocol::HTTP2 => http_2_protocol(rw, addr).await.unwrap(),
-            _ => http_1_protocol(rw, addr).await.unwrap()
+        match buffer.len() >= H2_PREFACE.len() && &buffer[..H2_PREFACE.len()] == H2_PREFACE {
+            true => Protocol::HTTP2,
+            false => Protocol::HTTP1,
         }
     )
+}
+
+async fn connection<RW>(mut rw: BufReader<RW>, addr: SocketAddr)
+where
+    RW: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static
+{
+    let connection_protocol = connection_protocol(&mut rw).await;
+
+    if connection_protocol.is_err() {
+        return; // TODO: log error
+    }
+
+    let protocol = match connection_protocol.unwrap() {
+        Protocol::HTTP2 => http_2_protocol(rw, addr).await,
+        _ => http_1_protocol(rw, addr).await
+    };
+
+    if protocol.is_err() {
+        return; // TODO: log error
+    }
+
+    protocol.unwrap();
 }
 
 #[allow(static_mut_refs)]
@@ -92,7 +108,8 @@ where
     RW: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static
 {
     unsafe {
-        let (mut handler, req, res) = ws_http1::Handler::new(rw, req, res).await.unwrap();
+        // TODO: handle unwrap error.
+        let (mut handler, req, res) = http1_ws::Handler::new(rw, req, res).await.unwrap();
         let result = GLOBAL_HTTP.router.ws_match(req, res).await;
 
         if result.is_none() {
@@ -140,7 +157,7 @@ where
 
     while let Some(result) = conn.accept().await {
         if result.is_err() {
-            continue;
+            continue; // TODO: log error
         }
 
         tokio::spawn(async move {
