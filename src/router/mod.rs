@@ -2,8 +2,7 @@ pub mod group;
 pub mod route;
 pub mod next;
 pub mod middleware;
-
-// use futures::executor::block_on;
+mod resolver;
 
 use async_std::task::block_on;
 
@@ -117,7 +116,7 @@ impl Router {
         let middlewares = self.middlewares.clone();
 
         self.web.push(Route{
-            path: path,
+            path: path.clone(),
             method: method.to_string(),
             route: Box::new(move |req, res| block_on(callback(req, res))),
             middlewares: middlewares,
@@ -137,12 +136,12 @@ impl Router {
     where
         C: for<'a> AsyncFn<(&'a mut Request, &'a mut Ws), Output = ()> + Send + Sync + 'static,
     {
-        let idx = self.web.len();
+        let idx = self.ws.len();
         let path = join_paths(self.path.join("/"), path.to_string()).join("/");
         let middlewares = self.middlewares.clone();
 
         self.ws.push(Route{
-            path: path,
+            path: path.clone(),
             method: "GET".to_string(),
             route: Box::new(move |req, res| block_on(callback(req, res))),
             middlewares: middlewares,
