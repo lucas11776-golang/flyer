@@ -3,15 +3,15 @@ pub mod tcp;
 pub mod handler;
 pub mod helpers;
 
+
 use rustls::ServerConfig;
-use tokio::{join, runtime::Runtime};
+use tokio::{join, runtime::Builder};
 
 use crate::{
     assets::Assets,
     http::HTTP_CONTAINER,
     router::Router,
     server::{
-        // tcp::TcpServer,
         udp::UdpServer
     },
     session::SessionManager,
@@ -65,6 +65,12 @@ impl Server {
         return self;
     }
 
+    pub fn set_max_parallelism(self, number: usize) -> Self {
+        unsafe { HTTP_CONTAINER.parallelism_max_size = number; }
+
+        return self;
+    }
+
     pub fn view(self, path: &str) -> Self {
         unsafe { HTTP_CONTAINER.view = Some(View::new(path)); }
 
@@ -105,9 +111,12 @@ impl Server {
                 config = Some(server_config(get_tls_config(&HTTP_CONTAINER.tls.as_mut().unwrap()).unwrap()).unwrap());
             }
 
-            Runtime::new().unwrap().block_on(async {
-                join!(Self::udp(config.clone()), tcp::listen(config))
-            });
+            Builder::new_multi_thread()
+                .worker_threads(HTTP_CONTAINER.parallelism_max_size)
+                .enable_all()
+                .build()
+                .unwrap()
+                .block_on(async { join!(Self::udp(config.clone()), tcp::listen(config)); });
         }
     }
 

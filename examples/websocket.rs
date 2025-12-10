@@ -33,7 +33,7 @@ fn main() {
             });
         });
 
-        let r = router.ws("private", async |_req, ws| {
+        router.ws("private", async |_req, ws| {
             ws.on(async |event, writer| {
                 match event {
                     flyer::ws::Event::Ready() => todo!(),

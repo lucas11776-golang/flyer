@@ -1,4 +1,5 @@
 use std::sync::{LazyLock};
+use std::thread::available_parallelism;
 
 use crate::assets::Assets;
 use crate::router::group::GroupRouter;
@@ -16,7 +17,8 @@ pub(crate) struct HTTP {
     pub(crate) router: GroupRouter,
     pub(crate) session_manager: Option<Box<dyn SessionManager>>,
     pub(crate) view: Option<View>,
-    pub(crate) assets: Option<Assets>
+    pub(crate) assets: Option<Assets>,
+    pub(crate) parallelism_max_size: usize,
 }
 
 impl HTTP {
@@ -30,6 +32,7 @@ impl HTTP {
             view: None,
             session_manager: None,
             assets: None,
+            parallelism_max_size: available_parallelism().unwrap().into(),
         };
     }
 
