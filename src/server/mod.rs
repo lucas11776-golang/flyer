@@ -1,39 +1,25 @@
-pub mod udp;
-pub mod tcp;
-pub mod handler;
-pub mod helpers;
+pub(crate) mod handler;
+pub(crate) mod helpers;
+pub(crate) mod transport;
+pub(crate) mod protocol;
 
-
-use rustls::ServerConfig;
 use tokio::{join, runtime::Builder};
 
 use crate::{
     assets::Assets,
-    http::HTTP_CONTAINER,
     router::Router,
-    server::{
-        udp::UdpServer
-    },
+    server::{protocol::http::GLOBAL_HTTP, transport::{tcp, udp}},
     session::SessionManager,
-    utils::{
-        load_env,
-        server::{TlsPathConfig, get_tls_config, server_config}
-    },
+    utils::{load_env, server::TlsPathConfig},
     view::View
 };
-
-pub enum Protocol {
-    HTTP1,
-    HTTP2,
-    HTTP3
-}
 
 pub struct Server;
 
 impl Server {
     #[allow(static_mut_refs)]
     pub(crate) fn new(host: &str, port: i32, tls: Option<TlsPathConfig>) -> Self {
-        unsafe { HTTP_CONTAINER.set_host(host).set_port(port).set_tls(tls) };
+        unsafe { GLOBAL_HTTP.set_host(host).set_port(port).set_tls(tls) };
 
         return Self {}
     }
@@ -46,45 +32,45 @@ impl Server {
 
     #[allow(static_mut_refs)]
     pub fn host(&self) -> String {
-        return unsafe { HTTP_CONTAINER.host() };
+        return unsafe { GLOBAL_HTTP.host() };
     }
 
     #[allow(static_mut_refs)]
     pub fn port(&self) -> i32 {
-        return unsafe { HTTP_CONTAINER.port() };
+        return unsafe { GLOBAL_HTTP.port() };
     }
 
     #[allow(static_mut_refs)]
     pub fn address(&self) -> String {
-        return unsafe { HTTP_CONTAINER.address()};
+        return unsafe { GLOBAL_HTTP.address()};
     }
 
     pub fn set_request_max_size(self, size: i64) -> Self {
-        unsafe { HTTP_CONTAINER.request_max_size = size; }
+        unsafe { GLOBAL_HTTP.request_max_size = size; }
 
         return self;
     }
 
     pub fn set_max_parallelism(self, number: usize) -> Self {
-        unsafe { HTTP_CONTAINER.parallelism_max_size = number; }
+        unsafe { GLOBAL_HTTP.parallelism_max_size = number; }
 
         return self;
     }
 
     pub fn view(self, path: &str) -> Self {
-        unsafe { HTTP_CONTAINER.view = Some(View::new(path)); }
+        unsafe { GLOBAL_HTTP.view = Some(View::new(path)); }
 
         return self;
     }
 
     pub fn assets(self, path: &str, max_size_kilobytes_cache_size: usize, expires_in_seconds: u128) -> Self {
-        unsafe { HTTP_CONTAINER.assets = Some(Assets::new(path.to_owned(), max_size_kilobytes_cache_size, expires_in_seconds)); }
+        unsafe { GLOBAL_HTTP.assets = Some(Assets::new(path.to_owned(), max_size_kilobytes_cache_size, expires_in_seconds)); }
 
         return self;
     }
 
     pub fn session(self, manager: impl SessionManager + 'static) -> Self {
-        unsafe { HTTP_CONTAINER.session_manager = Some(Box::new(manager)); }
+        unsafe { GLOBAL_HTTP.session_manager = Some(Box::new(manager)); }
 
         return self;
     }
@@ -92,43 +78,25 @@ impl Server {
     #[allow(static_mut_refs)]
     pub fn router<'a>(&mut self) -> &mut Router {
         unsafe { 
-            let idx = HTTP_CONTAINER.router.nodes.len();
+            let idx = GLOBAL_HTTP.router.nodes.len();
 
-            HTTP_CONTAINER.router.nodes.push(Box::new(Router::new()));
+            GLOBAL_HTTP.router.nodes.push(Box::new(Router::new()));
 
-            return &mut HTTP_CONTAINER.router.nodes[idx];
+            return &mut GLOBAL_HTTP.router.nodes[idx];
         }
     }
 
     #[allow(static_mut_refs)]
-    pub fn listen(&mut self) {
+    pub fn listen(self) {
         unsafe { 
-            HTTP_CONTAINER.router.init();
-
-            let mut config: Option<ServerConfig> = None;
-
-            if HTTP_CONTAINER.tls.is_some() {
-                config = Some(server_config(get_tls_config(&HTTP_CONTAINER.tls.as_mut().unwrap()).unwrap()).unwrap());
-            }
+            GLOBAL_HTTP.router.init();
 
             Builder::new_multi_thread()
-                .worker_threads(HTTP_CONTAINER.parallelism_max_size)
+                .worker_threads(GLOBAL_HTTP.parallelism_max_size)
                 .enable_all()
                 .build()
                 .unwrap()
-                .block_on(async { join!(Self::udp(config.clone()), tcp::listen(config)); });
+                .block_on(async { join!(tcp::listen(), udp::listen()) });
         }
-    }
-
-    async fn udp(config: Option<ServerConfig>) {
-        if config.is_none() {
-            return;
-        }
-
-        UdpServer::new(config.unwrap())
-            .await
-            .unwrap()
-            .listen()
-            .await;
     }
 }

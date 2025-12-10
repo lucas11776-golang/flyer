@@ -9,8 +9,6 @@ fn main() {
     let mut server = server("127.0.0.1", 9999)
         .view("views");
 
-    // println!("NUMBER -> {}", );
-
     server.router().group("/", |router| {
         router.get("/", index);
     });

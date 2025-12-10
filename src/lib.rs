@@ -3,8 +3,9 @@
 #![feature(downcast_unchecked)]
 #![feature(type_alias_impl_trait)]
 #![feature(fn_traits)]
+#![feature(const_trait_impl)]
+#![feature(const_convert)]
 
-pub mod http;
 pub mod request;
 pub mod response;
 pub mod ws;
@@ -12,10 +13,10 @@ pub mod router;
 pub mod utils;
 pub mod session;
 pub mod view;
-pub mod server;
 pub mod assets;
 pub mod cookie;
 pub mod validation;
+pub mod server;
 
 use crate::{server::Server, utils::server::TlsPathConfig};
 
