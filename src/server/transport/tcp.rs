@@ -48,7 +48,6 @@ async fn listener(listener: TcpListener) {
     }
 }
 
-
 async fn connection_protocol<RW>(rw: &mut BufReader<RW>) -> Result<Protocol>
 where
     RW: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static
@@ -70,16 +69,16 @@ where
     let connection_protocol = connection_protocol(&mut rw).await;
 
     if connection_protocol.is_err() {
-        return; // TODO: log error
+        return warn!("request protocol error"; "error" => connection_protocol.err().unwrap());
     }
 
     let protocol = match connection_protocol.unwrap() {
         Protocol::HTTP2 => http_2_protocol(rw, addr).await,
-        _ => http_1_protocol(rw, addr).await
+        _ => http_1_protocol(rw, addr).await // TODO: fix empty read error in header read...
     };
 
     if protocol.is_err() {
-        return; // TODO: log error
+        return warn!("request handle error"; "error" => protocol.err().unwrap());
     }
 
     protocol.unwrap();
@@ -127,13 +126,14 @@ where
     RW: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static
 {
     let mut handler = http1::Handler::new(Pin::new(&mut rw), addr);
-    let result = handler.handle().await;
+    let handle_result = handler.handle().await;
 
-    if result.is_none() {
-        return Ok(());
+    if handle_result.is_err() {
+        return Err(handle_result.err().unwrap());
     }
+    
 
-    let mut req = result.unwrap().unwrap();
+    let mut req = handle_result.unwrap();
     let mut res = Response::new();
 
     if req.header("upgrade") == "websocket" {
