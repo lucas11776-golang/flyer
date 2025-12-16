@@ -5,9 +5,7 @@ use std::pin::Pin;
 
 use tokio::io::{
     AsyncBufReadExt, 
-    AsyncRead,
     AsyncReadExt,
-    AsyncWrite,
     AsyncWriteExt,
     BufReader
 };
@@ -17,6 +15,7 @@ use crate::request::form::{Files, Form};
 use crate::request::parser::parse_content_type;
 use crate::response::parser::parse;
 use crate::response::{Response};
+use crate::utils::async_peek::AsyncPeek;
 use crate::utils::url::parse_query_params;
 use crate::utils::{Headers, Values};
 use crate::request::Request;
@@ -37,7 +36,7 @@ pub(crate) struct HttpHeader {
 // TODO: user third party HTTP/1.1 parse to handler edge cases...
 impl <'a, RW>Handler<'a, RW>
 where
-    RW: AsyncRead + AsyncWrite + Unpin + Send + Sync
+    RW: AsyncPeek + Unpin + Send + Sync
 {
     pub fn new(rw: Pin<&'a mut BufReader<RW>>, addr: SocketAddr) -> Self {
         return Self {

@@ -1,23 +1,21 @@
-use std::sync::LazyLock;
+use std::io::Result;
 use std::net::SocketAddr;
-use std::io::{BufRead, Result};
 use std::pin::Pin;
-use std::task::Poll;
+use std::sync::LazyLock;
 
-use bytes::BufMut;
 use h2::server;
+use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::net::TcpListener;
 use tokio_rustls::TlsAcceptor;
-use tokio::io::{AsyncBufReadExt, AsyncReadExt, BufReader, ReadBuf};
 
 use crate::request::Request;
 use crate::response::Response;
-use crate::server::handler::{http1, http1_ws, http2};
 use crate::server::handler::http2::H2_PREFACE;
+use crate::server::handler::{http1, http1_ws, http2};
 use crate::server::helpers::{setup, teardown};
 use crate::server::protocol::Protocol;
 use crate::server::protocol::http::GLOBAL_HTTP;
-use crate::utils::async_peek::{AsyncPeek, Peek, poll_peek_buf};
+use crate::utils::async_peek::{AsyncPeek, Peek};
 use crate::utils::server::get_tls_acceptor;
 use crate::warn;
 
@@ -31,80 +29,64 @@ pub(crate) async fn listen() {
             TLS_ACCEPTOR.insert(get_tls_acceptor(config.clone()).unwrap());
         }
 
-        listener(TcpListener::bind(format!("{}", GLOBAL_HTTP.address())).await.unwrap()).await;
+        listener(
+            TcpListener::bind(format!("{}", GLOBAL_HTTP.address()))
+                .await
+                .unwrap(),
+        )
+        .await;
     }
 }
 
 #[allow(static_mut_refs)]
 async fn listener(listener: TcpListener) {
-    while let Ok((stream, addr)) = listener.accept().await  {
+    while let Ok((stream, addr)) = listener.accept().await {
         tokio::spawn(async move {
             match unsafe { TLS_ACCEPTOR.as_mut() } {
-                Some(acceptor) => {
-                    match acceptor.accept(stream).await {
-                        Ok(rw) => connection(&mut Peek::new(rw), addr).await,
-                        Err(err) => warn!("TLS connection error"; "error" => err),
-                    }
+                Some(acceptor) => match acceptor.accept(stream).await {
+                    Ok(rw) => connection(BufReader::new(Peek::new(rw)), addr).await,
+                    Err(err) => warn!("TLS connection error"; "error" => err),
                 },
-                None => connection(&mut Peek::new(stream), addr).await,
+                None => connection(BufReader::new(Peek::new(stream)), addr).await,
             }
         });
     }
 }
 
-use std::pin::{pin};
-
-#[allow(unused)]
-async fn connection_protocol<RW>(rw: &mut RW) -> Result<Protocol>
+async fn connection_protocol<RW>(rw: &mut BufReader<RW>) -> Result<Protocol>
 where
-    RW: AsyncPeek + Sync + Send + 'static
+    RW: AsyncPeek + Sync + Send + 'static,
 {
-    let mut buffer: Vec<u8> = Vec::<u8>::new();
+    let buffer = rw.fill_buf().await.unwrap();
 
-    poll_peek_buf(Pin::new(rw), H2_PREFACE.len(), &mut buffer)?;
-
-
-    println!("{}\r\n\r\n\r\n\r\n\r\n\r\n", String::from_utf8_lossy(&buffer));
-
-
-    let mut buffer2: Vec<u8> = Vec::<u8>::new();
-
-    rw.read_buf(&mut buffer2).await?;
-
-
-    // println!("{}\r\n\r\n\r\n\r\n\r\n\r\n", String::from_utf8_lossy(&buffer2));
-
-
-    // Ok(
-    //     match buffer.len() >= H2_PREFACE.len() && &buffer[..H2_PREFACE.len()] == H2_PREFACE {
-    //         true => Protocol::HTTP2,
-    //         false => Protocol::HTTP1,
-    //     }
-    // )
-
-    return Ok(Protocol::HTTP1);
+    Ok(
+        match buffer.len() >= H2_PREFACE.len() && &buffer[..H2_PREFACE.len()] == H2_PREFACE {
+            true => Protocol::HTTP2,
+            false => Protocol::HTTP1,
+        },
+    )
 }
 
-async fn connection<RW>(mut rw: &mut RW, addr: SocketAddr)
+async fn connection<RW>(mut rw: BufReader<RW>, addr: SocketAddr)
 where
-    RW: AsyncPeek + Sync + Send + 'static
+    RW: AsyncPeek + Sync + Send + 'static,
 {
-    let connection_protocol = connection_protocol(rw).await;
+    let connection_protocol = connection_protocol(&mut rw).await;
 
-    // if connection_protocol.is_err() {
-    //     return warn!("request protocol error"; "error" => connection_protocol.err().unwrap());
-    // }
+    if connection_protocol.is_err() {
+        return warn!("request protocol error"; "error" => connection_protocol.err().unwrap());
+    }
 
-    // let protocol = match connection_protocol.unwrap() {
-    //     Protocol::HTTP2 => http_2_protocol(rw, addr).await,
-    //     _ => http_1_protocol(rw, addr).await // TODO: fix empty read error in header read...
-    // };
+    let protocol = match connection_protocol.unwrap() {
+        Protocol::HTTP2 => http_2_protocol(rw, addr).await,
+        _ => http_1_protocol(rw, addr).await, // TODO: fix empty read error in header read...
+    };
 
-    // if protocol.is_err() {
-    //     return warn!("request handle error"; "error" => protocol.err().unwrap());
-    // }
+    if protocol.is_err() {
+        return warn!("request handle error"; "error" => protocol.err().unwrap());
+    }
 
-    // protocol.unwrap();
+    protocol.unwrap();
 }
 
 #[allow(static_mut_refs)]
@@ -117,7 +99,12 @@ async fn handle<'h>(mut req: Request, mut res: Response) -> Result<(Request, Res
         let resp = GLOBAL_HTTP.router.web_match(&mut req, &mut res).await;
 
         if resp.is_none() && GLOBAL_HTTP.assets.is_some() {
-            (req, res) = GLOBAL_HTTP.assets.as_mut().unwrap().handle(req, res).unwrap();
+            (req, res) = GLOBAL_HTTP
+                .assets
+                .as_mut()
+                .unwrap()
+                .handle(req, res)
+                .unwrap();
         }
 
         return Ok(teardown(req, res).await.unwrap());
@@ -125,9 +112,13 @@ async fn handle<'h>(mut req: Request, mut res: Response) -> Result<(Request, Res
 }
 
 #[allow(static_mut_refs)]
-async fn handle_web_socket<RW>(rw: BufReader<RW>, req: &mut Request, res: &mut Response) -> Result<()>
+async fn handle_web_socket<RW>(
+    rw: BufReader<RW>,
+    req: &mut Request,
+    res: &mut Response,
+) -> Result<()>
 where
-    RW: AsyncPeek + Sync + Send + 'static
+    RW: AsyncPeek + Sync + Send + 'static,
 {
     unsafe {
         // TODO: handle unwrap error.
@@ -135,7 +126,7 @@ where
         let result = GLOBAL_HTTP.router.ws_match(req, res).await;
 
         if result.is_none() {
-            return Ok(())
+            return Ok(());
         }
 
         let (route, req, res) = result.unwrap();
@@ -146,7 +137,7 @@ where
 
 async fn http_1_protocol<RW>(mut rw: BufReader<RW>, addr: SocketAddr) -> Result<()>
 where
-    RW: AsyncPeek + Sync + Send + 'static
+    RW: AsyncPeek + Sync + Send + 'static,
 {
     let mut handler = http1::Handler::new(Pin::new(&mut rw), addr);
     let handle_result = handler.handle().await;
@@ -154,7 +145,6 @@ where
     if handle_result.is_err() {
         return Err(handle_result.err().unwrap());
     }
-    
 
     let mut req = handle_result.unwrap();
     let mut res = Response::new();
@@ -164,7 +154,7 @@ where
 
         handle_web_socket(rw, &mut req, &mut res).await.unwrap();
 
-        return Ok(())
+        return Ok(());
     }
 
     (req, res) = handle(req, res).await.unwrap();
@@ -174,7 +164,7 @@ where
 
 async fn http_2_protocol<RW>(rw: BufReader<RW>, addr: SocketAddr) -> Result<()>
 where
-    RW: AsyncPeek + Sync + Send + 'static
+    RW: AsyncPeek + Sync + Send + 'static,
 {
     let mut conn = server::handshake(rw).await.unwrap();
 
@@ -191,9 +181,9 @@ where
 
             (req, res) = handle(req, res).await.unwrap();
 
-            handler.write( &mut req, &mut res).await.unwrap();
+            handler.write(&mut req, &mut res).await.unwrap();
         });
     }
 
-    return Ok(())   
+    return Ok(());
 }

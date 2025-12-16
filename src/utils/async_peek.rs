@@ -8,8 +8,6 @@ use async_std::task::block_on;
 use bytes::BufMut;
 use tokio::io::AsyncReadExt;
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
-use tokio_util::io::poll_read_buf;
-use tokio_util::io::poll_write_buf;
 
 pub trait AsyncPeek: AsyncRead + AsyncWrite + Unpin {
     fn peek<B: BufMut>(self: Pin<&mut Self>, size: usize, buf: &mut B) -> Poll<std::io::Result<()>>;
@@ -54,25 +52,13 @@ where
     }
 }
 
-use std::pin::pin;
-
 impl<RW> AsyncRead for Peek<RW>
 where
     RW: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static
 {
     #[allow(unused)]
     fn poll_read(mut self: Pin<&mut Self>, cx: &mut Context<'_>, mut buf: &mut ReadBuf<'_>) -> Poll<std::io::Result<()>> {
-        let mut buffer = Vec::new();
-
-        poll_read_buf(pin!(&mut self.inner), cx, &mut buffer)?;
-
-        buffer.splice(0..0, take(&mut self.peek));
-
-        // println!("{}\r\n\r\n\r\n\r\n\r\n\r\n", String::from_utf8_lossy(&buffer));
-
-        // buf.put_slice(&buffer);
-
-        return Poll::Ready(Ok(()))
+        return Pin::new(&mut self.inner).poll_read(cx, buf);
     }
 }
 
@@ -80,16 +66,16 @@ impl<RW> AsyncWrite for Peek<RW>
 where
     RW: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static
 {
-    fn poll_write(mut self: Pin<&mut Self>, cx: &mut Context<'_>, mut buf: &[u8]) -> Poll<Result<usize, Error>> {
-        return poll_write_buf(pin!(&mut self.inner), cx, &mut buf);
+    fn poll_write(mut self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &[u8]) -> Poll<Result<usize, Error>> {
+        return Pin::new(&mut self.inner).poll_write(cx, buf);
     }
 
-    fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Result<(), Error>> {
-        todo!()
+    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Error>> {
+        return Pin::new(&mut self.inner).poll_flush(cx);
     }
 
-    fn poll_shutdown(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Result<(), Error>> {
-        todo!()
+    fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Error>> {
+        return Pin::new(&mut self.inner).poll_shutdown(cx);
     }
 }
 
