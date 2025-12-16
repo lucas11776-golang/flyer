@@ -5,6 +5,7 @@
 #![feature(fn_traits)]
 #![feature(const_trait_impl)]
 #![feature(const_convert)]
+#![feature(slice_as_array)]
 
 pub mod request;
 pub mod response;

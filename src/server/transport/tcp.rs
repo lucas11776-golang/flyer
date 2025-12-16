@@ -1,12 +1,14 @@
 use std::sync::LazyLock;
 use std::net::SocketAddr;
-use std::io::{ErrorKind, Result, Error};
+use std::io::{BufRead, Result};
 use std::pin::Pin;
+use std::task::Poll;
 
+use bytes::BufMut;
 use h2::server;
 use tokio::net::TcpListener;
 use tokio_rustls::TlsAcceptor;
-use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, BufReader};
+use tokio::io::{AsyncBufReadExt, AsyncReadExt, BufReader, ReadBuf};
 
 use crate::request::Request;
 use crate::response::Response;
@@ -15,7 +17,7 @@ use crate::server::handler::http2::H2_PREFACE;
 use crate::server::helpers::{setup, teardown};
 use crate::server::protocol::Protocol;
 use crate::server::protocol::http::GLOBAL_HTTP;
-use crate::utils::async_peek::{AsyncPeek, Peek};
+use crate::utils::async_peek::{AsyncPeek, Peek, poll_peek_buf};
 use crate::utils::server::get_tls_acceptor;
 use crate::warn;
 
@@ -40,29 +42,38 @@ async fn listener(listener: TcpListener) {
             match unsafe { TLS_ACCEPTOR.as_mut() } {
                 Some(acceptor) => {
                     match acceptor.accept(stream).await {
-                        // Ok(rw) => connection(BufReader::new(rw), addr).await,
-                        Ok(rw) => {
-
-                            connection(BufReader::new(Peek::new(rw)), addr).await
-
-                        },
+                        Ok(rw) => connection(&mut Peek::new(rw), addr).await,
                         Err(err) => warn!("TLS connection error"; "error" => err),
                     }
                 },
-                // None => connection(BufReader::new(stream), addr).await,
-                None => connection(BufReader::new(Peek::new(stream)), addr).await,
+                None => connection(&mut Peek::new(stream), addr).await,
             }
         });
     }
 }
 
-async fn connection_protocol<RW>(rw: &mut BufReader<RW>) -> Result<Protocol>
+use std::pin::{pin};
+
+#[allow(unused)]
+async fn connection_protocol<RW>(rw: &mut RW) -> Result<Protocol>
 where
     RW: AsyncPeek + Sync + Send + 'static
 {
-    // let buffer = rw.fill_buf().await.unwrap();
-    
-    // rw.peek
+    let mut buffer: Vec<u8> = Vec::<u8>::new();
+
+    poll_peek_buf(Pin::new(rw), H2_PREFACE.len(), &mut buffer)?;
+
+
+    println!("{}\r\n\r\n\r\n\r\n\r\n\r\n", String::from_utf8_lossy(&buffer));
+
+
+    let mut buffer2: Vec<u8> = Vec::<u8>::new();
+
+    rw.read_buf(&mut buffer2).await?;
+
+
+    // println!("{}\r\n\r\n\r\n\r\n\r\n\r\n", String::from_utf8_lossy(&buffer2));
+
 
     // Ok(
     //     match buffer.len() >= H2_PREFACE.len() && &buffer[..H2_PREFACE.len()] == H2_PREFACE {
@@ -71,29 +82,29 @@ where
     //     }
     // )
 
-    return Ok(Protocol::HTTP1)
+    return Ok(Protocol::HTTP1);
 }
 
-async fn connection<RW>(mut rw: BufReader<RW>, addr: SocketAddr)
+async fn connection<RW>(mut rw: &mut RW, addr: SocketAddr)
 where
     RW: AsyncPeek + Sync + Send + 'static
 {
-    let connection_protocol = connection_protocol(&mut rw).await;
+    let connection_protocol = connection_protocol(rw).await;
 
-    if connection_protocol.is_err() {
-        return warn!("request protocol error"; "error" => connection_protocol.err().unwrap());
-    }
+    // if connection_protocol.is_err() {
+    //     return warn!("request protocol error"; "error" => connection_protocol.err().unwrap());
+    // }
 
-    let protocol = match connection_protocol.unwrap() {
-        Protocol::HTTP2 => http_2_protocol(rw, addr).await,
-        _ => http_1_protocol(rw, addr).await // TODO: fix empty read error in header read...
-    };
+    // let protocol = match connection_protocol.unwrap() {
+    //     Protocol::HTTP2 => http_2_protocol(rw, addr).await,
+    //     _ => http_1_protocol(rw, addr).await // TODO: fix empty read error in header read...
+    // };
 
-    if protocol.is_err() {
-        return warn!("request handle error"; "error" => protocol.err().unwrap());
-    }
+    // if protocol.is_err() {
+    //     return warn!("request handle error"; "error" => protocol.err().unwrap());
+    // }
 
-    protocol.unwrap();
+    // protocol.unwrap();
 }
 
 #[allow(static_mut_refs)]
