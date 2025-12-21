@@ -14,7 +14,7 @@ use crate::server::handler::http2::H2_PREFACE;
 use crate::server::handler::{http1, http1_ws, http2};
 use crate::server::helpers::{setup, teardown};
 use crate::server::protocol::Protocol;
-use crate::server::protocol::http::GLOBAL_HTTP;
+use crate::server::protocol::http::APPLICATION;
 use crate::utils::async_peek::{AsyncPeek, Peek};
 use crate::utils::server::get_tls_acceptor;
 use crate::warn;
@@ -24,13 +24,13 @@ static mut TLS_ACCEPTOR: LazyLock<Option<TlsAcceptor>> = LazyLock::new(|| None);
 #[allow(static_mut_refs)]
 pub(crate) async fn listen() {
     unsafe {
-        if let Some(config) = &GLOBAL_HTTP.server_config {
+        if let Some(config) = &APPLICATION.server_config {
             #[allow(unused)]
             TLS_ACCEPTOR.insert(get_tls_acceptor(config.clone()).unwrap());
         }
 
         listener(
-            TcpListener::bind(format!("{}", GLOBAL_HTTP.address()))
+            TcpListener::bind(format!("{}", APPLICATION.address()))
                 .await
                 .unwrap(),
         )
@@ -79,7 +79,7 @@ where
 
     let protocol = match connection_protocol.unwrap() {
         Protocol::HTTP2 => http_2_protocol(rw, addr).await,
-        _ => http_1_protocol(rw, addr).await, // TODO: fix empty read error in header read...
+        _ => http_1_protocol(rw, addr).await,
     };
 
     if protocol.is_err() {
@@ -94,12 +94,12 @@ async fn handle<'h>(mut req: Request, mut res: Response) -> Result<(Request, Res
     unsafe {
         (req, res) = setup(req, res).await.unwrap();
 
-        res.request_headers = req.headers.clone();
+        res.referer = req.header("referer");
 
-        let resp = GLOBAL_HTTP.router.web_match(&mut req, &mut res).await;
+        let resp = APPLICATION.router.web_match(&mut req, &mut res).await;
 
-        if resp.is_none() && GLOBAL_HTTP.assets.is_some() {
-            (req, res) = GLOBAL_HTTP
+        if resp.is_none() && APPLICATION.assets.is_some() {
+            (req, res) = APPLICATION
                 .assets
                 .as_mut()
                 .unwrap()
@@ -123,7 +123,7 @@ where
     unsafe {
         // TODO: handle unwrap error.
         let (mut handler, req, res) = http1_ws::Handler::new(rw, req, res).await.unwrap();
-        let result = GLOBAL_HTTP.router.ws_match(req, res).await;
+        let result = APPLICATION.router.ws_match(req, res).await;
 
         if result.is_none() {
             return Ok(());
