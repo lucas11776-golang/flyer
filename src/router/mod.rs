@@ -38,6 +38,7 @@ pub type RouteNotFoundCallback = Option<Box<WebRoute>>;
 pub struct Router {
     pub(crate) web: WebRoutes,
     pub(crate) ws: WsRoutes,
+    pub(crate) domain: Vec<String>,
     pub(crate) path: Vec<String>,
     pub(crate) middlewares: MiddlewaresPointers,
     pub(crate) group: Option<Group>,
@@ -50,6 +51,7 @@ impl Router {
         return Self {
             web: vec![],
             ws: vec![],
+            domain: vec![],
             path: vec!["/".to_string()],
             middlewares: vec![],
             group: None,
@@ -131,6 +133,7 @@ impl Router {
     {
         self.not_found = Some(Box::new(move |req, res| block_on(callback(req, res))));
     }
+    
 
     pub fn ws<C>(&mut self, path: &str, callback: C) -> &mut Route<Box<WsRoute>>
     where
@@ -158,6 +161,7 @@ impl Router {
         self.nodes.push(Box::new(Router{
             web: vec![],
             ws: vec![],
+            domain: vec![],
             path: path,
             middlewares: middlewares,
             group: Some(group),
@@ -166,5 +170,14 @@ impl Router {
         }));
 
         return GroupRoute::new(&mut self.nodes[idx])
+    }
+
+    pub fn subdomain<'g>(&'g mut self, domain: &str, group: Group) -> GroupRoute<'g> {
+        let sub_group = self.group("/", group);
+        let subdomain: Vec<String> = domain.split(".").map(|v| v.to_string()).collect();
+
+        sub_group.router.domain.extend(subdomain);
+
+        return sub_group;
     }
 }
