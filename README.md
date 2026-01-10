@@ -12,6 +12,7 @@ Flyer web framework support concurrent request allowing you to run request witho
 **Http key features:**
 
 - Router
+- Subdomain
 - View
 - Env
 - Assets
@@ -129,6 +130,91 @@ fn main() {
     server.listen();
 }
 ```
+
+### Subdomain
+
+In order to use subdomain locally you have to edit you hosts DNS resolver file.
+
+Windows: C:\Windows\System32\drivers\etc\hosts
+MacOS: /etc/hosts
+Linux: /etc/hosts
+
+```hosts
+127.0.0.1       localhost
+255.255.255.255 broadcasthost
+::1             localhost
+
+# Custom Hosts Redirector
+127.0.0.1 tracker.com
+127.0.0.1 api.tracker.com
+127.0.0.1 gentech.tracker.com
+127.0.0.1 gentech.accounts.10.tracker.com
+```
+
+Insert code below in `main.rs`.
+
+```rs
+use flyer::server;
+use serde::{Deserialize, Serialize};
+
+#[derive(Serialize, Deserialize)]
+struct ApiInfo<'a> {
+    info: &'a str,
+    version: i32
+}
+
+fn main() {
+    let mut server = server("127.0.0.1", 80);
+
+    server.router().get("/", async |_req, res| {
+        return res.html("<h1>Home Page</h1>");
+    });
+
+    server.router().subdomain("api", |router| {
+        router.get("/", async  |_req, res| {
+            return res.json(&ApiInfo {
+                info: "Application details",
+                version: 1
+            });
+        });
+    });
+
+    server.router().subdomain("{client}", |router| {
+        router.get("/", async |req, res| {
+            return res.html(format!("<h1>Client Name {}</h1>", req.parameter("client")).as_str());
+        });
+    });
+
+    server.router().subdomain("{client}.accounts.{account_id}", |router| {
+        router.get("/", async |req, res| {
+            return res.html(format!("<h1>Client Name {} Account {}</h1>", req.parameter("client"), req.parameter("account_id")).as_str());
+        });
+    });
+
+    print!("\r\n\r\nRunning server: {}\r\n\r\n", server.address());
+
+    server.listen();
+}
+```
+
+Now you can start you server using
+
+```sh
+cargo run
+```
+
+MacOs may require use sudo to run on port 80.
+
+```sh
+sudo cargo run
+```
+
+after running you server you can visit:
+
+[tracker.com](http://tracker.com)
+[api.tracker.com](http://api.tracker.com)
+[gentech.tracker.com](http://gentech.tracker.com)
+[gentech.accounts.10.tracker.com](http://gentech.accounts.10.tracker.com)
 
 
 ### View

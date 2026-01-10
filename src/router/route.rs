@@ -7,7 +7,7 @@ use crate::router::{MiddlewaresPointers, Next, Router};
 use crate::utils::Values;
 use crate::request::Request;
 use crate::response::Response;
-use crate::utils::url::uri_to_vec;
+use crate::utils::url::{parse_host, uri_to_vec};
 
 static PARAM_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"\{[a-zA-Z_]+\}").expect("Invalid parameter regex"));
 
@@ -16,6 +16,7 @@ pub struct GroupRoute<'r> {
 }
 
 pub struct Route<R> {
+    pub subdomain: String,
     pub path: String,
     pub(crate) method: String,
     pub(crate) route: R,
@@ -41,15 +42,12 @@ impl <'r>GroupRoute<'r> {
     }
 }
 
+
 impl <'r, R> Route<R> {
     pub fn middleware<C>(&mut self, callback: C) -> &mut Self
     where
         C: for<'a> AsyncFn<(&'a mut Request, &'a mut Response, &'a mut Next), Output = &'a mut Response> + Send + Sync + 'static,
     {
-
-        // println!("ROUTE MIDDLEWARE {} {:?}", self.path.clone(), self.middlewares);
-
-
         self.middlewares
             .push(register(Box::new(move |req, res, next| block_on(callback(req, res, next)))));
 
@@ -57,26 +55,64 @@ impl <'r, R> Route<R> {
     }
 
     pub(crate) fn is_match(&mut self, req: &'r mut Request) -> (bool, Values) {
-        let request_path: Vec<String> = uri_to_vec(req.path.clone());
-        let route_path: Vec<String> = uri_to_vec(self.path.clone());
-
         if self.method.to_uppercase() != req.method.to_uppercase() {
             return (false, Values::new());
         }
 
-        return self.parameters_route_match(route_path, request_path);
+        return self.parameters_route_match(req);
+    }
+
+    fn dymanic_parameter_match(&mut self, path: String, matching: String) -> Option<(String, String)> {
+        if PARAM_REGEX.is_match(&path) == false {
+            return None;
+        }
+
+        return Some((path.trim_start_matches('{').trim_end_matches('}').to_owned(), matching));
     }
     
-    fn parameters_route_match(&mut self, route_path: Vec<String>, request_path: Vec<String>) -> (bool, Values) {
-        let mut params: Values = Values::new();
+    // TODO: refactor
+    fn parameters_route_match(&mut self, req: &'r mut Request) -> (bool, Values) {
+        let mut parameters= Values::new();
+        let route_path= uri_to_vec(self.path.clone());
+        let request_path = uri_to_vec(req.path.clone());
+        let domain_result = parse_host(format!("scheme://{}", req.host));
+
+        if domain_result.is_none() {
+            return (false, Values::new());
+        }
+
+        let subdomain_route: Vec<String> = self.subdomain.split(".").map(|v| v.to_string()).collect();
+        let subdomain_req: Vec<String> = domain_result.unwrap().subdomain.split(".").map(|v| v.to_string()).collect();
 
         for (i, _) in request_path.iter().enumerate() {
+            if subdomain_route.len() != subdomain_req.len() {
+                return (false, Values::new());
+            }
+
+            for (j, _ )in subdomain_route.iter().enumerate() {
+                if subdomain_route[j] == subdomain_req[j] {
+                    continue;
+                }
+
+                if subdomain_req[j] == "" {
+                    return (false, Values::new());
+                }
+
+                if let Some((k, v)) = self.dymanic_parameter_match(subdomain_route[j].clone(), subdomain_req[j].clone()) {                    
+                    parameters.insert(k, v);
+
+                    continue;
+                }
+
+                return (false, Values::new());
+            }
+
             if i > route_path.len() - 1 {
                 return (false, Values::new());
             }
 
             if route_path[i] == "*" {
-                return (true, params);
+                return (true, parameters);
             }
 
             if route_path[i] == request_path[i] {
@@ -88,8 +124,8 @@ impl <'r, R> Route<R> {
                 continue;
             }
 
-            if PARAM_REGEX.is_match(&route_path[i].to_string()) {
-                params.insert(route_path[i].trim_start_matches('{').trim_end_matches('}').to_owned(), request_path[i].to_string());
+            if let Some((k, v)) = self.dymanic_parameter_match(route_path[i].clone(), request_path[i].clone()) {
+                parameters.insert(k, v);
 
                 continue;
             }
@@ -102,6 +138,6 @@ impl <'r, R> Route<R> {
             return (false, Values::new());
         }
 
-        return (true, params)
+        return (true, parameters)
     }
 }
