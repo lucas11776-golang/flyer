@@ -1,12 +1,11 @@
 use std::io::{ErrorKind, Result};
-use std::io::{Error as IoError};
+use std::io::{Error};
 use std::net::SocketAddr;
 use std::pin::Pin;
 
 use tokio::io::{
-    AsyncBufReadExt,
-    AsyncRead,
-    AsyncWrite,
+    AsyncBufReadExt, 
+    AsyncReadExt,
     AsyncWriteExt,
     BufReader
 };
@@ -16,6 +15,7 @@ use crate::request::form::{Files, Form};
 use crate::request::parser::parse_content_type;
 use crate::response::parser::parse;
 use crate::response::{Response};
+use crate::utils::async_peek::AsyncPeek;
 use crate::utils::url::parse_query_params;
 use crate::utils::{Headers, Values};
 use crate::request::Request;
@@ -26,85 +26,95 @@ pub(crate) struct Handler<'a, RW> {
 
 }
 
+pub(crate) struct HttpHeader {
+    pub method: String,
+    pub path: String,
+    pub query: Values,
+    pub headers: Headers,
+}
+
 // TODO: user third party HTTP/1.1 parse to handler edge cases...
 impl <'a, RW>Handler<'a, RW>
 where
-    RW: AsyncRead + AsyncWrite + Unpin + Send + Sync
+    RW: AsyncPeek + Unpin + Send + Sync
 {
     pub fn new(rw: Pin<&'a mut BufReader<RW>>, addr: SocketAddr) -> Self {
         return Self {
             rw: rw,
             addr: addr
         };
-    }
+    } 
 
-    pub async fn handle<'s>(&'s mut self) -> Option<Result<Request>> {
-        let mut request_line: String = String::new();
-
-        // TODO: handle unwrap...
-        let n: usize = self.rw.read_line(&mut request_line).await.unwrap();
-
-        if n == 0 {
-            return None
-        }
-
-        if request_line.trim().is_empty() {
-            return None
-        }
-
-        let parts: Vec<&str> = request_line.trim_end().split_whitespace().collect();
-
-        if parts.len() != 3 {
-            return Some(Err(IoError::new(ErrorKind::InvalidData, "bad request")));
-        }
-
-        let method: String = parts[0].to_string();
-        let target: String = parts[1].to_string();
-        let mut headers: Headers = self.fetch_headers().await.unwrap();
-
-        let body: Vec<u8> = self.fetch_body(&mut headers).await.unwrap();
-
-        let (path, query) = if let Some(i) = target.find('?') {
-            (target[..i].to_string(), target[i + 1..].to_string())
-        } else {
-            (target.clone(), String::new())
-        };
-            
-        let host: String = headers
-            .get("host")
-            .cloned()
-            .or_else(|| headers.get("host").cloned())
-            .unwrap_or_default();
-
-        let mut req = Request {
+    pub async fn handle(&mut self) -> Result<Request> {
+        let mut header = self.read_http_header().await?;
+        let body= self.read_body(&mut header.headers).await;
+        let req = Request {
             ip: self.addr.ip().to_string(),
-            host: host,
-            method: method.to_uppercase(),
-            path: path,
+            host: self.get_request_host(&header.headers),
+            method: header.method,
+            path: header.path,
             parameters: Values::new(),
-            query: parse_query_params(&query).unwrap(),
+            query: header.query,
             protocol: "HTTP/1.1".to_string(),
-            headers: headers,
-            body: body,
+            headers: header.headers,
+            body: body.unwrap(),
             form: Form::new(Values::new(), Files::new()),
             session: None,
             cookies: Box::new(Cookies::new(Values::new())),
         };
 
-        if req.method == "POST" || req.method == "PATCH" || req.method == "PUT" {
-            req = parse_content_type(req).await.unwrap();
-        }
+        return Ok(parse_content_type(req).await?);
+    }
 
-        return Some(Ok(req));
+    fn get_request_host(&mut self, headers: &Headers) -> String {
+        return headers.get("host")
+            .cloned()
+            .or_else(|| headers.get("host").cloned())
+            .unwrap_or_default()
     }
 
     pub async fn write(&mut self, req: &mut Request, res: &mut Response) -> Result<()> {
-        let _ = self.rw.write(parse(res, Some(&mut req.cookies.new_cookie))?.as_bytes()).await;
+        #[allow(unused)]
+        self.rw
+            .write(parse(res, Some(&mut req.cookies.new_cookie))?
+            .as_bytes())
+            .await;
 
         Ok(())
     }
 
-    async fn fetch_headers(&mut self) -> Result<Headers> {
+    pub async fn read_http_header(&mut self) -> Result<HttpHeader> {
+        let mut header_read = String::new();
+        let n = self.rw.read_line(&mut header_read).await?;
+
+        if n == 0 || header_read.trim().is_empty() {
+            return Err(Error::new(ErrorKind::InvalidData, "bad request empty"));
+        }
+
+        let header_parts: Vec<&str> = header_read.trim_end().split_whitespace().collect();
+
+        if header_parts.len() != 3 {
+            return Err(Error::new(ErrorKind::InvalidData, "bad request structure"));
+        }
+
+        let method: String = header_parts[0].to_string();
+        let target: String = header_parts[1].to_string();
+        let headers: Headers = self.read_headers().await.unwrap();
+        let (path, query) = if let Some(i) = target.find('?') {
+            (target[..i].to_string(), target[i + 1..].to_string())
+        } else {
+            (target.clone(), String::new())
+        };
+
+        return Ok(HttpHeader {
+            method: method.to_uppercase(),
+            path: path,
+            query: parse_query_params(&query)?,
+            headers: headers
+        })
+    }
+
+    async fn read_headers(&mut self) -> Result<Headers> {
         let mut headers: Headers = Headers::new();
 
         loop {
@@ -112,7 +122,7 @@ where
             let n: usize = self.rw.read_line(&mut line).await?;
             
             if n == 0 {
-                return Err(IoError::new(ErrorKind::UnexpectedEof, "eof in headers"));
+                return Err(Error::new(ErrorKind::UnexpectedEof, "eof in headers"));
             }
             
             let line_trim: &str = line.trim_end();
@@ -129,7 +139,29 @@ where
         return Ok(headers)
     }
 
-    async fn fetch_body_transfer_encoding(&mut self) -> Result<Vec<u8>> {
+    async fn read_body(&mut self, headers: &mut Headers) -> Result<Vec<u8>> {
+        let mut body: Vec<u8> = Vec::new();
+
+        if let Some(te) = headers.get("transfer-encoding") && te.eq_ignore_ascii_case("chunked") {
+            body.extend(self.read_body_transfer_encoding().await?);
+        } 
+        
+        if let Some(length) = headers.get("content-length") {
+            body.extend(self.read_content_length(length.parse().unwrap()).await?);
+        }
+
+        return Ok(body);
+    }
+
+    async fn read_content_length(&mut self, length: usize) -> Result<Vec<u8>> {
+        let mut body = vec![0u8; length];
+
+        AsyncReadExt::read_exact(&mut self.rw, &mut body).await.unwrap();
+
+        return Ok(body);
+    } 
+
+    async fn read_body_transfer_encoding(&mut self) -> Result<Vec<u8>> {
         let mut body: Vec<u8> = Vec::new();
 
         loop {
@@ -139,7 +171,7 @@ where
 
             let size_str: &str = size_line.trim_end();
             let size: usize = usize::from_str_radix(size_str, 16)
-                .map_err(|_| IoError::new(ErrorKind::InvalidData, "bad chunk size"))?;
+                .map_err(|_| Error::new(ErrorKind::InvalidData, "bad chunk size"))?;
 
             if size == 0 {
                 // read trailing CRLF and optional trailers
@@ -165,28 +197,6 @@ where
         return Ok(body);
     }
 
-    async fn fetch_body_content_length(&mut self, size: usize) -> Result<Vec<u8>> {
-        let mut body = vec![0u8; size];
-
-        tokio::io::AsyncReadExt::read_exact(&mut self.rw, &mut body).await?;
-
-        return Ok(body)
-    }
-
-    async fn fetch_body(&mut self, headers: &mut Headers) -> Result<Vec<u8>> {
-        if let Some(te) = headers.get("transfer-encoding") && te.eq_ignore_ascii_case("chunked") {
-            return self.fetch_body_transfer_encoding().await;
-        } 
-        
-        if let Some(cl) = headers.get("content-length") {
-            let size = cl.parse::<usize>()
-                .map_err(|_| IoError::new(ErrorKind::InvalidData, "bad content-length"))?;
-
-            return self.fetch_body_content_length(size).await;
-        }
-
-        return Ok(vec![]);
-    }
 }
 
     

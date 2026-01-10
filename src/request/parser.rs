@@ -11,13 +11,17 @@ use crate::{
 };
 
 pub(crate) async fn parse_content_type(req: Request) -> std::io::Result<Request> {
-    return Ok(
-        match req.content_type().as_str() {
-            "application/x-www-form-urlencoded" => parse_form_urlencoded(req).await.unwrap(),
-            "multipart/form-data" => parse_multipart_form(req).await.unwrap(),
-            _ => req
-        }
-    );
+    if req.method == "POST" || req.method == "PATCH" || req.method == "PUT" {
+        return Ok(
+            match req.content_type().as_str() {
+                "application/x-www-form-urlencoded" => parse_form_urlencoded(req).await.unwrap(),
+                "multipart/form-data" => parse_multipart_form(req).await.unwrap(),
+                _ => req
+            }
+        );
+    }
+
+    return Ok(req);
 }
 
 fn get_multipart_header_boundary(header: String) -> std::io::Result<String> {

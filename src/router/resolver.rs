@@ -12,12 +12,10 @@ pub fn resolve_router_nodes<'a>(nodes: &'a mut RouterNodes) -> (WebRoutes, WsRou
     let mut ws = WsRoutes::new();
     let mut not_found = RouteNotFoundCallback::None;
 
-
     for node in &mut *nodes {
         if let Some(group) = node.group {
             group(node);
         }
-        
 
         web.extend(take(&mut node.web));
         ws.extend(take(&mut node.ws));

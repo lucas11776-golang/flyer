@@ -14,7 +14,7 @@ use crate::request::Request;
 use crate::response::Response;
 use crate::server::handler::http3;
 use crate::server::helpers::{setup, teardown};
-use crate::server::protocol::http::GLOBAL_HTTP;
+use crate::server::protocol::http::APPLICATION;
 
 const ALPN_PROTOCOLS: LazyLock<Vec<Vec<u8>>> = LazyLock::new(|| vec![
     b"h3".to_vec(),
@@ -26,7 +26,7 @@ const ALPN_PROTOCOLS: LazyLock<Vec<Vec<u8>>> = LazyLock::new(|| vec![
 #[allow(static_mut_refs)]
 pub(crate) async fn listen() {
     unsafe {
-        if let Some(config) = &GLOBAL_HTTP.server_config {
+        if let Some(config) = &APPLICATION.server_config {
             listener(get_endpoint(config.clone()).unwrap()).await;
         }
     }
@@ -37,7 +37,7 @@ fn get_endpoint(mut config: ServerConfig) -> Result<Endpoint> {
     config.alpn_protocols = ALPN_PROTOCOLS.to_vec();
     let quinn_config = Arc::new(QuicServerConfig::try_from(config).unwrap());
     let server_config = QuinnServerConfig::with_crypto(quinn_config);
-    Ok(Endpoint::server(server_config, unsafe { GLOBAL_HTTP.address().parse().unwrap() }).unwrap())
+    Ok(Endpoint::server(server_config, unsafe { APPLICATION.address().parse().unwrap() }).unwrap())
 }
 
 async fn listener(listener: Endpoint) {
@@ -85,12 +85,12 @@ async fn handle<'h>(mut req: Request, mut res: Response) -> Result<(Request, Res
     unsafe {
         (req, res) = setup(req, res).await.unwrap();
 
-        res.request_headers = req.headers.clone();
+        res.referer = req.header("referer");
 
-        let resp = GLOBAL_HTTP.router.web_match(&mut req, &mut res).await;
+        let resp = APPLICATION.router.web_match(&mut req, &mut res).await;
 
-        if resp.is_none() && GLOBAL_HTTP.assets.is_some() {
-            (req, res) = GLOBAL_HTTP.assets.as_mut().unwrap().handle(req, res).unwrap();
+        if resp.is_none() && APPLICATION.assets.is_some() {
+            (req, res) = APPLICATION.assets.as_mut().unwrap().handle(req, res).unwrap();
         }
 
         return Ok(teardown(req, res).await.unwrap());

@@ -38,6 +38,7 @@ pub type RouteNotFoundCallback = Option<Box<WebRoute>>;
 pub struct Router {
     pub(crate) web: WebRoutes,
     pub(crate) ws: WsRoutes,
+    pub(crate) subdomain: Vec<String>,
     pub(crate) path: Vec<String>,
     pub(crate) middlewares: MiddlewaresPointers,
     pub(crate) group: Option<Group>,
@@ -50,6 +51,7 @@ impl Router {
         return Self {
             web: vec![],
             ws: vec![],
+            subdomain: vec![],
             path: vec!["/".to_string()],
             middlewares: vec![],
             group: None,
@@ -112,10 +114,12 @@ impl Router {
         C: for<'a> AsyncFn<(&'a mut Request, &'a mut Response), Output = &'a mut Response> + Send + Sync + 'static,
     {
         let idx = self.web.len();
+        let subdomain = self.subdomain.clone().join(".");
         let path = join_paths(self.path.join("/"), path.to_string()).join("/");
         let middlewares = self.middlewares.clone();
 
         self.web.push(Route{
+            subdomain: subdomain,
             path: path.clone(),
             method: method.to_string(),
             route: Box::new(move |req, res| block_on(callback(req, res))),
@@ -131,17 +135,20 @@ impl Router {
     {
         self.not_found = Some(Box::new(move |req, res| block_on(callback(req, res))));
     }
+    
 
     pub fn ws<C>(&mut self, path: &str, callback: C) -> &mut Route<Box<WsRoute>>
     where
         C: for<'a> AsyncFn<(&'a mut Request, &'a mut Ws), Output = ()> + Send + Sync + 'static,
     {
         let idx = self.ws.len();
+        let subdomain = self.subdomain.clone().join(".");
         let path = join_paths(self.path.join("/"), path.to_string()).join("/");
         let middlewares = self.middlewares.clone();
 
         self.ws.push(Route{
             path: path.clone(),
+            subdomain: subdomain,
             method: "GET".to_string(),
             route: Box::new(move |req, res| block_on(callback(req, res))),
             middlewares: middlewares,
@@ -158,6 +165,7 @@ impl Router {
         self.nodes.push(Box::new(Router{
             web: vec![],
             ws: vec![],
+            subdomain: vec![],
             path: path,
             middlewares: middlewares,
             group: Some(group),
@@ -166,5 +174,14 @@ impl Router {
         }));
 
         return GroupRoute::new(&mut self.nodes[idx])
+    }
+
+    pub fn subdomain<'g>(&'g mut self, domain: &str, group: Group) -> GroupRoute<'g> {
+        let sub_group = self.group("/", group);
+        let subdomain: Vec<String> = domain.split(".").map(|v| v.to_string()).collect();
+
+        sub_group.router.subdomain.extend(subdomain);
+
+        return sub_group;
     }
 }

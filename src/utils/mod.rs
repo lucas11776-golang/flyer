@@ -6,6 +6,7 @@ pub mod encrypt;
 pub mod cookie;
 pub mod logger;
 pub mod server;
+pub mod async_peek;
 
 pub type Values = HashMap<String, String>;
 
@@ -35,7 +36,6 @@ pub fn timestamp() -> Result<u128> {
 pub fn load_env(path: &str) {
     dotenv::from_filename(path).unwrap();
 }
-
 
 pub fn env(name: &str) -> String {
     let var = dotenv::var(name);
