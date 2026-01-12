@@ -75,7 +75,7 @@ impl <'r, R> Route<R> {
         let mut parameters= Values::new();
         let route_path= uri_to_vec(self.path.clone());
         let request_path = uri_to_vec(req.path.clone());
-        let domain_result = parse_host(format!("scheme://{}", req.host));
+        let domain_result = parse_host(format!("http://{}", req.host));
 
         if domain_result.is_none() {
             return (false, Values::new());
