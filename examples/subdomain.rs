@@ -56,7 +56,6 @@ async fn udp() {
 
 async fn tcp() {
     let listener = TcpListener::bind(format!("{}:{}", DNS_HOST, DNS_PORT)).unwrap();
-    println!("TCP Server listening on port 5354");
 
     for stream in listener.incoming() {
         match stream {
