@@ -1,4 +1,4 @@
-use std::io::Result;
+use std::{io::Result};
 
 use url::Url;
 use urlencoding::decode;
@@ -54,7 +54,6 @@ pub fn join_paths(one: String, two: String) -> Vec<String> {
         .collect();
 }
 
-
 pub fn parse_host(host: String) -> Option<Domain> {
     let result = Url::parse(&host);
 
@@ -66,6 +65,13 @@ pub fn parse_host(host: String) -> Option<Domain> {
 
     if url.host().is_none() {
         return None;
+    }
+
+    if !is_domain(url.clone()) {
+        return Some(Domain {
+            subdomain: String::new(),
+            domain: url.host().unwrap().to_string()
+        });
     }
     
     let host = url.host_str()?;
@@ -82,4 +88,13 @@ pub fn parse_host(host: String) -> Option<Domain> {
         domain: parts.join("."),
         subdomain: String::new()
     });
+}
+
+pub fn is_domain(url: Url) -> bool {
+    match url.host() {
+        Some(url::Host::Domain(_)) => true,
+        Some(url::Host::Ipv4(_)) => false,
+        Some(url::Host::Ipv6(_)) => false,
+        None => false,
+    }
 }
