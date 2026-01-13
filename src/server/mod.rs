@@ -3,6 +3,7 @@ pub(crate) mod helpers;
 pub(crate) mod transport;
 pub(crate) mod protocol;
 
+use async_std::task::block_on;
 use tokio::{join, runtime::Builder};
 
 use crate::{
@@ -86,17 +87,39 @@ impl Server {
         }
     }
 
+    pub fn init<C>(&mut self, callback: C)
+    where
+        C: for<'a> AsyncFn<(), Output = ()> + Send + Sync + 'static
+    {
+        unsafe {
+            APPLICATION.init_callback = Some(Box::new(move || block_on(callback())));
+        }
+    }
+
     #[allow(static_mut_refs)]
     pub fn listen(self) {
         unsafe { 
-            APPLICATION.router.init();
-
             Builder::new_multi_thread()
                 .worker_threads(APPLICATION.parallelism_max_size)
                 .enable_all()
                 .build()
                 .unwrap()
-                .block_on(async { join!(tcp::listen(), udp::listen()) });
+                .block_on(self.start());
+        }
+    }
+
+    #[allow(static_mut_refs)]
+    async fn start(self) {
+        unsafe {
+            APPLICATION.router.init();
+
+            if let Some(callback) = &APPLICATION.init_callback {
+                tokio::spawn(async {
+                    callback();
+                });
+            }
+
+            join!(tcp::listen(), udp::listen());
         }
     }
 }

@@ -13,6 +13,8 @@ use crate::session::SessionManager;
 use crate::utils::server::{TlsPathConfig, get_tls_config, server_config};
 use crate::view::View;
 
+pub(crate) type InitCallback = dyn Fn() + Send + Sync;
+
 pub(crate) static mut APPLICATION: LazyLock<HTTP> = LazyLock::new(|| HTTP::new());
 
 pub(crate) struct HTTP {
@@ -24,7 +26,8 @@ pub(crate) struct HTTP {
     pub(crate) view: Option<View>,
     pub(crate) assets: Option<Assets>,
     pub(crate) parallelism_max_size: usize,
-    pub(crate) server_config: Option<ServerConfig>
+    pub(crate) server_config: Option<ServerConfig>,
+    pub(crate) init_callback: Option<Box<InitCallback>>
 }
 
 impl HTTP {
@@ -39,6 +42,7 @@ impl HTTP {
             assets: None,
             parallelism_max_size: available_parallelism().unwrap().into(),
             server_config: None,
+            init_callback: None,
         };
     }
 
