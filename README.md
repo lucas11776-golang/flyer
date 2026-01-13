@@ -147,9 +147,24 @@ sudo bash -c 'echo -e "nameserver 127.0.0.1 \nport 5354" > /etc/resolver/tracker
 sudo bash -c 'echo -e "nameserver 127.0.0.1 \nport 5354" > /etc/resolver/tracker.com'
 ```
 
-#### Windows
+#### Windows `Not tested`
+
+Add rule:
 
 ```sh
+Add-DnsClientNrptRule -Namespace "tracker.com" -NameServers "127.0.0.1" -Comment "Per-domain DNS for tracker"
+```
+
+Verify:
+
+```sh
+Get-DnsClientNrptRule | Format-List
+```
+
+Remove rule:
+
+```rs
+Remove-DnsClientNrptRule -Namespace "tracker.com"
 ```
 
 Insert code below in `main.rs`.
