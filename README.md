@@ -149,6 +149,7 @@ sudo bash -c 'echo -e "nameserver 127.0.0.1 \nport 5354" > /etc/resolver/tracker
 
 #### Windows `Not tested`
 
+In windows you have to change `DNS_PORT` from `5354` to `53`.<br><br>
 Add rule:
 
 ```sh
