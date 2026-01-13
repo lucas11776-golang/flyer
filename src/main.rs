@@ -1,9 +1,10 @@
 use flyer::server;
 use serde::{Deserialize, Serialize};
-use std::net::{TcpListener, UdpSocket};
+use tokio::join;
+use tokio::net::{TcpListener, UdpSocket};
 
 const DNS_HOST: &'static str = "127.0.0.1";
-const DNS_PORT: u16 = 53; // Change use by OS bind to it
+const DNS_PORT: u16 = 5354;
 
 #[derive(Serialize, Deserialize)]
 struct ApiInfo<'a> {
@@ -39,6 +40,12 @@ fn main() {
         });
     });
 
+    server.init(async || {
+        println!("STARTING DNS SERVER");
+
+        // join!(udp(), tcp());
+    });
+
     print!("\r\n\r\nRunning server: {}\r\n\r\n", server.address());
 
     server.listen();
@@ -46,40 +53,24 @@ fn main() {
 
 
 async fn udp() {
-    let socket = UdpSocket::bind(format!("{}:{}", DNS_HOST, DNS_PORT)).unwrap();
-    let mut buf = [0; 1024];
+    let socket = UdpSocket::bind(format!("{}:{}", DNS_HOST, DNS_PORT)).await.unwrap();
 
     loop {
-        // DO SOME DNS RESOLVING AND SEND RESPONSE
-    }
-}
+        let mut buf = [0u8; 4096];
+        let recv_result = socket.recv_from(&mut buf).await;
 
-async fn tcp() {
-    let listener = TcpListener::bind("127.0.0.1:5354").unwrap();
-    println!("TCP Server listening on port 5354");
-
-    for stream in listener.incoming() {
-        match stream {
-            Ok(stream) => {
-                tokio::spawn(async move {
-                    let mut buf = [0; 1024];
-                    // DO SOME DNS RESOLVING AND SEND RESPONSE
-                });
-            }
-            Err(e) => {
-                println!("Error: {}", e);
-            }
+        if recv_result.is_err() {
+            continue;
         }
     }
 }
 
+async fn tcp() {
+    let listener = TcpListener::bind(format!("{}:{}", DNS_HOST, DNS_PORT)).await.unwrap();
 
-/*
-MacOs DNS FILE
+    while let Ok((stream, addr)) = listener.accept().await {
+        tokio::spawn(async move {
 
-```dns
-nameserver 127.0.0.1
-port 53 # Change use by OS bind to it
-```
-*/
-
+        });
+    }
+}

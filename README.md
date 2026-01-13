@@ -135,20 +135,21 @@ fn main() {
 
 In order to use subdomain locally you have to edit you hosts DNS resolver file.
 
-Windows: C:\Windows\System32\drivers\etc\hosts
-MacOS: /etc/hosts
-Linux: /etc/hosts
+#### MacOs
 
-```hosts
-127.0.0.1       localhost
-255.255.255.255 broadcasthost
-::1             localhost
+```sh
+sudo bash -c 'echo -e "nameserver 127.0.0.1 \nport 5354" > /etc/resolver/tracker.com'
+```
 
-# Custom Hosts Redirector
-127.0.0.1 tracker.com
-127.0.0.1 api.tracker.com
-127.0.0.1 gentech.tracker.com
-127.0.0.1 gentech.accounts.10.tracker.com
+#### Linux
+
+```sh
+sudo bash -c 'echo -e "nameserver 127.0.0.1 \nport 5354" > /etc/resolver/tracker.com'
+```
+
+#### Windows
+
+```sh
 ```
 
 Insert code below in `main.rs`.
@@ -156,6 +157,11 @@ Insert code below in `main.rs`.
 ```rs
 use flyer::server;
 use serde::{Deserialize, Serialize};
+use tokio::join;
+use tokio::net::{TcpListener, UdpSocket};
+
+const DNS_HOST: &'static str = "127.0.0.1";
+const DNS_PORT: u16 = 5354;
 
 #[derive(Serialize, Deserialize)]
 struct ApiInfo<'a> {
@@ -164,7 +170,7 @@ struct ApiInfo<'a> {
 }
 
 fn main() {
-    let mut server = server("127.0.0.1", 80);
+    let mut server = server("127.0.0.1", 9999);
 
     server.router().get("/", async |_req, res| {
         return res.html("<h1>Home Page</h1>");
@@ -191,9 +197,39 @@ fn main() {
         });
     });
 
+    server.init(async || {
+        println!("STARTING DNS SERVER");
+
+        join!(udp(), tcp());
+    });
+
     print!("\r\n\r\nRunning server: {}\r\n\r\n", server.address());
 
     server.listen();
+}
+
+
+async fn udp() {
+    let socket = UdpSocket::bind(format!("{}:{}", DNS_HOST, DNS_PORT)).await.unwrap();
+
+    loop {
+        let mut buf = [0u8; 4096];
+        let recv_result = socket.recv_from(&mut buf).await;
+
+        if recv_result.is_err() {
+            continue;
+        }
+    }
+}
+
+async fn tcp() {
+    let listener = TcpListener::bind(format!("{}:{}", DNS_HOST, DNS_PORT)).await.unwrap();
+
+    while let Ok((stream, addr)) = listener.accept().await {
+        tokio::spawn(async move {
+
+        });
+    }
 }
 ```
 

@@ -1,9 +1,10 @@
 use flyer::server;
 use serde::{Deserialize, Serialize};
-use std::net::{TcpListener, UdpSocket};
+use tokio::join;
+use tokio::net::{TcpListener, UdpSocket};
 
 const DNS_HOST: &'static str = "127.0.0.1";
-const DNS_PORT: u16 = 53;
+const DNS_PORT: u16 = 5354;
 
 #[derive(Serialize, Deserialize)]
 struct ApiInfo<'a> {
@@ -12,7 +13,7 @@ struct ApiInfo<'a> {
 }
 
 fn main() {
-    let mut server = server("127.0.0.1", 80);
+    let mut server = server("127.0.0.1", 9999);
 
     server.router().get("/", async |_req, res| {
         return res.html("<h1>Home Page</h1>");
@@ -39,6 +40,12 @@ fn main() {
         });
     });
 
+    server.init(async || {
+        println!("STARTING DNS SERVER");
+
+        join!(udp(), tcp());
+    });
+
     print!("\r\n\r\nRunning server: {}\r\n\r\n", server.address());
 
     server.listen();
@@ -46,29 +53,35 @@ fn main() {
 
 
 async fn udp() {
-    let socket = UdpSocket::bind(format!("{}:{}", DNS_HOST, DNS_PORT)).unwrap();
-    let mut buf = [0; 1024];
+    let socket = UdpSocket::bind(format!("{}:{}", DNS_HOST, DNS_PORT)).await.unwrap();
 
     loop {
-        // DO SOME DNS RESOLVING AND SEND RESPONSE
+        let mut buf = [0u8; 4096];
+        let recv_result = socket.recv_from(&mut buf).await;
+
+        if recv_result.is_err() {
+            continue;
+        }
     }
 }
 
 async fn tcp() {
-    let listener = TcpListener::bind(format!("{}:{}", DNS_HOST, DNS_PORT)).unwrap();
+    let listener = TcpListener::bind(format!("{}:{}", DNS_HOST, DNS_PORT)).await.unwrap();
 
-    for stream in listener.incoming() {
-        match stream {
-            Ok(stream) => {
-                tokio::spawn(async move {
-                    let mut buf = [0; 1024];
-                    // DO SOME DNS RESOLVING AND SEND RESPONSE
-                });
-            }
-            Err(e) => {
-                println!("Error: {}", e);
-            }
-        }
+    while let Ok((stream, addr)) = listener.accept().await {
+        tokio::spawn(async move {
+
+        });
     }
-
 }
+
+/*
+MacOs DNS FILE
+
+tracker.com
+
+```dns
+nameserver 127.0.0.1 \r\nport 5354
+```
+*/
+

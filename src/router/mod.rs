@@ -14,25 +14,26 @@ use crate::request::Request;
 use crate::response::Response;
 use crate::utils::url::join_paths;
 
-pub type WebRoute = dyn for<'a> Fn(&'a mut Request, &'a mut Response) -> &'a mut Response + Send + Sync;
+pub(crate) type WebRoute = dyn for<'a> Fn(&'a mut Request, &'a mut Response) -> &'a mut Response + Send + Sync;
 
-pub type WebRoutes = Vec<Route<Box<WebRoute>>>;
+pub(crate) type WebRoutes = Vec<Route<Box<WebRoute>>>;
 
-pub type WsRoute = dyn for<'a> Fn(&'a mut Request, &'a mut Ws) + Send + Sync;
+pub(crate) type WsRoute = dyn for<'a> Fn(&'a mut Request, &'a mut Ws) + Send + Sync;
 
-pub type WsRoutes = Vec<Route<Box<WsRoute>>>;
+pub(crate) type WsRoutes = Vec<Route<Box<WsRoute>>>;
 
-pub type Middleware = dyn for<'a> Fn(&'a mut Request, &'a mut Response, &'a mut Next) -> &'a mut Response + Send + Sync;
+pub(crate) type Middleware = dyn for<'a> Fn(&'a mut Request, &'a mut Response, &'a mut Next) -> &'a mut Response + Send + Sync;
 
-pub type Middlewares = Vec<Box<Middleware>>;
+// pub(crate) type Middlewares = Vec<Box<Middleware>>;
 
-pub type MiddlewaresPointers = Vec<String>;
+pub(crate) type MiddlewaresPointers = Vec<String>;
 
-pub type Group = for<'a> fn(&'a mut Router);
+pub(crate) type Group = for<'a> fn(&'a mut Router);
 
-pub type RouterNodes = Vec<Box<Router>>;
+// TODO: find a better way do nested routers/groups. 
+pub(crate) type RouterNodes = Vec<Box<Router>>;
 
-pub type RouteNotFoundCallback = Option<Box<WebRoute>>;
+pub(crate) type RouteNotFoundCallback = Option<Box<WebRoute>>;
 
 
 pub struct Router {
