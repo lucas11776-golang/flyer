@@ -1,13 +1,14 @@
 use async_std::task::block_on;
 use regex::Regex;
 use once_cell::sync::Lazy;
+use url_domain_parse::utils::Domain;
 
 use crate::router::middleware::register;
 use crate::router::{MiddlewaresPointers, Next, Router};
 use crate::utils::Values;
 use crate::request::Request;
 use crate::response::Response;
-use crate::utils::url::{parse_host, uri_to_vec};
+use crate::utils::url::uri_to_vec;
 
 static PARAM_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"\{[a-zA-Z_]+\}").expect("Invalid parameter regex"));
 
@@ -75,14 +76,14 @@ impl <'r, R> Route<R> {
         let mut parameters= Values::new();
         let route_path= uri_to_vec(self.path.clone());
         let request_path = uri_to_vec(req.path.clone());
-        let domain_result = parse_host(format!("http://{}", req.host));
+        let domain = Domain::parse(&req.host);
 
-        if domain_result.is_none() {
+        if domain.host.is_none() {
             return (false, Values::new());
         }
 
         let subdomain_route: Vec<String> = self.subdomain.split(".").map(|v| v.to_string()).collect();
-        let subdomain_req: Vec<String> = domain_result.unwrap().subdomain.split(".").map(|v| v.to_string()).collect();
+        let subdomain_req: Vec<String> = domain.subdomain.or(Some(String::new())).unwrap().split(".").map(|v| v.to_string()).collect();
 
         for (i, _) in request_path.iter().enumerate() {
             if subdomain_route.len() != subdomain_req.len() {

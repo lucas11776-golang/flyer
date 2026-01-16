@@ -1,6 +1,6 @@
 [package]
 name = "flyer"
-version = "0.2.4"
+version = "0.2.5"
 authors = ["Themba Lucas Ngubeni <thembangubeni04@email.com>"]
 license = "MIT"
 description = "HTTP framework for rust"
@@ -49,3 +49,4 @@ slog-async = "2.8.0"
 slog-term = "2.9.2"
 url = "2.5.8"
 hickory-proto = "0.25.2"
+url-domain-parse = "0.1.4"
