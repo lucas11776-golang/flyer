@@ -1,16 +1,8 @@
 use std::{io::Result};
 
-use url::Url;
 use urlencoding::decode;
 
 use crate::utils::{Values, merge};
-
-#[derive(Debug)]
-pub struct Domain {
-    pub subdomain: String,
-    pub domain: String
-}
-
 
 pub fn clean_url(uri: String) -> String {
     if uri == "/" {
@@ -52,49 +44,4 @@ pub fn join_paths(one: String, two: String) -> Vec<String> {
         .map(|x| clean_url(x.to_owned()))
         .filter(|x| x != "")
         .collect();
-}
-
-pub fn parse_host(host: String) -> Option<Domain> {
-    let result = Url::parse(&host);
-
-    if result.is_err() {
-        return None;
-    }
-
-    let url = result.unwrap();
-
-    if url.host().is_none() {
-        return None;
-    }
-
-    if !is_domain(url.clone()) {
-        return Some(Domain {
-            subdomain: String::new(),
-            domain: url.host().unwrap().to_string()
-        });
-    }
-    
-    let host = url.host_str()?;
-    let parts: Vec<String> = host.split(".").map(|v| v.to_string()).collect();
-
-    if parts.len() >= 2 {
-        return Some(Domain {
-            domain: parts[parts.len()-2..].join("."),
-            subdomain: parts[0..parts.len()-2].join("."),
-        });
-    }
-
-    return Some(Domain {
-        domain: parts.join("."),
-        subdomain: String::new()
-    });
-}
-
-pub fn is_domain(url: Url) -> bool {
-    match url.host() {
-        Some(url::Host::Domain(_)) => true,
-        Some(url::Host::Ipv4(_)) => false,
-        Some(url::Host::Ipv6(_)) => false,
-        None => false,
-    }
 }

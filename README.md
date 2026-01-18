@@ -147,9 +147,25 @@ sudo bash -c 'echo -e "nameserver 127.0.0.1 \nport 5354" > /etc/resolver/tracker
 sudo bash -c 'echo -e "nameserver 127.0.0.1 \nport 5354" > /etc/resolver/tracker.com'
 ```
 
-#### Windows
+#### Windows `Not tested`
+
+In windows you have to change `DNS_PORT` from `5354` to `53`.<br><br>
+Add rule:
 
 ```sh
+Add-DnsClientNrptRule -Namespace "tracker.com" -NameServers "127.0.0.1" -Comment "Per-domain DNS for tracker"
+```
+
+Verify:
+
+```sh
+Get-DnsClientNrptRule | Format-List
+```
+
+Remove rule:
+
+```rs
+Remove-DnsClientNrptRule -Namespace "tracker.com"
 ```
 
 Insert code below in `main.rs`.
@@ -158,7 +174,6 @@ Insert code below in `main.rs`.
 use std::io::Result;
 
 use flyer::server;
-use flyer::utils::url::parse_host;
 use serde::{Deserialize, Serialize};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::join;
@@ -166,6 +181,7 @@ use tokio::net::{TcpListener, UdpSocket};
 use hickory_proto::op::{Edns, Message, MessageType, Query, ResponseCode};
 use hickory_proto::rr::{Name, RData, Record, RecordType, rdata::SOA};
 use hickory_proto::serialize::binary::{BinDecodable, BinEncodable};
+use url_domain_parse::utils::Domain;
 
 const DNS_HOST: &'static str = "127.0.0.1";
 const DNS_PORT: u16 = 5354;
@@ -280,11 +296,9 @@ async fn handle_query(request: Message) -> Result<Message> {
     response.set_response_code(ResponseCode::NoError);
 
     for query in request.queries() {
-        // TODO: fix in parse host to...
-        let host = format!("http://{}", query.name().to_string().trim_end_matches("."));
-        let result = parse_host(host.to_string());
+        let domain = Domain::parse(query.name().to_string().trim_end_matches("."));
 
-        if result.is_none() {
+        if domain.host.is_none() {
             response.set_response_code(ResponseCode::BADNAME);
 
             return Ok(response);
@@ -309,6 +323,7 @@ async fn handle_query(request: Message) -> Result<Message> {
     Ok(response)
 }
 
+// TODO: check if domain match all host will be resolved :(
 async fn search_dns_record(response: &mut Message, query: &Query) -> Result<()> {
     match query.query_type() {
         RecordType::A => {

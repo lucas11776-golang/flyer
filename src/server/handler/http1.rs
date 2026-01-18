@@ -23,7 +23,6 @@ use crate::request::Request;
 pub(crate) struct Handler<'a, RW> {
     rw: Pin<&'a mut BufReader<RW>>,
     addr: SocketAddr,
-
 }
 
 pub(crate) struct HttpHeader {
@@ -47,7 +46,6 @@ where
 
     pub async fn handle(&mut self) -> Result<Request> {
         let mut header = self.read_http_header().await?;
-        let body= self.read_body(&mut header.headers).await;
         let req = Request {
             ip: self.addr.ip().to_string(),
             host: self.get_request_host(&header.headers),
@@ -56,8 +54,8 @@ where
             parameters: Values::new(),
             query: header.query,
             protocol: "HTTP/1.1".to_string(),
+            body: self.read_body(&mut header.headers).await.unwrap(),
             headers: header.headers,
-            body: body.unwrap(),
             form: Form::new(Values::new(), Files::new()),
             session: None,
             cookies: Box::new(Cookies::new(Values::new())),
