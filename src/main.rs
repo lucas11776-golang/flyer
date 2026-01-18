@@ -150,7 +150,7 @@ async fn handle_query(request: Message) -> Result<Message> {
     Ok(response)
 }
 
-// TODO: check if domain match all host will be resolved :(.
+// TODO: check if domain match all host will be resolved :(
 async fn search_dns_record(response: &mut Message, query: &Query) -> Result<()> {
     match query.query_type() {
         RecordType::A => {

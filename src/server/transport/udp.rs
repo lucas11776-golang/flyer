@@ -13,7 +13,7 @@ use rustls::ServerConfig;
 use crate::request::Request;
 use crate::response::Response;
 use crate::server::handler::http3;
-use crate::server::helpers::{setup, teardown};
+use crate::server::helpers::{Handler, RequestHandler};
 use crate::server::protocol::http::APPLICATION;
 
 const ALPN_PROTOCOLS: LazyLock<Vec<Vec<u8>>> = LazyLock::new(|| vec![
@@ -81,9 +81,10 @@ async fn listen_peer(mut server: H3Server<H3Conn, Bytes>) {
 }
 
 #[allow(static_mut_refs)]
-async fn handle<'h>(mut req: Request, mut res: Response) -> Result<(Request, Response)> {
+async fn handle<'h>(req: Request, res: Response) -> Result<(Request, Response)> {
     unsafe {
-        (req, res) = setup(req, res).await.unwrap();
+        let handler = RequestHandler::new();
+        let (mut req, mut res) = handler.setup(req, res).await.unwrap();
 
         res.referer = req.header("referer");
 
@@ -93,6 +94,6 @@ async fn handle<'h>(mut req: Request, mut res: Response) -> Result<(Request, Res
             (req, res) = APPLICATION.assets.as_mut().unwrap().handle(req, res).unwrap();
         }
 
-        return Ok(teardown(req, res).await.unwrap());
+        return Ok(handler.teardown(req, res).await.unwrap());
     }
 }

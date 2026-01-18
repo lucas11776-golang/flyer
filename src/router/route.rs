@@ -1,7 +1,7 @@
 use async_std::task::block_on;
 use regex::Regex;
 use once_cell::sync::Lazy;
-use url_domain_parse::utils::Domain;
+use url_domain_parse::Url;
 
 use crate::router::middleware::register;
 use crate::router::{MiddlewaresPointers, Next, Router};
@@ -76,14 +76,16 @@ impl <'r, R> Route<R> {
         let mut parameters= Values::new();
         let route_path= uri_to_vec(self.path.clone());
         let request_path = uri_to_vec(req.path.clone());
-        let domain = Domain::parse(&req.host);
+        // TODO: fix plugin Domain parser.
+        let url_result = Url::parse(format!("http://{}", &req.host).as_str());
 
-        if domain.host.is_none() {
+        if url_result.is_err() {
             return (false, Values::new());
         }
 
+        let url = url_result.unwrap();
         let subdomain_route: Vec<String> = self.subdomain.split(".").map(|v| v.to_string()).collect();
-        let subdomain_req: Vec<String> = domain.subdomain.or(Some(String::new())).unwrap().split(".").map(|v| v.to_string()).collect();
+        let subdomain_req: Vec<String> = url.subdomain().or(Some(String::new())).unwrap().split(".").map(|v| v.to_string()).collect();
 
         for (i, _) in request_path.iter().enumerate() {
             if subdomain_route.len() != subdomain_req.len() {

@@ -5,9 +5,13 @@ use bytes::Bytes;
 
 use h2::server::SendResponse;
 use http::{HeaderMap, Response as HttpResponse};
-use reqwest::Url;
+use url_domain_parse::Url;
 
-use crate::{cookie::Cookies, request::{form::{Files, Form}, parser::parse_content_type}, utils::Headers};
+use crate::{
+    cookie::Cookies,
+    request::{form::{Files, Form}, parser::parse_content_type},
+    utils::Headers
+};
 use crate::response::{Response};
 use crate::request::Request;
 use crate::utils::url::parse_query_params;
@@ -29,23 +33,22 @@ impl Handler {
     }
 
     pub async fn handle(&mut self, request: http::Request<h2::RecvStream>,) -> Result<Request> {
-        let method = request.method().to_string();
-        let path = Url::parse(request.uri().to_string().as_str()).unwrap().path().to_string();
-        let query = parse_query_params(request.uri().query().unwrap_or(""))?;
         let headers = self.hashmap_to_headers(request.headers());
-        let host = headers.get("host").cloned().or_else(|| headers.get(":authority").cloned()).unwrap_or_default();
-        let body = request.into_body().data().await.or(Some(Ok(Bytes::new()))).unwrap().unwrap().to_vec();
 
         let mut req = Request {
             ip: self.addr.ip().to_string(),
-            host: host,
-            method: method.to_uppercase(),
-            path: path,
+            host: headers.get("host")
+                .cloned()
+                .or_else(|| headers.get(":authority").cloned())
+                .or_else(|| Url::parse(request.uri().to_string().as_str()).unwrap().host().map(|v| v.to_string()))
+                .unwrap_or_default(),
+            method: request.method().to_string(),
+            path: Url::parse(request.uri().to_string().as_str()).unwrap().path().to_string(),
             parameters: Values::new(),
-            query: query,
+            query: parse_query_params(request.uri().query().unwrap_or(""))?,
             protocol: "HTTP/2.0".to_string(),
             headers: headers,
-            body: body,
+            body: request.into_body().data().await.or(Some(Ok(Bytes::new()))).unwrap().unwrap().to_vec(),
             form: Form::new(Values::new(), Files::new()),
             session: None,
             cookies: Box::new(Cookies::new(Values::new())),

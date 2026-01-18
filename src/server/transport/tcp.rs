@@ -12,7 +12,7 @@ use crate::request::Request;
 use crate::response::Response;
 use crate::server::handler::http2::H2_PREFACE;
 use crate::server::handler::{http1, http1_ws, http2};
-use crate::server::helpers::{setup, teardown};
+use crate::server::helpers::{Handler, RequestHandler};
 use crate::server::protocol::Protocol;
 use crate::server::protocol::http::APPLICATION;
 use crate::utils::async_peek::{AsyncPeek, Peek};
@@ -90,28 +90,6 @@ where
 }
 
 #[allow(static_mut_refs)]
-async fn handle<'h>(mut req: Request, mut res: Response) -> Result<(Request, Response)> {
-    unsafe {
-        (req, res) = setup(req, res).await.unwrap();
-
-        res.referer = req.header("referer");
-
-        let resp = APPLICATION.router.web_match(&mut req, &mut res).await;
-
-        if resp.is_none() && APPLICATION.assets.is_some() {
-            (req, res) = APPLICATION
-                .assets
-                .as_mut()
-                .unwrap()
-                .handle(req, res)
-                .unwrap();
-        }
-
-        return Ok(teardown(req, res).await.unwrap());
-    }
-}
-
-#[allow(static_mut_refs)]
 async fn handle_web_socket<RW>(
     rw: BufReader<RW>,
     req: &mut Request,
@@ -135,55 +113,59 @@ where
     }
 }
 
+#[allow(static_mut_refs)]
 async fn http_1_protocol<RW>(mut rw: BufReader<RW>, addr: SocketAddr) -> Result<()>
 where
     RW: AsyncPeek + Sync + Send + 'static,
 {
-    let mut handler = http1::Handler::new(Pin::new(&mut rw), addr);
-    let handle_result = handler.handle().await;
+    unsafe {
+        let mut handler = http1::Handler::new(Pin::new(&mut rw), addr);
+        let handle_result = handler.handle().await;
 
-    if handle_result.is_err() {
-        return Err(handle_result.err().unwrap());
+        if handle_result.is_err() {
+            return Err(handle_result.err().unwrap());
+        }
+
+        let req = handle_result.unwrap();
+        let res = Response::new();
+
+        if req.header("upgrade").to_lowercase() == "websocket" {
+            let (mut req, mut res) = RequestHandler::new().setup(req, res).await.unwrap();
+
+            handle_web_socket(rw, &mut req, &mut res).await.unwrap();
+
+            return Ok(());
+        }
+
+        let (mut req, mut res) = APPLICATION.on_request(req, res).await.unwrap();
+
+        return Ok(handler.write(&mut req, &mut res).await.unwrap());
     }
-
-    let mut req = handle_result.unwrap();
-    let mut res = Response::new();
-
-    if req.header("upgrade") == "websocket" {
-        (req, res) = setup(req, res).await.unwrap();
-
-        handle_web_socket(rw, &mut req, &mut res).await.unwrap();
-
-        return Ok(());
-    }
-
-    (req, res) = handle(req, res).await.unwrap();
-
-    return Ok(handler.write(&mut req, &mut res).await.unwrap());
 }
 
+#[allow(static_mut_refs)]
 async fn http_2_protocol<RW>(rw: BufReader<RW>, addr: SocketAddr) -> Result<()>
 where
     RW: AsyncPeek + Sync + Send + 'static,
 {
-    let mut conn = server::handshake(rw).await.unwrap();
+    unsafe {
+        let mut conn = server::handshake(rw).await.unwrap();
 
-    while let Some(result) = conn.accept().await {
-        if result.is_err() {
-            continue;
+        while let Some(result) = conn.accept().await {
+            if result.is_err() {
+                continue;
+            }
+
+            tokio::spawn(async move {
+                let (request, send) = result.unwrap();
+                let mut handler = http2::Handler::new(addr, send);
+                let req = handler.handle(request).await.unwrap();
+                let (mut req, mut res) = APPLICATION.on_request(req, Response::new()).await.unwrap();
+
+                handler.write(&mut req, &mut res).await.unwrap();
+            });
         }
 
-        tokio::spawn(async move {
-            let (request, send) = result.unwrap();
-            let mut handler = http2::Handler::new(addr, send);
-            let mut req = handler.handle(request).await.unwrap();
-            let mut res = Response::new();
-
-            (req, res) = handle(req, res).await.unwrap();
-
-            handler.write(&mut req, &mut res).await.unwrap();
-        });
+        return Ok(());
     }
-
-    return Ok(());
 }

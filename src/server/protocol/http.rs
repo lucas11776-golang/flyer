@@ -8,7 +8,7 @@ use crate::assets::Assets;
 use crate::request::Request;
 use crate::response::Response;
 use crate::router::group::GroupRouter;
-use crate::server::helpers::{setup, teardown};
+use crate::server::helpers::{Handler, RequestHandler};
 use crate::session::SessionManager;
 use crate::utils::server::{TlsPathConfig, get_tls_config, server_config};
 use crate::view::View;
@@ -67,8 +67,9 @@ impl HTTP {
     }
 
     #[allow(unused)]
-    pub(crate) async fn on_request(&mut self, req: Request) -> Result<(Request, Response)> {
-        let (mut req, mut res) = setup(req, Response::new()).await?;
+    pub(crate) async fn on_request(&mut self, req: Request, res: Response) -> Result<(Request, Response)> {
+        let handler = RequestHandler::new();
+        let (mut req, mut res) = handler.setup(req, res).await?;
 
         res.referer = req.header("referer");
 
@@ -78,7 +79,7 @@ impl HTTP {
             (req, res) = self.assets.as_mut().unwrap().handle(req, res).unwrap();
         }
 
-        return Ok(teardown(req, res).await.unwrap());
+        return Ok(handler.teardown(req, res).await.unwrap());
     }
 
     pub fn host(&self) -> String {
