@@ -28,12 +28,11 @@ pub(crate) async fn listen() {
             TLS_ACCEPTOR.insert(get_tls_acceptor(config.clone()).unwrap());
         }
 
-        listener(
-            TcpListener::bind(format!("{}", APPLICATION.address()))
-                .await
-                .unwrap(),
-        )
-        .await;
+        let tcp_listener = TcpListener::bind(format!("{}", APPLICATION.address()))
+            .await
+            .unwrap();
+
+        listener(tcp_listener).await;
     }
 }
 
@@ -49,6 +48,7 @@ async fn listener(listener: TcpListener) {
                 None => connection(BufReader::new(stream), addr).await,
             }
         });
+
     }
 }
 
@@ -137,7 +137,11 @@ where
 
         let (mut req, mut res) = APPLICATION.on_request(req, res).await.unwrap();
 
-        return Ok(handler.write(&mut req, &mut res).await.unwrap());
+        handler.write(&mut req, &mut res).await.unwrap();
+
+        drop(rw);
+
+        return Ok(());
     }
 }
 

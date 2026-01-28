@@ -1,4 +1,4 @@
-use std::{fs::File, io::Write, time::Duration};
+use std::time::Duration;
 
 use flyer::{
     request::Request,
@@ -57,10 +57,8 @@ pub async fn upload<'a>(req: &'a mut Request, res: &'a mut Response) -> &'a mut 
             .back();
     }
 
-    let uploaded = req.file("file").unwrap();
-    let mut file = File::create(uploaded.name.as_str()).unwrap();
-
-    file.write(&uploaded.content).unwrap();
+    req.file("file").unwrap().save("file").await.unwrap();
+    req.file("file").unwrap().save_as("storage", "file_backup").await.unwrap();
 
     return res.redirect("/");
 }
@@ -68,7 +66,8 @@ pub async fn upload<'a>(req: &'a mut Request, res: &'a mut Response) -> &'a mut 
 fn main() {
     let mut server = server("127.0.0.1", 9999)
         .session(new_session_manager(Duration::from_hours(2), "session_cookie_key_name", "encryption"))
-        .view("views");
+        .view("views")
+        .set_request_max_size(1024 * 100); // Max Request size 100MB
 
     server.router().group("/", |router| {
         router.get("/", home);

@@ -20,14 +20,14 @@ pub(crate) static mut APPLICATION: LazyLock<HTTP> = LazyLock::new(|| HTTP::new()
 pub(crate) struct HTTP {
     pub(crate) host: String,
     pub(crate) port: i32,
-    pub(crate) request_max_size: i64,
+    pub(crate) request_max_size: usize,
     pub(crate) router: GroupRouter,
     pub(crate) session_manager: Option<Box<dyn SessionManager>>,
     pub(crate) view: Option<View>,
     pub(crate) assets: Option<Assets>,
     pub(crate) parallelism_max_size: usize,
     pub(crate) server_config: Option<ServerConfig>,
-    pub(crate) init_callback: Option<Box<InitCallback>>
+    pub(crate) init_callback: Option<Box<InitCallback>>,
 }
 
 impl HTTP {
@@ -35,7 +35,7 @@ impl HTTP {
         return Self {
             host: String::from("127.0.0.1"),
             port: 80,
-            request_max_size: 1024,
+            request_max_size: (1024 * 20) * 1000,
             router: GroupRouter::new(),
             view: None,
             session_manager: None,

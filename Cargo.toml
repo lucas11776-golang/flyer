@@ -1,6 +1,6 @@
 [package]
 name = "flyer"
-version = "0.2.5"
+version = "0.2.6"
 authors = ["Themba Lucas Ngubeni <thembangubeni04@email.com>"]
 license = "MIT"
 description = "HTTP framework for rust"
@@ -51,3 +51,4 @@ hickory-proto = "0.25.2"
 url-domain-parse = "0.1.4"
 brotli = "8.0.2"
 flate2 = "1.1.8"
+uuid = { version = "1.20.0", features = ["v4"] }

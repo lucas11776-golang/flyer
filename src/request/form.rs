@@ -26,7 +26,7 @@ impl File {
         }
     }
 
-    pub async fn upload_as(&self, directory: &str, name: &str) -> Result<String> {
+    pub async fn save_as(&self, directory: &str, name: &str) -> Result<String> {
         let mut extension = String::new();
         let raw: Vec<&str> = self.name.split(".").collect();
 
@@ -49,8 +49,8 @@ impl File {
         return Ok(path);
     }
 
-    pub async fn upload(&self, directory: &str) -> Result<String> {
-        return self.upload_as(directory, "jdaklsjnfhalkshfaskl").await;
+    pub async fn save(&self, directory: &str) -> Result<String> {
+        return self.save_as(directory, &uuid::Uuid::new_v4().to_string()).await;
     }
 }
 
