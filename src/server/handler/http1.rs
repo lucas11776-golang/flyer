@@ -4,8 +4,10 @@ use std::net::SocketAddr;
 use std::pin::Pin;
 
 use tokio::io::{
-    AsyncBufReadExt, 
+    AsyncBufReadExt,
+    AsyncRead,
     AsyncReadExt,
+    AsyncWrite,
     AsyncWriteExt,
     BufReader
 };
@@ -15,7 +17,6 @@ use crate::request::form::{Files, Form};
 use crate::request::parser::parse_content_type;
 use crate::response::parser::parse;
 use crate::response::{Response};
-use crate::utils::async_peek::AsyncPeek;
 use crate::utils::url::parse_query_params;
 use crate::utils::{Headers, Values};
 use crate::request::Request;
@@ -32,20 +33,20 @@ pub(crate) struct HttpHeader {
     pub headers: Headers,
 }
 
-// TODO: user third party HTTP/1.1 parse to handler edge cases...
 impl <'a, RW>Handler<'a, RW>
 where
-    RW: AsyncPeek + Unpin + Send + Sync
+    RW: AsyncRead + AsyncWrite + Unpin + Send + Sync
 {
     pub fn new(rw: Pin<&'a mut BufReader<RW>>, addr: SocketAddr) -> Self {
         return Self {
             rw: rw,
             addr: addr
         };
-    } 
+    }
 
     pub async fn handle(&mut self) -> Result<Request> {
         let mut header = self.read_http_header().await?;
+        
         let req = Request {
             ip: self.addr.ip().to_string(),
             host: self.get_request_host(&header.headers),
@@ -132,8 +133,9 @@ where
             if let Some((k, v)) = line_trim.split_once(':') {
                 headers.insert(k.trim().to_string().to_lowercase(), v.trim().to_string());
             }
-        }
 
+        }
+        
         return Ok(headers)
     }
 
@@ -143,7 +145,7 @@ where
         if let Some(te) = headers.get("transfer-encoding") && te.eq_ignore_ascii_case("chunked") {
             body.extend(self.read_body_transfer_encoding().await?);
         } 
-        
+
         if let Some(length) = headers.get("content-length") {
             body.extend(self.read_content_length(length.parse().unwrap()).await?);
         }
@@ -194,7 +196,6 @@ where
 
         return Ok(body);
     }
-
 }
 
     

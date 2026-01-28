@@ -1,4 +1,3 @@
-
 use std::io::Result;
 
 use bytes::Bytes;
@@ -14,7 +13,7 @@ pub(crate) async fn parse_content_type(req: Request) -> std::io::Result<Request>
     if req.method == "POST" || req.method == "PATCH" || req.method == "PUT" {
         return Ok(
             match req.content_type().as_str() {
-                "application/x-www-form-urlencoded" => parse_form_urlencoded(req).await.unwrap(),
+                "application/x-www-form-urlencoded" => parse_form_urlencoded( req).await.unwrap(),
                 "multipart/form-data" => parse_multipart_form(req).await.unwrap(),
                 _ => req
             }
@@ -24,13 +23,14 @@ pub(crate) async fn parse_content_type(req: Request) -> std::io::Result<Request>
     return Ok(req);
 }
 
-fn get_multipart_header_boundary(header: String) -> std::io::Result<String> {
+pub(crate) fn get_multipart_header_boundary(header: String) -> std::io::Result<String> {
     let content_type: Vec<&str> = header.split(";").collect();
     let content_type_piece = content_type.get(1).unwrap().to_string();
     let boundary =   parse_query_params(content_type_piece.trim()).unwrap()
         .get("boundary")
         .unwrap()
         .to_string();
+    
     return Ok(boundary);
 }
 

@@ -1,10 +1,10 @@
-use std::io::Result;
+use std::io::{ErrorKind, Result, Error};
 use std::net::SocketAddr;
 use std::pin::Pin;
 use std::sync::LazyLock;
 
 use h2::server;
-use tokio::io::{AsyncBufReadExt, BufReader};
+use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, BufReader};
 use tokio::net::TcpListener;
 use tokio_rustls::TlsAcceptor;
 
@@ -15,7 +15,6 @@ use crate::server::handler::{http1, http1_ws, http2};
 use crate::server::helpers::{Handler, RequestHandler};
 use crate::server::protocol::Protocol;
 use crate::server::protocol::http::APPLICATION;
-use crate::utils::async_peek::{AsyncPeek, Peek};
 use crate::utils::server::get_tls_acceptor;
 use crate::warn;
 
@@ -44,10 +43,10 @@ async fn listener(listener: TcpListener) {
         tokio::spawn(async move {
             match unsafe { TLS_ACCEPTOR.as_mut() } {
                 Some(acceptor) => match acceptor.accept(stream).await {
-                    Ok(rw) => connection(BufReader::new(Peek::new(rw)), addr).await,
+                    Ok(rw) => connection(BufReader::new(rw), addr).await,
                     Err(err) => warn!("TLS connection error"; "error" => err),
                 },
-                None => connection(BufReader::new(Peek::new(stream)), addr).await,
+                None => connection(BufReader::new(stream), addr).await,
             }
         });
     }
@@ -55,7 +54,7 @@ async fn listener(listener: TcpListener) {
 
 async fn connection_protocol<RW>(rw: &mut BufReader<RW>) -> Result<Protocol>
 where
-    RW: AsyncPeek + Sync + Send + 'static,
+    RW: AsyncRead + AsyncWrite + Unpin  + Sync + Send + 'static,
 {
     let buffer = rw.fill_buf().await.unwrap();
 
@@ -69,24 +68,24 @@ where
 
 async fn connection<RW>(mut rw: BufReader<RW>, addr: SocketAddr)
 where
-    RW: AsyncPeek + Sync + Send + 'static,
+    RW: AsyncRead + AsyncWrite + Unpin  + Sync + Send + 'static,
 {
-    let connection_protocol = connection_protocol(&mut rw).await;
+    match connection_protocol(&mut rw).await {
+        Ok(protocol) => {
+            let result = match protocol {
+                Protocol::HTTP1 => { http_1_protocol(rw, addr).await },
+                Protocol::HTTP2 => { http_2_protocol(rw, addr).await },
+                Protocol::HTTP3 => { Err(Error::new(ErrorKind::Unsupported, "Unsupported request tcp connection")) },
+            };
 
-    if connection_protocol.is_err() {
-        return warn!("request protocol error"; "error" => connection_protocol.err().unwrap());
-    }
-
-    let protocol = match connection_protocol.unwrap() {
-        Protocol::HTTP2 => http_2_protocol(rw, addr).await,
-        _ => http_1_protocol(rw, addr).await,
+            if let Err(err) = result {
+                warn!("failed to process request"; "error" => err);
+            }
+        }
+        Err(err) => {
+            warn!("request protocol error"; "error" => err);
+        }
     };
-
-    if protocol.is_err() {
-        return warn!("request handle error"; "error" => protocol.err().unwrap());
-    }
-
-    protocol.unwrap();
 }
 
 #[allow(static_mut_refs)]
@@ -96,10 +95,9 @@ async fn handle_web_socket<RW>(
     res: &mut Response,
 ) -> Result<()>
 where
-    RW: AsyncPeek + Sync + Send + 'static,
+    RW: AsyncRead + AsyncWrite + Unpin  + Sync + Send + 'static,
 {
     unsafe {
-        // TODO: handle unwrap error.
         let (mut handler, req, res) = http1_ws::Handler::new(rw, req, res).await.unwrap();
         let result = APPLICATION.router.ws_match(req, res).await;
 
@@ -116,7 +114,7 @@ where
 #[allow(static_mut_refs)]
 async fn http_1_protocol<RW>(mut rw: BufReader<RW>, addr: SocketAddr) -> Result<()>
 where
-    RW: AsyncPeek + Sync + Send + 'static,
+    RW: AsyncRead + AsyncWrite + Unpin + Sync + Send + 'static,
 {
     unsafe {
         let mut handler = http1::Handler::new(Pin::new(&mut rw), addr);
@@ -146,7 +144,7 @@ where
 #[allow(static_mut_refs)]
 async fn http_2_protocol<RW>(rw: BufReader<RW>, addr: SocketAddr) -> Result<()>
 where
-    RW: AsyncPeek + Sync + Send + 'static,
+    RW: AsyncRead + AsyncWrite + Unpin  + Sync + Send + 'static,
 {
     unsafe {
         let mut conn = server::handshake(rw).await.unwrap();

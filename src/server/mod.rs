@@ -15,7 +15,7 @@ use crate::{
     view::View
 };
 
-pub struct Server;
+pub struct Server { }
 
 impl Server {
     #[allow(static_mut_refs)]
