@@ -6,7 +6,6 @@ pub mod encrypt;
 pub mod cookie;
 pub mod logger;
 pub mod server;
-pub mod async_peek;
 
 pub type Values = HashMap<String, String>;
 

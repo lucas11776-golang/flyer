@@ -15,7 +15,7 @@ use crate::{
     view::View
 };
 
-pub struct Server;
+pub struct Server { }
 
 impl Server {
     #[allow(static_mut_refs)]
@@ -46,8 +46,8 @@ impl Server {
         return unsafe { APPLICATION.address()};
     }
 
-    pub fn set_request_max_size(self, size: i64) -> Self {
-        unsafe { APPLICATION.request_max_size = size; }
+    pub fn set_request_max_size(self, kilobytes: usize) -> Self {
+        unsafe { APPLICATION.request_max_size = kilobytes * 1000; }
 
         return self;
     }

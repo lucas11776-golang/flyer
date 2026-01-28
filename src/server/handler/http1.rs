@@ -4,8 +4,10 @@ use std::net::SocketAddr;
 use std::pin::Pin;
 
 use tokio::io::{
-    AsyncBufReadExt, 
+    AsyncBufReadExt,
+    AsyncRead,
     AsyncReadExt,
+    AsyncWrite,
     AsyncWriteExt,
     BufReader
 };
@@ -15,10 +17,13 @@ use crate::request::form::{Files, Form};
 use crate::request::parser::parse_content_type;
 use crate::response::parser::parse;
 use crate::response::{Response};
-use crate::utils::async_peek::AsyncPeek;
+use crate::server::protocol::http::APPLICATION;
 use crate::utils::url::parse_query_params;
 use crate::utils::{Headers, Values};
 use crate::request::Request;
+
+const MAX_LINE_LENGTH: usize = 4096;           // 4KB per line (e.g., Request Line)
+const MAX_TOTAL_HEADERS_SIZE: usize = 16384;   // 16KB total for all headers
 
 pub(crate) struct Handler<'a, RW> {
     rw: Pin<&'a mut BufReader<RW>>,
@@ -32,72 +37,79 @@ pub(crate) struct HttpHeader {
     pub headers: Headers,
 }
 
-// TODO: user third party HTTP/1.1 parse to handler edge cases...
-impl <'a, RW>Handler<'a, RW>
+// TODO: Refactor...
+impl<'a, RW> Handler<'a, RW>
 where
-    RW: AsyncPeek + Unpin + Send + Sync
+    RW: AsyncRead + AsyncWrite + Unpin + Send + Sync,
 {
     pub fn new(rw: Pin<&'a mut BufReader<RW>>, addr: SocketAddr) -> Self {
-        return Self {
-            rw: rw,
-            addr: addr
-        };
-    } 
+        Self { rw, addr }
+    }
 
-    pub async fn handle(&mut self) -> Result<Request> {
-        let mut header = self.read_http_header().await?;
+    pub async unsafe fn handle(&mut self) -> Result<Request> {
+        let mut header_data = self.read_http_header().await?;
+
         let req = Request {
             ip: self.addr.ip().to_string(),
-            host: self.get_request_host(&header.headers),
-            method: header.method,
-            path: header.path,
+            host: self.get_request_host(&header_data.headers),
+            method: header_data.method,
+            path: header_data.path,
             parameters: Values::new(),
-            query: header.query,
+            query: header_data.query,
             protocol: "HTTP/1.1".to_string(),
-            body: self.read_body(&mut header.headers).await.unwrap(),
-            headers: header.headers,
+            body: self.read_body(&mut header_data.headers).await?,
+            headers: header_data.headers,
             form: Form::new(Values::new(), Files::new()),
             session: None,
             cookies: Box::new(Cookies::new(Values::new())),
         };
 
-        return Ok(parse_content_type(req).await?);
+        return parse_content_type(req).await;
     }
 
-    fn get_request_host(&mut self, headers: &Headers) -> String {
-        return headers.get("host")
-            .cloned()
-            .or_else(|| headers.get("host").cloned())
-            .unwrap_or_default()
+    fn get_request_host(&self, headers: &Headers) -> String {
+        headers.get("host").cloned().unwrap_or_default()
     }
 
     pub async fn write(&mut self, req: &mut Request, res: &mut Response) -> Result<()> {
-        #[allow(unused)]
-        self.rw
-            .write(parse(res, Some(&mut req.cookies.new_cookie))?
-            .as_bytes())
-            .await;
+        let data = parse(res, Some(&mut req.cookies.new_cookie))?;
+
+        self.rw.write_all(data.as_bytes()).await?;
+        self.rw.flush().await?;
 
         Ok(())
     }
 
     pub async fn read_http_header(&mut self) -> Result<HttpHeader> {
-        let mut header_read = String::new();
-        let n = self.rw.read_line(&mut header_read).await?;
+        let mut line = String::new();
+        
+        // Skip leading empty lines (RFC 9112 allows this for robustness)
+        let _ = loop {
+            line.clear();
 
-        if n == 0 || header_read.trim().is_empty() {
-            return Err(Error::new(ErrorKind::InvalidData, "bad request empty"));
+            // Limit line length to prevent OOM
+            let read_n = self.rw.as_mut().take(MAX_LINE_LENGTH as u64).read_line(&mut line).await?; // TODO: here is the issue
+
+            if read_n == 0 {
+                return Err(Error::new(ErrorKind::ConnectionAborted, "client disconnected"));
+            }
+
+            if !line.trim().is_empty() {
+                break read_n;
+            }
+        };
+
+        let parts: Vec<&str> = line.trim_end().split_whitespace().collect();
+        if parts.len() != 3 {
+            return Err(Error::new(ErrorKind::InvalidData, "invalid request line"));
         }
 
-        let header_parts: Vec<&str> = header_read.trim_end().split_whitespace().collect();
+        let method = parts[0].to_uppercase();
+        let target = parts[1].to_string();
+        
+        // Read headers until the empty line separator (\r\n\r\n)
+        let headers = self.read_headers().await?;
 
-        if header_parts.len() != 3 {
-            return Err(Error::new(ErrorKind::InvalidData, "bad request structure"));
-        }
-
-        let method: String = header_parts[0].to_string();
-        let target: String = header_parts[1].to_string();
-        let headers: Headers = self.read_headers().await.unwrap();
         let (path, query) = if let Some(i) = target.find('?') {
             (target[..i].to_string(), target[i + 1..].to_string())
         } else {
@@ -105,96 +117,108 @@ where
         };
 
         return Ok(HttpHeader {
-            method: method.to_uppercase(),
-            path: path,
+            method,
+            path,
             query: parse_query_params(&query)?,
-            headers: headers
-        })
+            headers,
+        });
     }
 
     async fn read_headers(&mut self) -> Result<Headers> {
-        let mut headers: Headers = Headers::new();
+        let mut headers = Headers::new();
+        let mut total_size = 0;
 
         loop {
-            let mut line: String = String::new();
-            let n: usize = self.rw.read_line(&mut line).await?;
+            let mut line = String::new();
+            let n = self.rw.as_mut().take(MAX_LINE_LENGTH as u64).read_line(&mut line).await?;
             
             if n == 0 {
-                return Err(Error::new(ErrorKind::UnexpectedEof, "eof in headers"));
+                return Err(Error::new(ErrorKind::UnexpectedEof, "connection closed in headers"));
             }
             
-            let line_trim: &str = line.trim_end();
-            
-            if line_trim.is_empty() {
-                break;
+            total_size += n;
+
+            if total_size > MAX_TOTAL_HEADERS_SIZE {
+                return Err(Error::new(ErrorKind::InvalidData, "headers too large"));
             }
 
-            if let Some((k, v)) = line_trim.split_once(':') {
-                headers.insert(k.trim().to_string().to_lowercase(), v.trim().to_string());
+            let trimmed = line.trim_end();
+
+            if trimmed.is_empty() {
+                // End of headers
+                break; 
+            }
+
+            if let Some((k, v)) = trimmed.split_once(':') {
+                headers.insert(k.trim().to_lowercase(), v.trim().to_string());
             }
         }
 
-        return Ok(headers)
+        return Ok(headers);
     }
 
     async fn read_body(&mut self, headers: &mut Headers) -> Result<Vec<u8>> {
-        let mut body: Vec<u8> = Vec::new();
-
-        if let Some(te) = headers.get("transfer-encoding") && te.eq_ignore_ascii_case("chunked") {
-            body.extend(self.read_body_transfer_encoding().await?);
+        // If Transfer-Encoding is present, it MUST take precedence over Content-Length.
+        if let Some(te) = headers.get("transfer-encoding") {
+            if te.eq_ignore_ascii_case("chunked") {
+                return unsafe { self.read_body_transfer_encoding() }.await;
+            }
         } 
         
-        if let Some(length) = headers.get("content-length") {
-            body.extend(self.read_content_length(length.parse().unwrap()).await?);
+        if let Some(length_str) = headers.get("content-length") {
+            let length = length_str.parse::<usize>()
+                .map_err(|_| Error::new(ErrorKind::InvalidData, "invalid content-length"))?;
+            
+            if length > unsafe { APPLICATION.request_max_size } {
+                return Err(Error::new(ErrorKind::InvalidData, "body too large"));
+            }
+            
+            return self.read_content_length(length).await;
         }
 
-        return Ok(body);
+        Ok(Vec::new())
     }
 
     async fn read_content_length(&mut self, length: usize) -> Result<Vec<u8>> {
         let mut body = vec![0u8; length];
-
-        AsyncReadExt::read_exact(&mut self.rw, &mut body).await.unwrap();
-
-        return Ok(body);
+        self.rw.read_exact(&mut body).await?;
+        Ok(body)
     } 
 
-    async fn read_body_transfer_encoding(&mut self) -> Result<Vec<u8>> {
-        let mut body: Vec<u8> = Vec::new();
+    async unsafe fn read_body_transfer_encoding(&mut self) -> Result<Vec<u8>> {
+        let mut body = Vec::new();
 
         loop {
             let mut size_line = String::new();
-
             self.rw.read_line(&mut size_line).await?;
 
-            let size_str: &str = size_line.trim_end();
-            let size: usize = usize::from_str_radix(size_str, 16)
-                .map_err(|_| Error::new(ErrorKind::InvalidData, "bad chunk size"))?;
+            let size_str = size_line.trim_end();
+            let size = usize::from_str_radix(size_str, 16)
+                .map_err(|_| Error::new(ErrorKind::InvalidData, "invalid chunk size hex"))?;
 
             if size == 0 {
-                // read trailing CRLF and optional trailers
-                let mut crlf = String::new();
+                let mut trailing = String::new();
                 
-                self.rw.read_line(&mut crlf).await?;
+                // Consume last CRLF
+                self.rw.read_line(&mut trailing).await?;
 
                 break;
             }
 
-            let mut chunk: Vec<u8> = vec![0u8; size];
+            if body.len() + size > unsafe { APPLICATION.request_max_size } {
+                return Err(Error::new(ErrorKind::InvalidData, "chunked body too large"));
+            }
 
-            tokio::io::AsyncReadExt::read_exact(&mut self.rw, &mut chunk).await?;
-
+            let mut chunk = vec![0u8; size];
+            self.rw.read_exact(&mut chunk).await?;
             body.extend_from_slice(&chunk);
 
-            // consume CRLF
-            let mut crlf: [u8; 2] = [0u8; 2];
+            let mut crlf = [0u8; 2];
 
-            tokio::io::AsyncReadExt::read_exact(&mut self.rw, &mut crlf).await?;
+             // Consume CRLF after chunk
+            self.rw.read_exact(&mut crlf).await?;
         }
 
-        return Ok(body);
+        Ok(body)
     }
-
 }
-
-    
