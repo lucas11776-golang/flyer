@@ -4,20 +4,21 @@ use std::{
     io::{Read, Result},
 };
 
+use mime_guess::from_path;
+
 use crate::{
     request::Request,
     response::Response,
     utils::timestamp
 };
-
 pub(crate) struct Asset {
     pub size: usize,
     pub expires: u128,
     pub data: Vec<u8>,
+    pub content_type: String,
 }
 
 pub(crate) type Cache = HashMap<String, Asset>;
-
 pub(crate) struct Assets {
     path: String,
     expires: u128,
@@ -44,7 +45,8 @@ impl Assets {
             let asset = cached_asset.unwrap();
 
             if  asset.expires > timestamp().unwrap() {
-                res.body(&asset.data).status_code(200);
+                res.body(&asset.data).status_code(200)
+                    .header("Content-Type", &asset.content_type);
 
                 return Ok((req, res));
             }
@@ -58,7 +60,8 @@ impl Assets {
 
         let asset = cached_asset.unwrap();
 
-        res.body(&asset.data).status_code(200);
+        res.body(&asset.data).status_code(200)
+            .header("Content-Type", &asset.content_type);
 
         if asset.size > self.max_size.clone() {
             self.cache.remove(&name.clone());
@@ -86,6 +89,7 @@ impl Assets {
             size: reading.unwrap(),
             expires: timestamp().unwrap() + (1000 * self.expires),
             data: content.into(),
+            content_type: from_path(name.split("/").last().unwrap_or("")).first_or_octet_stream().to_string(),
         });
 
         let asset = self.cache.get(&name).unwrap();
