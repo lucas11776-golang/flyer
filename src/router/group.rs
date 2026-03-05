@@ -40,6 +40,8 @@ impl GroupRouter {
         self.ws.extend(ws);
 
         self.not_found_callback = not_found;
+
+        self.nodes.clear();
     }
 
     pub async fn web_match<'g>(&mut self, req: &'g mut Request, res: &'g mut Response) -> Option<&'g mut Response> {

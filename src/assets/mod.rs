@@ -70,7 +70,6 @@ impl Assets {
         return Ok((req, res));
     }
 
-
     fn read_asset(&mut self, name: String) -> Result<Option<&Asset>> {
         let file = File::open(name.clone());
 

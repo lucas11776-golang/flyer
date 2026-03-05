@@ -72,11 +72,8 @@ where
     }
 
     pub async fn write(&mut self, req: &mut Request, res: &mut Response) -> Result<()> {
-        let data = parse(res, Some(&mut req.cookies.new_cookie))?;
-
-        self.rw.write_all(data.as_bytes()).await?;
+        self.rw.write_all(&parse(res, Some(&mut req.cookies.new_cookie))).await?;
         self.rw.flush().await?;
-
         Ok(())
     }
 
