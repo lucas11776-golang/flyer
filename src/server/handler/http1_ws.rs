@@ -170,9 +170,8 @@ where
             .header("Connection", "Upgrade")
             .header("Sec-WebSocket-Accept", Self::get_sec_web_socket_accept(req.header("sec-websocket-key")).as_str());
 
-        rw.write(parse(res, Some(&mut req.cookies.new_cookie)).unwrap().as_bytes())
-            .await
-            .unwrap();
+        rw.write_all(&parse(res, Some(&mut req.cookies.new_cookie))).await.unwrap();
+        rw.flush().await.unwrap();
 
         return Ok((rw, req, res));
     }

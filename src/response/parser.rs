@@ -1,23 +1,22 @@
-use std::io::Result;
-
 use crate::{cookie::Cookie, response::Response};
 
-pub fn parse(response: &mut Response, cookies: Option<&mut Vec<Cookie>>) -> Result<String> {
-    let mut res: Vec<String> = vec![format!("HTTP/1.0 {} {}", response.status_code, "OK")];
+pub fn parse(response: &mut Response, cookies: Option<&mut Vec<Cookie>>) -> Vec<u8> {
+    let mut res = Vec::new();
 
-    for (k, v) in response.headers.clone() {
-        res.push(format!("{}: {}", k, v));
+    res.extend_from_slice(format!("HTTP/1.0 {} OK\r\n", response.status_code).as_bytes());
+
+    for (k, v) in &response.headers {
+        res.extend_from_slice(format!("{}: {}\r\n", k, v).as_bytes());
     }
 
-    res.push(format!("Content-Length: {}", response.body.len()));
-    
     if let Some(cookies) = cookies {
         for cookie in cookies {
-            res.push(format!("Set-Cookie: {}", cookie.parse()));
+            res.extend_from_slice(format!("Set-Cookie: {}\r\n", cookie.parse()).as_bytes());
         }
     }
 
-    res.push(format!("\r\n{}", String::from_utf8(response.body.clone()).unwrap()));
+    res.extend_from_slice(b"\r\n");
+    res.extend_from_slice(&response.body);
 
-    return Ok(res.join("\r\n"));
+    return res;
 }

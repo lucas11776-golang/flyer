@@ -4,7 +4,7 @@ fn main() {
     let mut server = server("127.0.0.1", 9999);
 
     
-    server.router().post("/", async |_req, res| {
+    server.router().get("/", async |_req, res| {
         if let Some(file) = _req.file("file_0") {
             file.save_as("/", "image_0").await.unwrap();
         }        
