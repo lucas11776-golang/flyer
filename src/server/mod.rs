@@ -9,6 +9,7 @@ use crate::{
 };
 
 pub(crate) mod transport;
+pub(crate) mod helpers;
 
 pub struct Server {
     pub(crate) host: String,
@@ -49,8 +50,12 @@ impl Server {
         return self.routers[idx].as_mut();
     }
 
-    pub(crate) fn on_request<'a>(&mut self, req: &'a mut Request, res: &'a mut Response) -> Result<(&'a mut Request, &'a mut Response)> {
-        return Ok((req, res))
+    pub(crate) fn on_request<'a>(&self, req: &'a mut Request, res: &'a mut Response) -> Result<()> {
+        // return Ok((req, res))
+
+
+
+        Ok(())
     }
 
     pub(crate) async fn init(mut self) {

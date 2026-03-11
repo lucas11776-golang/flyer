@@ -1,6 +1,9 @@
-#![feature(downcast_unchecked)]
+// #![feature(downcast_unchecked)]
 
-use crate::{server::{Server}, utils::server::{TlsPathConfig, get_tls_config, server_config}};
+use crate::{
+    server::{Server},
+    utils::server::{TlsPathConfig,get_tls_config, server_config}
+};
 
 pub mod router;
 pub mod request;
@@ -11,6 +14,7 @@ pub mod utils;
 pub mod cookie;
 pub mod session;
 pub mod view;
+pub mod validation;
 
 pub fn server(host: &str, port: u16) -> Server {
     return Server::new(host, port, None);

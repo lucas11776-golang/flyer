@@ -1,11 +1,12 @@
-use std::io::ErrorKind;
+use std::{io::ErrorKind, pin::Pin};
 use std::net::SocketAddr;
 
 use anyhow::Result;
 use tokio::{io::{AsyncBufReadExt, AsyncRead, AsyncWrite, BufReader}, net::TcpListener};
 use tokio_rustls::TlsAcceptor;
 
-use crate::{server::{Server, transport::Protocol}, utils::server::get_tls_acceptor, warn};
+use crate::response::Response;
+use crate::{server::{Server, transport::{Protocol, handler::http1}}, utils::server::get_tls_acceptor, warn};
 
 pub async fn listen(server_ptr: usize) {
     unsafe {
@@ -60,7 +61,7 @@ where
     match connection_protocol(&mut rw).await {
         Ok(protocol) => {
             let result = match protocol {
-                Protocol::HTTP1 => { http_1_protocol(rw, addr).await },
+                Protocol::HTTP1 => { http_1_protocol(server_ptr, rw, addr).await },
                 Protocol::HTTP2 => { http_2_protocol(rw, addr).await },
                 Protocol::HTTP3 => { Err(anyhow::anyhow!("Unsupported request tcp connection")) },
             };
@@ -77,34 +78,40 @@ where
 
 
 #[allow(static_mut_refs)]
-async fn http_1_protocol<RW>(mut rw: BufReader<RW>, addr: SocketAddr) -> Result<()>
+async fn http_1_protocol<RW>(server_ptr: usize, mut rw: BufReader<RW>, addr: SocketAddr) -> Result<()>
 where
     RW: AsyncRead + AsyncWrite + Unpin + Sync + Send + 'static,
 {
     unsafe {
-        // let mut handler = http1::Handler::new(Pin::new(&mut rw), addr);
-        // let handle_result = handler.handle().await;
+        let mut handler = http1::Handler::new(Pin::new(&mut rw), addr);
+        let handle_result = handler.handle().await;
 
-        // if handle_result.is_err() {
-        //     return Err(handle_result.err().unwrap());
-        // }
+        if let Err(err) = handle_result {
+            return Err(err);
+        }
 
-        // let req = handle_result.unwrap();
-        // let res = Response::new();
+        let mut req = handle_result.unwrap();
+        let mut res = Response::new();
 
-        // if req.header("upgrade").to_lowercase() == "websocket" {
-        //     let (mut req, mut res) = RequestHandler::new().setup(req, res).await.unwrap();
+        if req.header("upgrade").to_lowercase() == "websocket" {
+            // let (mut req, mut res) = RequestHandler::new().setup(req, res).await.unwrap();
 
-        //     handle_web_socket(rw, &mut req, &mut res).await.unwrap();
+            // handle_web_socket(rw, &mut req, &mut res).await.unwrap();
 
-        //     return Ok(());
-        // }
+            // return Ok(());
+        }
 
-        // let (mut req, mut res) = APPLICATION.on_request(req, res).await.unwrap();
 
-        // handler.write(&mut req, &mut res).await.unwrap();
+        let result = (*(server_ptr as *const Server)).routes.web_match(&mut req, &mut res).await;
 
-        // drop(rw);
+        if result.is_none() {
+            // TODO: error here
+            return Ok(());
+        }
+
+        handler.write(&mut req, &mut res).await.unwrap();
+
+        drop(rw);
 
         return Ok(());
     }

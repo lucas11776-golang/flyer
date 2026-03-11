@@ -89,23 +89,23 @@ impl SessionManager for SessionCookieManager {
 
     fn teardown<'a>(&mut self, req: &'a mut Request, mut res: &'a mut Response) -> Result<(&'a mut Request, &'a mut Response)> {        
         unsafe {
-            let session = (req.session.as_mut().unwrap() as &mut dyn Any).downcast_mut_unchecked::<Box<SessionCookie>>();
+            // let session = (req.session.as_mut().unwrap() as &mut dyn Any).downcast_mut_unchecked::<Box<SessionCookie>>();
 
-            session.set_errors(res.errors.clone());
-            session.set_old(res.old.clone());
+            // session.set_errors(res.errors.clone());
+            // session.set_old(res.old.clone());
 
-            let data = serde_json::to_string(&CookieStorage {
-                values: session.values.clone(),
-                errors: session.new_errors.clone(),
-                old: session.new_old.clone(),
-            });
+            // let data = serde_json::to_string(&CookieStorage {
+            //     values: session.values.clone(),
+            //     errors: session.new_errors.clone(),
+            //     old: session.new_old.clone(),
+            // });
 
-            let payload = encrypt(self.encryption_key.as_str(), data.unwrap().as_str()).unwrap();
-            let mut cookie = Cookie::new(self.cookie_name.clone(), payload);
+            // let payload = encrypt(self.encryption_key.as_str(), data.unwrap().as_str()).unwrap();
+            // let mut cookie = Cookie::new(self.cookie_name.clone(), payload);
 
-            cookie.set_expires(OffsetDateTime::now_utc() + DurationCookie::seconds(self.expires.as_secs().try_into().unwrap()));
+            // cookie.set_expires(OffsetDateTime::now_utc() + DurationCookie::seconds(self.expires.as_secs().try_into().unwrap()));
 
-            res = res.header("Set-Cookie", &cookie.to_string());
+            // res = res.header("Set-Cookie", &cookie.to_string());
 
             return Ok((req, res));
         };

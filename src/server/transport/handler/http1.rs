@@ -1,8 +1,9 @@
-use std::io::{ErrorKind, Result};
+use std::io::{ErrorKind};
 use std::io::{Error};
 use std::net::SocketAddr;
 use std::pin::Pin;
 
+use anyhow::Result;
 use tokio::io::{
     AsyncBufReadExt,
     AsyncRead,
@@ -17,7 +18,6 @@ use crate::request::form::{Files, Form};
 use crate::request::parser::parse_content_type;
 use crate::response::parser::parse;
 use crate::response::{Response};
-// use crate::server::protocol::http::APPLICATION;
 use crate::utils::url::parse_query_params;
 use crate::utils::{Headers, Values};
 use crate::request::Request;
@@ -88,7 +88,7 @@ where
             let read_n = self.rw.as_mut().take(MAX_LINE_LENGTH as u64).read_line(&mut line).await?; // TODO: here is the issue
 
             if read_n == 0 {
-                return Err(Error::new(ErrorKind::ConnectionAborted, "client disconnected"));
+                return Err(Error::new(ErrorKind::ConnectionAborted, "client disconnected").into());
             }
 
             if !line.trim().is_empty() {
@@ -98,7 +98,7 @@ where
 
         let parts: Vec<&str> = line.trim_end().split_whitespace().collect();
         if parts.len() != 3 {
-            return Err(Error::new(ErrorKind::InvalidData, "invalid request line"));
+            return Err(Error::new(ErrorKind::InvalidData, "invalid request line").into());
         }
 
         let method = parts[0].to_uppercase();
@@ -130,13 +130,13 @@ where
             let n = self.rw.as_mut().take(MAX_LINE_LENGTH as u64).read_line(&mut line).await?;
             
             if n == 0 {
-                return Err(Error::new(ErrorKind::UnexpectedEof, "connection closed in headers"));
+                return Err(Error::new(ErrorKind::UnexpectedEof, "connection closed in headers").into());
             }
             
             total_size += n;
 
             if total_size > MAX_TOTAL_HEADERS_SIZE {
-                return Err(Error::new(ErrorKind::InvalidData, "headers too large"));
+                return Err(Error::new(ErrorKind::InvalidData, "headers too large").into());
             }
 
             let trimmed = line.trim_end();

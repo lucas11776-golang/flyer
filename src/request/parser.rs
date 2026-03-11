@@ -1,5 +1,4 @@
-use std::io::Result;
-
+use anyhow::Result;
 use bytes::Bytes;
 use multer::{Field, Multipart};
 use tokio_util::io::ReaderStream;
@@ -9,7 +8,7 @@ use crate::{
     utils::url::parse_query_params
 };
 
-pub(crate) async fn parse_content_type(req: Request) -> std::io::Result<Request> {
+pub(crate) async fn parse_content_type(req: Request) -> Result<Request> {
     if req.method == "POST" || req.method == "PATCH" || req.method == "PUT" {
         return Ok(
             match req.content_type().as_str() {

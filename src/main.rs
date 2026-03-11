@@ -4,12 +4,12 @@ use flyer::{server, server_tls};
 
 
 fn main() {
-    // let mut server = server("127.0.0.1", 8080);
-    let mut server = server_tls("127.0.0.1", 8080, "host.key", "host.cert");
+    let mut server = server("127.0.0.1", 8080);
+    // let mut server = server_tls("127.0.0.1", 8080, "host.key", "host.cert");
 
     server.router().group("api", |router| {
         router.get("/", async |req, res| {
-            return res
+            return res.html("<h1>Hello World</h1>")
         });
         router.group("users", |router| {
             router.get("/", async |req, res| {
