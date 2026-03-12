@@ -1,27 +1,23 @@
-use flyer::{server, server_tls};
-
-
-
+use flyer::{server_tls};
 
 fn main() {
-    let server = server("127.0.0.1", 8080);
-    // let mut server = server_tls("127.0.0.1", 8080, "host.key", "host.cert");
+    let server = server_tls("127.0.0.1", 8080, "host.key", "host.cert");
 
     server.router().group("api", |router| {
-        router.get("/", async |req, res| {
+        router.get("/", async |_req, res| {
             return res.html("<h1>Hello World</h1>")
         });
         router.group("users", |router| {
-            router.get("/", async |req, res| {
+            router.get("/", async |_req, res| {
                 return res
             });
             router.group("{id}", |router| {
-                router.get("/", async |req, res| {
+                router.get("/", async |_req, res| {
                     return res
                 });
             });
         });
-    }).middleware(async |req, res, next| {
+    }).middleware(async |_req, res, next| {
         return next.handle(res)
     });
 

@@ -33,7 +33,7 @@ pub async fn verified<'a>(_req: &'a mut Request, res: &'a mut Response, next: &m
 }
 
 fn main() {
-    let mut server = server("127.0.0.1", 9999);
+    let server = server("127.0.0.1", 9999);
 
     server.router().group("api", |router| {
         router.group("users", |router| {

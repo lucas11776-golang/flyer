@@ -42,6 +42,7 @@ impl Handler {
             .get("host")
             .cloned()
             .or_else(|| headers.get(":authority").cloned())
+            .or_else(|| Some(String::from("127.0.0.1"))) // TODO: fix this temp (src/router/route.rs domain)
             .unwrap_or_default();
     }
 
@@ -70,7 +71,7 @@ impl Handler {
         return Ok(req);
     }
 
-    pub async fn write(mut self, req: &mut Request, res: &mut Response) -> Result<()> {
+    pub async fn write(&mut self, req: &mut Request, res: &mut Response) -> Result<()> {
         let mut builder = http::Response::builder()
             .status(res.status_code)
             .header("content-length", format!("{}", res.body.len()));

@@ -11,7 +11,7 @@ impl Routes {
     pub fn handle_web_request<'r>(&self, req: &'r mut Request, res: &'r mut Response) {
         for route in &self.web {
             let (is_match, parameters) = route.is_match(req);
-
+            
             if !is_match {
                 continue;
             }

@@ -97,8 +97,6 @@ impl Server {
         res.referer = req.header("referer");
         self.routes.handle_web_request(req, res);
 
-
-
         if self.assets.is_some() {
             self.assets.as_mut().unwrap().handle(req, res).unwrap();
         }
@@ -108,8 +106,6 @@ impl Server {
 
     pub(crate) async fn init(&mut self) {
         router::resolver::resolve(self);
-
-
         // Using memory address to avoid compiler checks we server will not be mut
         // Getting server value - (*(server_ptr as *const &mut Server))
         join!(tcp::listen(&self as *const &mut Self as usize), udp::listen(&self as *const &mut Self as usize));

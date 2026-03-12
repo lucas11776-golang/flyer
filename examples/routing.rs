@@ -21,7 +21,7 @@ pub async fn destroy<'a>(_req: &'a mut Request, res: &'a mut Response) -> &'a mu
 }
 
 fn main() {
-    let mut server = server("127.0.0.1", 9999);
+    let server = server("127.0.0.1", 9999);
     
     server.router().group("/", |router| {
         router.group("users", |router| {
@@ -29,8 +29,8 @@ fn main() {
             router.post("/", store);
             router.group("{user}", |router| {
                 router.get("/", view);
-                // router.patch("/", update);
-                // router.delete("/", destroy);
+                router.patch("/", update);
+                router.delete("/", destroy);
             });
         });
     });

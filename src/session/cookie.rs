@@ -79,7 +79,7 @@ pub(crate) fn parse_raw_cookie(encryption_key: String, raw_cookie: Option<&Strin
 }
 
 impl SessionManager for SessionCookieManager {
-    fn setup<'a>(&mut self, req: &'a mut Request, res: &'a mut Response) -> Result<()> {
+    fn setup<'a>(&mut self, req: &'a mut Request, _res: &'a mut Response) -> Result<()> {
         let cookies = cookie_parse(req.header("cookie")).unwrap();
         let raw_cookie = cookies.get(&self.cookie_name);
         req.session = Some(Box::new(parse_raw_cookie(self.encryption_key.to_owned(), raw_cookie).unwrap()));

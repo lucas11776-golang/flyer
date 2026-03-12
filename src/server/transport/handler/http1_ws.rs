@@ -17,7 +17,7 @@ use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::sync::mpsc::unbounded_channel;
 
 use crate::response::parser::parse;
-use crate::router::Route;
+use crate::router::route::Route;
 use crate::ws::Reason;
 use crate::{
     request::Request,
