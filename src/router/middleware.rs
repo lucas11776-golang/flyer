@@ -1,7 +1,10 @@
-use std::{collections::HashMap, sync::LazyLock};
+use std::collections::HashMap;
+use std::sync::LazyLock;
 
-use crate::{request::Request, response::Response, router::{Middleware, Next}};
-
+use crate::request::Request;
+use crate::response::Response;
+use crate::router::Middleware;
+use crate::router::next::Next;
 
 static mut CONTAINER: LazyLock<Container> = LazyLock::new(|| Container::new());
 
@@ -17,9 +20,14 @@ impl Container {
     }
 
     pub fn insert(&mut self, call: Box<Middleware>) -> String {
-        let r#ref = format!("{:p}", &call);
-        self.middlewares.insert(r#ref.clone(), call);
-        return r#ref;
+        let fat_ptr: *const Middleware = Box::into_raw(call);
+        let [_, vtable_ptr] = unsafe { std::mem::transmute_copy::<*const Middleware, [usize; 2]>(&fat_ptr) };
+        let call = unsafe { Box::from_raw(fat_ptr as *mut Middleware) };
+        let ptr = format!("0x{:x}", vtable_ptr);
+
+        self.middlewares.insert(ptr.clone(), call);
+        
+        return ptr;
     }
 
     pub fn call<'a>(&mut self, reference: String, req: &'a mut Request, res: &'a mut Response, next: &'a mut Next) -> &'a mut Response {

@@ -32,7 +32,7 @@ impl Handler {
         };
     }
 
-    pub async fn handle(&mut self, request: http::Request<h2::RecvStream>,) -> Result<Request> {
+    pub async fn transform(&mut self, request: http::Request<h2::RecvStream>,) -> Result<Request> {
         let headers = self.hashmap_to_headers(request.headers());
 
         let mut req = Request {

@@ -3,9 +3,9 @@ use std::mem::take;
 use crate::{router::{Route, Router, WebRoute, WsRoute}, server::Server};
 
 
-#[derive(Debug, Default)]
+#[derive(Default)]
 struct ResolvedRoutes {
-    pub(crate) web: Vec<Box<Route<WebRoute>>>,
+    pub(crate) web: Vec<Route<WebRoute>>,
     pub(crate) ws: Vec<Box<Route<WsRoute>>>
 }
 
@@ -26,11 +26,15 @@ impl ResolvedRoutes {
                 group(node);
             }
 
-            resolved.web.extend(take(&mut node.web_routes));
-            resolved.ws.extend(take(&mut node.ws_routes));
+            resolved.web.extend(take(&mut node.web));
+            resolved.ws.extend(take(&mut node.ws));
 
             resolved = Self::resolve(resolved, node);
         }
+
+
+        resolved.web.extend(take(&mut router.web));
+        resolved.ws.extend(take(&mut router.ws));
 
         return resolved;
     }

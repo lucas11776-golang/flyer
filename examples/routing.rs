@@ -29,8 +29,8 @@ fn main() {
             router.post("/", store);
             router.group("{user}", |router| {
                 router.get("/", view);
-                router.patch("/", update);
-                router.delete("/", destroy);
+                // router.patch("/", update);
+                // router.delete("/", destroy);
             });
         });
     });

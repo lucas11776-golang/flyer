@@ -1,44 +1,43 @@
-use std::{io::ErrorKind, pin::Pin};
+use std::pin::Pin;
 use std::net::SocketAddr;
 
 use anyhow::Result;
+use h2::server;
 use tokio::{io::{AsyncBufReadExt, AsyncRead, AsyncWrite, BufReader}, net::TcpListener};
 use tokio_rustls::TlsAcceptor;
 
-use crate::response::Response;
+use crate::server::transport::handler::http2;
+use crate::{GLOBAL_SERVER, response::Response, server::transport::handler::http2::H2_PREFACE};
 use crate::{server::{Server, transport::{Protocol, handler::http1}}, utils::server::get_tls_acceptor, warn};
 
 pub async fn listen(server_ptr: usize) {
     unsafe {
         listener(
-            server_ptr as usize,
-            TcpListener::bind((*(server_ptr as *const Server)).address()).await.unwrap(),
-            &(*(server_ptr as *const Server)).server_config.clone().map(|config| get_tls_acceptor(config.clone()).unwrap()) as *const Option<TlsAcceptor> as usize
+            TcpListener::bind((*(server_ptr as *const &mut Server)).address()).await.unwrap(),
+            &(*(server_ptr as *const &mut Server)).server_config.clone().map(|config| get_tls_acceptor(config.clone()).unwrap()) as *const Option<TlsAcceptor> as usize
         ).await;
     }
 }
 
-async fn listener(server_ptr: usize, listener: TcpListener, tls_ptr: usize) {
+async fn listener(listener: TcpListener, tls_ptr: usize) {
     unsafe  {
         while let Ok((stream, addr)) = listener.accept().await {
             tokio::spawn(async move {
                 match &*(tls_ptr as *const Option<TlsAcceptor>) {
                     Some(acceptor) => {
                         match acceptor.accept(stream).await {
-                            Ok(rw) => connection(server_ptr, BufReader::new(rw), addr).await,
+                            Ok(rw) => connection(BufReader::new(rw), addr).await,
                             Err(err) => warn!("TLS connection error"; "error" => err),
                         }
                     },
                     None => {
-                        connection(server_ptr, BufReader::new(stream), addr).await
+                        connection(BufReader::new(stream), addr).await
                     },
                 }
             });
         }
     }
 }
-
-pub const H2_PREFACE: &[u8] = b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n";
 
 async fn connection_protocol<RW>(rw: &mut BufReader<RW>) -> Result<Protocol>
 where
@@ -54,14 +53,14 @@ where
     )
 }
 
-async fn connection<RW>(server_ptr: usize, mut rw: BufReader<RW>, addr: SocketAddr)
+async fn connection<RW>(mut rw: BufReader<RW>, addr: SocketAddr)
 where
     RW: AsyncRead + AsyncWrite + Unpin  + Sync + Send + 'static,
 {
     match connection_protocol(&mut rw).await {
         Ok(protocol) => {
             let result = match protocol {
-                Protocol::HTTP1 => { http_1_protocol(server_ptr, rw, addr).await },
+                Protocol::HTTP1 => { http_1_protocol(rw, addr).await },
                 Protocol::HTTP2 => { http_2_protocol(rw, addr).await },
                 Protocol::HTTP3 => { Err(anyhow::anyhow!("Unsupported request tcp connection")) },
             };
@@ -76,9 +75,8 @@ where
     };
 }
 
-
 #[allow(static_mut_refs)]
-async fn http_1_protocol<RW>(server_ptr: usize, mut rw: BufReader<RW>, addr: SocketAddr) -> Result<()>
+async fn http_1_protocol<RW>(mut rw: BufReader<RW>, addr: SocketAddr) -> Result<()>
 where
     RW: AsyncRead + AsyncWrite + Unpin + Sync + Send + 'static,
 {
@@ -98,17 +96,12 @@ where
 
             // handle_web_socket(rw, &mut req, &mut res).await.unwrap();
 
-            // return Ok(());
+            println!("Socket Request...");
+
+            todo!()
         }
 
-
-        let result = (*(server_ptr as *const Server)).routes.web_match(&mut req, &mut res).await;
-
-        if result.is_none() {
-            // TODO: error here
-            return Ok(());
-        }
-
+        GLOBAL_SERVER.get_mut().unwrap().on_request(&mut req, &mut res).await.unwrap(); // TODO: need to remove and use `server_ptr`
         handler.write(&mut req, &mut res).await.unwrap();
 
         drop(rw);
@@ -123,25 +116,28 @@ where
     RW: AsyncRead + AsyncWrite + Unpin  + Sync + Send + 'static,
 {
     unsafe {
+        match server::handshake(rw).await {
+            Ok(mut conn) => {
+                 while let Some(result) = conn.accept().await {
+                    match result {
+                        Ok((request, send)) => {
+                            tokio::spawn(async move {
+                                let mut handler = http2::Handler::new(addr, send);
+                                let (mut req, mut res) = (handler.transform(request).await.unwrap(), Response::new());
 
+                                GLOBAL_SERVER.get_mut().unwrap().on_request(&mut req, &mut res).await.unwrap(); // TODO: need to remove and use `server_ptr`
 
-        // let mut conn = server::handshake(rw).await.unwrap();
-
-        // while let Some(result) = conn.accept().await {
-        //     if result.is_err() {
-        //         continue;
-        //     }
-
-        //     tokio::spawn(async move {
-        //         let (request, send) = result.unwrap();
-        //         let mut handler = http2::Handler::new(addr, send);
-        //         let req = handler.handle(request).await.unwrap();
-        //         let (mut req, mut res) = APPLICATION.on_request(req, Response::new()).await.unwrap();
-
-        //         handler.write(&mut req, &mut res).await.unwrap();
-        //     });
-        // }
-
-        return Ok(());
+                                handler.write(&mut req, &mut res).await.unwrap();
+                            });
+                        },
+                        Err(_) => {},
+                    }
+                }
+                return Ok(());
+            },
+            Err(err) => {
+                return Err(err.into());
+            },
+        }
     }
 }

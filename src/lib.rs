@@ -1,8 +1,8 @@
-// #![feature(downcast_unchecked)]
+use once_cell::sync::OnceCell;
 
 use crate::{
     server::{Server},
-    utils::server::{TlsPathConfig,get_tls_config, server_config}
+    utils::server::{TlsPathConfig, get_tls_config, server_config}
 };
 
 pub mod router;
@@ -15,17 +15,40 @@ pub mod cookie;
 pub mod session;
 pub mod view;
 pub mod validation;
+pub mod assets;
 
-pub fn server(host: &str, port: u16) -> Server {
-    return Server::new(host, port, None);
+static mut GLOBAL_SERVER: OnceCell<Box<Server>> = OnceCell::new();
+
+#[allow(static_mut_refs)]
+pub fn server<'a>(host: &str, port: u16) -> &'a mut Server {
+    return unsafe {
+        let server = Server::new(host, port, None);
+
+        GLOBAL_SERVER
+            .set(Box::new(server))
+            .map_err(|_| "global state already initialized")
+            .unwrap();
+
+        GLOBAL_SERVER.get_mut().unwrap().as_mut()
+    };
 }
 
-pub fn server_tls<'a>(host: &str, port: u16, key_path: &str, cert_path: &str) -> Server {
-    return Server::new(
-        host,
-        port,
-        Some(server_config(get_tls_config(&TlsPathConfig::new(key_path, cert_path)).unwrap()).unwrap())
-    );
+#[allow(static_mut_refs)]
+pub fn server_tls<'a>(host: &str, port: u16, key_path: &str, cert_path: &str) -> &'a mut Server {
+    return unsafe {
+        let server = Server::new(
+            host,
+            port,
+            Some(server_config(get_tls_config(&TlsPathConfig::new(key_path, cert_path)).unwrap()).unwrap())
+        );
+
+        GLOBAL_SERVER
+            .set(Box::new(server))
+            .map_err(|_| "global state already initialized")
+            .unwrap();
+
+        GLOBAL_SERVER.get_mut().unwrap().as_mut()
+    };
 }
 
 #[macro_export]

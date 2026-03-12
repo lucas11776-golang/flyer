@@ -1,4 +1,3 @@
-use std::any::Any;
 use std::io::Result;
 use std::time::Duration;
 
@@ -23,6 +22,7 @@ pub struct SessionCookieManager {
     encryption_key: String,
 }
 
+#[derive(Debug)]
 pub(crate) struct SessionCookie {
     pub(crate) values: Values,
     pub(crate) errors: Values,
@@ -79,35 +79,41 @@ pub(crate) fn parse_raw_cookie(encryption_key: String, raw_cookie: Option<&Strin
 }
 
 impl SessionManager for SessionCookieManager {
-    fn setup<'a>(&mut self, req: &'a mut Request, res: &'a mut Response) -> Result<(&'a mut Request, &'a mut Response)> {
+    fn setup<'a>(&mut self, req: &'a mut Request, res: &'a mut Response) -> Result<()> {
         let cookies = cookie_parse(req.header("cookie")).unwrap();
         let raw_cookie = cookies.get(&self.cookie_name);
         req.session = Some(Box::new(parse_raw_cookie(self.encryption_key.to_owned(), raw_cookie).unwrap()));
 
-        return Ok((req, res));
+        return Ok(())
     }
 
-    fn teardown<'a>(&mut self, req: &'a mut Request, mut res: &'a mut Response) -> Result<(&'a mut Request, &'a mut Response)> {        
+    fn teardown<'a>(&mut self, req: &'a mut Request, res: &'a mut Response) -> Result<()> {        
         unsafe {
-            // let session = (req.session.as_mut().unwrap() as &mut dyn Any).downcast_mut_unchecked::<Box<SessionCookie>>();
+            let ptr = req.session.as_mut().unwrap() as *mut Box<dyn Session + 'static> as usize;
+            let session = &mut **(ptr as *mut Box<SessionCookie>);
 
-            // session.set_errors(res.errors.clone());
-            // session.set_old(res.old.clone());
+            session.set_errors(res.errors.clone());
+            session.set_old(res.old.clone());
 
-            // let data = serde_json::to_string(&CookieStorage {
-            //     values: session.values.clone(),
-            //     errors: session.new_errors.clone(),
-            //     old: session.new_old.clone(),
-            // });
+            let data = serde_json::to_string(&CookieStorage {
+                values: session.values.clone(),
+                errors: session.new_errors.clone(),
+                old: session.new_old.clone(),
+            });
 
-            // let payload = encrypt(self.encryption_key.as_str(), data.unwrap().as_str()).unwrap();
-            // let mut cookie = Cookie::new(self.cookie_name.clone(), payload);
 
-            // cookie.set_expires(OffsetDateTime::now_utc() + DurationCookie::seconds(self.expires.as_secs().try_into().unwrap()));
+            // println!("COOKIE -> {:?}", data.unwrap());
 
-            // res = res.header("Set-Cookie", &cookie.to_string());
+            let payload = encrypt(self.encryption_key.as_str(), data.unwrap().as_str()).unwrap();
+            let mut cookie = Cookie::new(self.cookie_name.clone(), payload);
 
-            return Ok((req, res));
+            cookie.set_expires(OffsetDateTime::now_utc() + DurationCookie::seconds(self.expires.as_secs().try_into().unwrap()));
+
+
+
+            res.header("Set-Cookie", &cookie.to_string());
+
+            return Ok(());
         };
     }
 }

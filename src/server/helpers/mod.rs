@@ -1,63 +1,67 @@
 use std::io::Result;
 
-// use crate::{
-//     request::Request,
-//     response::Response,
-//     server::protocol::http::APPLICATION,
-//     utils::cookie::cookie_parse
-// };
+use crate::{
+    GLOBAL_SERVER, request::Request, response::Response, utils::cookie::cookie_parse
+};
 
 
-// pub(crate) trait Handler {
-//     fn new() -> Self;
-//     async fn setup<'a>(&self, req: Request, res: Response) -> Result<(Request, Response)>;
-//     async fn teardown<'a>(&self, req: Request, res: Response) -> Result<(Request, Response)>;
-// }
+pub(crate) trait Handler {
+    fn new() -> Self;
+    async fn setup<'a>(&self, req: &'a mut Request, res: &'a mut Response) -> Result<()>;
+    async fn teardown<'a>(&self, req: &'a mut Request, res: &'a mut Response) -> Result<()>;
+}
 
-// pub(crate) struct RequestHandler;
+// TODO: Give it better name and refactor
+pub(crate) struct RequestHandler;
 
-// impl Handler for RequestHandler {
-//     fn new() -> RequestHandler {
-//         return RequestHandler { };
-//     }
+impl Handler for RequestHandler {
+    fn new() -> RequestHandler {
+        return RequestHandler { };
+    }
 
-//     #[allow(static_mut_refs)]
-//     async fn setup<'a>(&self, mut req: Request, mut res: Response) -> Result<(Request, Response)> {
-//         unsafe {
-//             if !req.is_asset() && APPLICATION.session_manager.is_some() {
-//                 APPLICATION.session_manager
-//                     .as_mut()
-//                     .unwrap()
-//                     .setup(&mut req, &mut res)
-//                     .unwrap();
-//             }
+    #[allow(static_mut_refs)]
+    async fn setup<'a>(&self, req: &'a mut Request, res: &'a mut Response) -> Result<()> {
+        unsafe {
+            let server = GLOBAL_SERVER.get_mut().unwrap();
 
-//             let cookie = cookie_parse(req.header("cookie"));
+            if !req.is_asset() && server.session_manager.is_some() {
+                server.session_manager
+                    .as_mut()
+                    .unwrap()
+                    .setup(req, res)
+                    .unwrap();
+            }
 
-//             if cookie.is_ok() {
-//                 req.cookies.cookies = cookie.unwrap();
-//             }
+            let cookie = cookie_parse(req.header("cookie"));
 
-//             return Ok((req, res));
-//         }
-//     }
+            if cookie.is_ok() {
+                req.cookies.cookies = cookie.unwrap();
+            }
 
-//     #[allow(static_mut_refs)]
-//     async fn teardown<'a>(&self, mut req: Request, mut res: Response) -> Result<(Request, Response)> {
-//         unsafe {
-//             if res.view.is_some() && APPLICATION.view.is_some() {
-//                 (req, res) = APPLICATION.view.as_mut().unwrap().render(req, res).unwrap();
-//             }
+            return Ok(());
+        }
+    }
 
-//             if !req.is_asset() && APPLICATION.session_manager.is_some() {
-//                 APPLICATION.session_manager
-//                     .as_mut()
-//                     .unwrap()
-//                     .teardown(&mut req, &mut res)
-//                     .unwrap();
-//             }
+    #[allow(static_mut_refs)]
+    async fn teardown<'a>(&self, req: &'a mut Request, res: &'a mut Response) -> Result<()> {
+        unsafe {
+            let server = GLOBAL_SERVER.get_mut().unwrap();
 
-//             return Ok((req, res));
-//         }
-//     }
-// }
+            // println!("SOME -> {} -- {}", res.view.is_some(), server.view.is_some());
+
+            if res.view.is_some() && server.view.is_some() {
+                server.view.as_mut().unwrap().render(req, res).unwrap();
+            }
+
+            if !req.is_asset() && GLOBAL_SERVER.get_mut().unwrap().session_manager.is_some() {
+                GLOBAL_SERVER.get_mut().unwrap().session_manager
+                    .as_mut()
+                    .unwrap()
+                    .teardown(req, res)
+                    .unwrap();
+            }
+
+            return Ok(());
+        }
+    }
+}

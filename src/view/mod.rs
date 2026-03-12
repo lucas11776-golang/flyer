@@ -39,9 +39,9 @@ impl View {
         }
     }
 
-    pub fn render<'a>(&mut self, mut req: Request,  mut res: Response) -> Result<(Request, Response)> {
+    pub fn render<'a>(&mut self, req: &'a mut Request, res: &'a mut Response) -> Result<()> {
         if res.view.is_none() {
-            return Ok((req, res));
+            return Ok(());
         }
 
         let bag = res.view.as_mut().unwrap();
@@ -50,8 +50,8 @@ impl View {
             bag.data = Some(view_data());
         }
 
-        res.body = Functions::new(&mut self.render, &mut req).render(bag).unwrap();
+        res.body = Functions::new(&mut self.render, req).render(bag).unwrap();
 
-        return Ok((req, res));   
+        return Ok(());   
     }
 }

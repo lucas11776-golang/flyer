@@ -1,36 +1,38 @@
 use async_std::task::block_on;
 use once_cell::sync::Lazy;
 use regex::Regex;
-use tokio::runtime::Handle;
 
 use url_domain_parse::Url;
 
-use crate::{request::Request, response::Response, router::{middleware::register, next::Next}, utils::{Values, url::uri_to_vec}, ws::Ws};
+use crate::{
+    request::Request,
+    response::Response,
+    router::{middleware::register, next::Next},
+    utils::{Values, url::{join_url, uri_to_vec}},
+    ws::Ws
+};
 
 pub(crate) mod resolver;
 pub(crate) mod middleware;
 pub(crate) mod routes;
-pub(crate) mod next;
+pub mod next;
 
 pub(crate) type Middleware = dyn for<'a> Fn(&'a mut Request, &'a mut Response, &'a mut Next) -> &'a mut Response + Send + Sync + 'static;
 pub(crate) type WebRoute = dyn for<'a> Fn(&'a mut Request, &'a mut Response) -> &'a mut Response + Send + Sync + 'static;
 pub(crate) type WsRoute = dyn for<'a> Fn(&'a mut Request, &'a mut Ws) + Send + Sync + 'static;
 pub(crate) type Group = for<'a> fn(&mut Router);
 
-
 static PARAM_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"\{[a-zA-Z_]+\}").expect("Invalid parameter regex"));
 
-pub(crate) struct Route<Handler: ?Sized> {
-    pub subdomain: String,
+pub struct Route<Handler: ?Sized> {
+    pub(crate) subdomain: String,
     pub(crate) method: String,
     pub(crate) path: String,
     pub(crate) handler: Box<Handler>,
     pub(crate) middlewares: Vec<String>,
 }
 
-
 impl <Handler: ?Sized>Route<Handler> {
-
     pub fn middleware<C>(&mut self, callback: C) -> &mut Self
     where
         C: for<'a> AsyncFn(&'a mut Request, &'a mut Response, &'a mut Next) -> &'a mut Response + Send + Sync + 'static,
@@ -49,7 +51,7 @@ impl <Handler: ?Sized>Route<Handler> {
         return self.parameters_route_match(req);
     }
 
-    fn dymanic_parameter_match(&self, path: String, matching: String) -> Option<(String, String)> {
+    fn dynamic_parameter_match(&self, path: String, matching: String) -> Option<(String, String)> {
         if PARAM_REGEX.is_match(&path) == false {
             return None;
         }
@@ -60,10 +62,10 @@ impl <Handler: ?Sized>Route<Handler> {
     // TODO: refactor
     fn parameters_route_match<'a>(&self, req: &'a mut Request) -> (bool, Values) {
         let mut parameters= Values::new();
-        let route_path= uri_to_vec(self.path.clone());
+        let route_path= uri_to_vec(String::from(self.path.trim_matches('/')));
         let request_path = uri_to_vec(req.path.clone());
         // TODO: fix plugin Domain parser.
-        let url_result = Url::parse(format!("http://{}", &req.host).as_str());
+        let url_result = Url::parse(format!("http://{}", &req.host).as_str()); // TODO: fix
 
         if url_result.is_err() {
             return (false, Values::new());
@@ -87,7 +89,7 @@ impl <Handler: ?Sized>Route<Handler> {
                     return (false, Values::new());
                 }
 
-                if let Some((k, v)) = self.dymanic_parameter_match(subdomain_route[j].clone(), subdomain_req[j].clone()) {                    
+                if let Some((k, v)) = self.dynamic_parameter_match(subdomain_route[j].clone(), subdomain_req[j].clone()) {                    
                     parameters.insert(k, v);
 
                     continue;
@@ -113,7 +115,7 @@ impl <Handler: ?Sized>Route<Handler> {
                 continue;
             }
 
-            if let Some((k, v)) = self.dymanic_parameter_match(route_path[i].clone(), request_path[i].clone()) {
+            if let Some((k, v)) = self.dynamic_parameter_match(route_path[i].clone(), request_path[i].clone()) {
                 parameters.insert(k, v);
 
                 continue;
@@ -131,83 +133,105 @@ impl <Handler: ?Sized>Route<Handler> {
     }
 }
 
-
-
-impl<'q, Handler: ?Sized> std::fmt::Debug for Route<Handler> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Route")
-            .field("method", &self.method)
-            .field("path", &self.path)
-            .field("middlewares", &self.middlewares)
-            .finish()
-    }
-}
-
 pub struct Router {
-    pub(crate) web_routes: Vec<Box<Route<WebRoute>>>,
-    pub(crate) ws_routes: Vec<Box<Route<WsRoute>>>,
+    pub(crate) web: Vec<Route<WebRoute>>,
+    pub(crate) ws: Vec<Box<Route<WsRoute>>>,
     pub(crate) path: String,
     pub(crate) middlewares: Vec<String>,
     pub(crate) group: Option<Group>,
     pub(crate) routers: Vec<Box<Router>>,
+    pub(crate) route_not_found_callback: Option<Box<WebRoute>>,
 }
 
-pub fn join_url(url: Vec<String>) -> String {
-    return url.iter()
-        .map(|u| String::from(u.trim_matches('/'))).collect::<Vec<_>>()
-        .join("/")
-        .trim_matches('/')
-        .to_string();
-}
 
 impl Router {
-    pub fn get<C>(&mut self, path: &str, callback: C)
+    pub fn get<C>(&mut self, path: &str, callback: C) -> &mut Route<WebRoute>
     where
         C: for<'a> AsyncFn(&'a mut Request, &'a mut Response) -> &'a mut Response + Send + Sync + 'static,
     {
-        self.route("GET", path, callback);
+        return self.route("GET", path, callback);
     }
 
-    pub fn post<C>(&mut self, path: &str, callback: C)
+    pub fn post<C>(&mut self, path: &str, callback: C) -> &mut Route<WebRoute>
     where
         C: for<'a> AsyncFn(&'a mut Request, &'a mut Response) -> &'a mut Response + Send + Sync + 'static,
     {
-        self.route("POST", path, callback);
+        return self.route("POST", path, callback);
     }
 
-    pub fn route<C>(&mut self, method: &str, path: &str, callback: C)
+    pub fn put<C>(&mut self, path: &str, callback: C) -> &mut Route<WebRoute>
+    where
+        C: for<'a> AsyncFn(&'a mut Request, &'a mut Response) -> &'a mut Response + Send + Sync + 'static,
+    {
+        return self.route("PUT", path, callback);
+    }
+
+    pub fn patch<C>(&mut self, path: &str, callback: C) -> &mut Route<WebRoute>
+    where
+        C: for<'a> AsyncFn(&'a mut Request, &'a mut Response) -> &'a mut Response + Send + Sync + 'static,
+    {
+        return self.route("PATCH", path, callback);
+    }
+
+    pub fn delete<C>(&mut self, path: &str, callback: C) -> &mut Route<WebRoute>
+    where
+        C: for<'a> AsyncFn(&'a mut Request, &'a mut Response) -> &'a mut Response + Send + Sync + 'static,
+    {
+        return self.route("DELETE", path, callback);
+    }
+
+    pub fn head<C>(&mut self, path: &str, callback: C) -> &mut Route<WebRoute>
+    where
+        C: for<'a> AsyncFn(&'a mut Request, &'a mut Response) -> &'a mut Response + Send + Sync + 'static,
+    {
+        return self.route("HEAD", path, callback);
+    }
+
+    pub fn options<C>(&mut self, path: &str, callback: C) -> &mut Route<WebRoute>
+    where
+        C: for<'a> AsyncFn(&'a mut Request, &'a mut Response) -> &'a mut Response + Send + Sync + 'static,
+    {
+        return self.route("OPTIONS", path, callback);
+    }
+
+    pub fn route<C>(&mut self, method: &str, path: &str, callback: C) -> &mut Route<WebRoute>
     where
         C: for<'a> AsyncFn(&'a mut Request, &'a mut Response) -> &'a mut Response + Send + Sync + 'static
     {
-        self.web_routes.push(Box::new(Route {
+        let idx = self.web.len();
+
+        self.web.push(Route {
             subdomain: String::new(),
             method: String::from(method.to_uppercase()),
             path: join_url(vec![self.path.clone(), String::from(path)]),
             handler: Box::new(move |req, res| block_on(callback(req, res))),
             middlewares: self.middlewares.clone()
-        }));
+        });
+
+        return &mut self.web[idx];
     }
     
     pub fn group<'g>(&'g mut self, path: &str, group: Group) -> GroupRouter<'g> {
         let idx = self.routers.len();
-
+        
         self.routers.push(Box::new(Router {
-            web_routes: Vec::new(),
-            ws_routes: Vec::new(),
+            web: Vec::new(),
+            ws: Vec::new(),
             path: join_url(vec![self.path.clone(), String::from(path)]),
             middlewares: self.middlewares.clone(),
             group: Some(group),
             routers: vec![],
+            route_not_found_callback: None
         }));
 
-        return GroupRouter::new(self.routers[idx].as_mut())
+        return GroupRouter::new(self.routers[idx].as_mut());
     }
 
     pub fn ws<C>(&mut self, path: &str, callback: C)
     where
         C: for<'a> AsyncFn(&'a mut Request, &'a mut Ws) + Send + Sync + 'static
     {
-        self.ws_routes.push(Box::new(Route {
+        self.ws.push(Box::new(Route {
             subdomain: String::new(),
             method: String::from("GET"),
             path: join_url(vec![self.path.clone(), String::from(path)]),
@@ -216,6 +240,12 @@ impl Router {
         }));
     }
 
+    pub fn not_found<C>(&mut self, callback: C)
+    where
+        C: for<'a> AsyncFn(&'a mut Request, &'a mut Response) -> &'a mut Response + Send + Sync + 'static,
+    {
+        self.route_not_found_callback = Some(Box::new(move |req, res| block_on(callback(req, res))));
+    }
 
     pub fn middleware<C>(&mut self, callback: C) -> &mut Self
     where
@@ -223,6 +253,7 @@ impl Router {
     {
         self.middlewares
             .push(register(Box::new(move |req, res, next| block_on(callback(req, res, next)))));
+
         return self;
     }
 
@@ -237,7 +268,7 @@ impl <'g>GroupRouter<'g> {
     pub(crate) fn new(router: &'g mut Router) -> Self {
         return Self {
             router: router
-        }
+        };
     }
 
     pub fn middleware<C>(&mut self, callback: C) -> &mut Self

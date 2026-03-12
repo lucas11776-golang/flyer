@@ -4,7 +4,7 @@ use flyer::{server, server_tls};
 
 
 fn main() {
-    let mut server = server("127.0.0.1", 8080);
+    let server = server("127.0.0.1", 8080);
     // let mut server = server_tls("127.0.0.1", 8080, "host.key", "host.cert");
 
     server.router().group("api", |router| {
