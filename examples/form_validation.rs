@@ -169,7 +169,7 @@ pub async fn login<'a>(_req: &'a mut Request, res: &'a mut Response) -> &'a mut 
     return res.json(&Token {
         token: String::from("eye.jwt.token"),
         r#type: String::from("jwt"),
-        expires: Duration::from_hours(24).as_millis()
+        expires: Duration::from_secs((606 * 60) * 24).as_millis()
     });
 }
 
@@ -206,10 +206,10 @@ async fn login_form<'a>(req: &'a mut Request, res: &'a mut Response, next: &'a m
 }
 
 fn main() {
-    let mut server = server("127.0.0.1", 9999)
-        .session(new_session_manager(Duration::from_hours(2), "session_cookie_key_name", "encryption"))
+    let server = server("127.0.0.1", 9999)
+        .session(new_session_manager(Duration::from_secs((60 * 60) * 2), "session_cookie_key_name", "encryption"))
         .view("views")
-        .assets("assets", 1024, Duration::from_hours(2).as_millis());
+        .assets("assets", 1024, Duration::from_secs((60 * 60) * 2).as_millis());
 
     server.router().group("/", |router| {
         router.get("/", index);

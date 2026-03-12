@@ -1,8 +1,9 @@
-use std::io::{ErrorKind, Result};
+use std::io::{ErrorKind};
 use std::io::{Error};
 use std::net::SocketAddr;
 use std::pin::Pin;
 
+use anyhow::Result;
 use tokio::io::{
     AsyncBufReadExt,
     AsyncRead,
@@ -12,12 +13,12 @@ use tokio::io::{
     BufReader
 };
 
+use crate::GLOBAL_SERVER;
 use crate::cookie::Cookies;
 use crate::request::form::{Files, Form};
 use crate::request::parser::parse_content_type;
 use crate::response::parser::parse;
 use crate::response::{Response};
-use crate::server::protocol::http::APPLICATION;
 use crate::utils::url::parse_query_params;
 use crate::utils::{Headers, Values};
 use crate::request::Request;
@@ -88,7 +89,7 @@ where
             let read_n = self.rw.as_mut().take(MAX_LINE_LENGTH as u64).read_line(&mut line).await?; // TODO: here is the issue
 
             if read_n == 0 {
-                return Err(Error::new(ErrorKind::ConnectionAborted, "client disconnected"));
+                return Err(Error::new(ErrorKind::ConnectionAborted, "client disconnected").into());
             }
 
             if !line.trim().is_empty() {
@@ -98,7 +99,7 @@ where
 
         let parts: Vec<&str> = line.trim_end().split_whitespace().collect();
         if parts.len() != 3 {
-            return Err(Error::new(ErrorKind::InvalidData, "invalid request line"));
+            return Err(Error::new(ErrorKind::InvalidData, "invalid request line").into());
         }
 
         let method = parts[0].to_uppercase();
@@ -130,20 +131,19 @@ where
             let n = self.rw.as_mut().take(MAX_LINE_LENGTH as u64).read_line(&mut line).await?;
             
             if n == 0 {
-                return Err(Error::new(ErrorKind::UnexpectedEof, "connection closed in headers"));
+                return Err(Error::new(ErrorKind::UnexpectedEof, "connection closed in headers").into());
             }
             
             total_size += n;
 
             if total_size > MAX_TOTAL_HEADERS_SIZE {
-                return Err(Error::new(ErrorKind::InvalidData, "headers too large"));
+                return Err(Error::new(ErrorKind::InvalidData, "headers too large").into());
             }
 
             let trimmed = line.trim_end();
 
             if trimmed.is_empty() {
-                // End of headers
-                break; 
+                break; // End of headers
             }
 
             if let Some((k, v)) = trimmed.split_once(':') {
@@ -153,7 +153,8 @@ where
 
         return Ok(headers);
     }
-
+    
+    #[allow(static_mut_refs)]
     async fn read_body(&mut self, headers: &mut Headers) -> Result<Vec<u8>> {
         // If Transfer-Encoding is present, it MUST take precedence over Content-Length.
         if let Some(te) = headers.get("transfer-encoding") {
@@ -166,8 +167,8 @@ where
             let length = length_str.parse::<usize>()
                 .map_err(|_| Error::new(ErrorKind::InvalidData, "invalid content-length"))?;
             
-            if length > unsafe { APPLICATION.request_max_size } {
-                return Err(Error::new(ErrorKind::InvalidData, "body too large"));
+            if length > unsafe { GLOBAL_SERVER.get_mut().unwrap().request_max_size  } {
+                return Err(Error::new(ErrorKind::InvalidData, "body too large").into());
             }
             
             return self.read_content_length(length).await;
@@ -180,8 +181,9 @@ where
         let mut body = vec![0u8; length];
         self.rw.read_exact(&mut body).await?;
         Ok(body)
-    } 
+    }
 
+    #[allow(static_mut_refs)]
     async unsafe fn read_body_transfer_encoding(&mut self) -> Result<Vec<u8>> {
         let mut body = Vec::new();
 
@@ -202,8 +204,8 @@ where
                 break;
             }
 
-            if body.len() + size > unsafe { APPLICATION.request_max_size } {
-                return Err(Error::new(ErrorKind::InvalidData, "chunked body too large"));
+            if body.len() + size > unsafe { GLOBAL_SERVER.get_mut().unwrap().request_max_size } {
+                return Err(Error::new(ErrorKind::InvalidData, "chunked body too large").into());
             }
 
             let mut chunk = vec![0u8; size];

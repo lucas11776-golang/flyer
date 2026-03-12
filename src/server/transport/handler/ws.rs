@@ -43,11 +43,13 @@ pub struct Writer {
     pub(crate) sender: UnboundedSender<Payload>
 }
 
-pub(crate) struct Handler<RW> {
-    pub sink: futures::stream::SplitSink<WebSocketStream<BufReader<RW>>, Message>,
-    pub stream: futures::stream::SplitStream<WebSocketStream<BufReader<RW>>>,
-    pub receiver: UnboundedReceiver<Payload>,
-    pub ws: Ws
+pub(crate) struct Handler<'h, RW> {
+    sink: futures::stream::SplitSink<WebSocketStream<BufReader<RW>>, Message>,
+    stream: futures::stream::SplitStream<WebSocketStream<BufReader<RW>>>,
+    receiver: UnboundedReceiver<Payload>,
+    req: &'h mut Request,
+    res: &'h mut Response,
+    ws: Ws
 }
 
 impl WriterInterface for Writer {
@@ -72,25 +74,27 @@ impl WriterInterface for Writer {
     }
 }
 
-impl <'a, RW>Handler<RW>
+impl <'a, RW>Handler<'a, RW>
 where
     RW: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static
 {
-    pub async fn new(rw: BufReader<RW>, req: &'a mut Request, res: &'a mut Response) -> Result<(Self, &'a mut Request, &'a mut Response)> {
-        let (rw, req, res) = Self::handshake(rw, req, res).await.unwrap();
+    pub async fn new(mut rw: BufReader<RW>, req: &'a mut Request, res: &'a mut Response) -> Result<Self> {
+        Self::handshake(&mut rw, req, res).await.unwrap();
         let (sink, stream) = WebSocketStream::from_raw_socket(rw, Server, None).await.split();
         let (tx, rx) = unbounded_channel::<Payload>();
         res.ws = Some(Box::new(Writer{sender: tx}));
 
-        return Ok((Self {
+        return Ok(Self {
             sink: sink,
             stream: stream,
             receiver: rx,
             ws: Ws::new(),
-        }, req, res));
+            req: req,
+            res: res,
+        });
     }
 
-    pub async fn handle(&mut self, route: &'a mut Route<Box<WsRoute>>, req: &'a mut Request, res: &'a mut Response) -> Result<()> {
+    pub async fn handle(&mut self, route: &Route<WsRoute>) -> Result<()> {
         let receiver = async {
             while let Some(payload) = self.receiver.recv().await {
                 match payload.method {
@@ -114,9 +118,9 @@ where
         };
 
         let stream = async {
-            (route.route)(req, &mut self.ws);
+            (route.handler)(self.req, &mut self.ws);
 
-            let writer = res.ws.as_mut().unwrap();
+            let writer = self.res.ws.as_mut().unwrap();
 
             while let Some(message) = self.stream.next().await {
                 let message = message.unwrap();
@@ -164,7 +168,7 @@ where
         Ok(())
     }
 
-    async fn handshake(mut rw: BufReader<RW>, req: &'a mut Request, res: &'a mut Response) -> Result<(BufReader<RW>, &'a mut Request, &'a mut Response)> {
+    async fn handshake<'s>(rw: &mut BufReader<RW>, req: &'s mut Request, res: &'s mut Response) -> Result<()> {
         let res = res.status_code(101)
             .header("Upgrade", "websocket")
             .header("Connection", "Upgrade")
@@ -173,7 +177,7 @@ where
         rw.write_all(&parse(res, Some(&mut req.cookies.new_cookie))).await.unwrap();
         rw.flush().await.unwrap();
 
-        return Ok((rw, req, res));
+        return Ok(());
     }
 
     fn get_sec_web_socket_accept(key: String) -> String {

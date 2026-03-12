@@ -17,7 +17,7 @@ pub async fn auth<'a>(req: &'a mut Request, res: &'a mut Response, next: &'a mut
 }
 
 fn main() {
-    let mut server = server("127.0.0.1", 9999);
+    let server = server("127.0.0.1", 9999);
 
     server.router().group("", |router| {
         router.ws("/", async |_req, ws| {

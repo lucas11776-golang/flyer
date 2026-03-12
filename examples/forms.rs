@@ -64,8 +64,8 @@ pub async fn upload<'a>(req: &'a mut Request, res: &'a mut Response) -> &'a mut 
 }
 
 fn main() {
-    let mut server = server("127.0.0.1", 9999)
-        .session(new_session_manager(Duration::from_hours(2), "session_cookie_key_name", "encryption"))
+    let server = server("127.0.0.1", 9999)
+        .session(new_session_manager(Duration::from_secs((60 * 60) * 2), "session_cookie_key_name", "encryption"))
         .view("views")
         .set_request_max_size(1024 * 100); // Max Request size 100MB
 

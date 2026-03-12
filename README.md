@@ -1,9 +1,17 @@
-# Flyer - Web Framework - supports HTTP/1.1, HTTP/2.0 and HTTP/3.0
+# Flyer - Web Framework
 
 
 ## Information
 
 Flyer web framework support concurrent request allowing you to run request without blocking each other.
+
+### Supports
+
+- HTTP/1.1
+- HTTP/2.0
+- HTTP/3.0
+- WebSocket
+
 
 ## Getting Started
 
@@ -444,7 +452,7 @@ pub struct User<'a> {
 }
 
 fn main() {
-    let mut server = server("127.0.0.1", 8888)
+    let mut server = server("127.0.0.1", 9999)
         .view("views");
 
     server.router().get("/", async |_req, res| {
@@ -569,7 +577,7 @@ use std::time::Duration;
 use flyer::{server, view::view_data};
 
 fn main() {
-    let mut server = server("127.0.0.1", 8888)
+    let mut server = server("127.0.0.1", 9999)
         .assets("assets", 1024, Duration::from_hours(2).as_millis())
         .view("views");
 

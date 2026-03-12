@@ -1,125 +1,163 @@
-pub(crate) mod handler;
-pub(crate) mod helpers;
-pub(crate) mod transport;
-pub(crate) mod protocol;
+use std::thread::available_parallelism;
 
+use anyhow::Result;
 use async_std::task::block_on;
+use rustls::ServerConfig;
 use tokio::{join, runtime::Builder};
+use lazy_static::lazy_static;
 
 use crate::{
     assets::Assets,
-    router::Router,
-    server::{protocol::http::APPLICATION, transport::{tcp, udp}},
+    request::Request,
+    response::Response,
+    router::{self, Router, WsRoute, route::Route, routes::Routes},
+    server::{helpers::{Handler, RequestHandler},
+    transport::{tcp, udp}},
     session::SessionManager,
-    utils::{load_env, server::TlsPathConfig},
     view::View
 };
 
-pub struct Server { }
+pub(crate) mod transport;
+pub(crate) mod helpers;
+
+pub(crate) type InitCallback = dyn Fn() + Send + Sync;
+
+lazy_static! {
+    pub(crate) static ref SERVER: Option<Server> = None;
+}
+
+pub struct Server {
+    pub(crate) host: String,
+    pub(crate) port: u16,
+    pub(crate) routers: Vec<Box<Router>>,
+    pub(crate) routes: Routes,
+    pub(crate) session_manager: Option<Box<dyn SessionManager>>,
+    pub(crate) view: Option<View>,
+    pub(crate) assets: Option<Assets>,
+    pub(crate) request_max_size: usize,
+    pub(crate) parallelism_max_size: usize,
+    pub(crate) server_config: Option<ServerConfig>,
+    pub(crate) init_callback: Option<Box<InitCallback>>,
+}
 
 impl Server {
-    #[allow(static_mut_refs)]
-    pub(crate) fn new(host: &str, port: i32, tls: Option<TlsPathConfig>) -> Self {
-        unsafe { APPLICATION.set_host(host).set_port(port).set_tls(tls) };
-
-        return Self {}
-    }
-
-    pub fn env(self, path: &str) -> Self {
-        load_env(path);
-
-        return self;
-    }
-
-    #[allow(static_mut_refs)]
-    pub fn host(&self) -> String {
-        return unsafe { APPLICATION.host() };
-    }
-
-    #[allow(static_mut_refs)]
-    pub fn port(&self) -> i32 {
-        return unsafe { APPLICATION.port() };
-    }
-
-    #[allow(static_mut_refs)]
-    pub fn address(&self) -> String {
-        return unsafe { APPLICATION.address()};
-    }
-
-    pub fn set_request_max_size(self, kilobytes: usize) -> Self {
-        unsafe { APPLICATION.request_max_size = kilobytes * 1000; }
-
-        return self;
-    }
-
-    pub fn set_max_parallelism(self, number: usize) -> Self {
-        unsafe { APPLICATION.parallelism_max_size = number; }
-
-        return self;
-    }
-
-    pub fn view(self, path: &str) -> Self {
-        unsafe { APPLICATION.view = Some(View::new(path)); }
-
-        return self;
-    }
-
-    pub fn assets(self, path: &str, max_size_kilobytes_cache_size: usize, expires_in_seconds: u128) -> Self {
-        unsafe { APPLICATION.assets = Some(Assets::new(path.to_owned(), max_size_kilobytes_cache_size, expires_in_seconds)); }
-
-        return self;
-    }
-
-    pub fn session(self, manager: impl SessionManager + 'static) -> Self {
-        unsafe { APPLICATION.session_manager = Some(Box::new(manager)); }
-
-        return self;
-    }
-
-    #[allow(static_mut_refs)]
-    pub fn router<'a>(&mut self) -> &mut Router {
-        unsafe { 
-            let idx = APPLICATION.router.nodes.len();
-
-            APPLICATION.router.nodes.push(Box::new(Router::new()));
-
-            return &mut APPLICATION.router.nodes[idx];
+    pub fn new(host: &str, port: u16, server_config: Option<ServerConfig>) -> Self {
+        Self {
+            host: String::from(host),
+            port: port,
+            routers: Vec::new(),
+            routes: Routes::default(),
+            session_manager: None,
+            view: None,
+            assets: None,
+            request_max_size: (1024 * 20) * 1000,
+            parallelism_max_size: available_parallelism().unwrap().into(),
+            server_config: server_config,
+            init_callback: None
         }
+    }
+
+    pub fn address(&self) -> String {
+        return format!("{}:{}", self.host, self.port);
+    }
+
+    pub fn router(&mut self) -> &mut Router {
+        let idx = self.routers.len();
+
+        self.routers.push(Box::new(Router {
+            web: Vec::new(),
+            ws: Vec::new(),
+            subdomain: Vec::new(),
+            path: String::new(),
+            middlewares: Vec::new(),
+            group: None,
+            routers: Vec::new(),
+            route_not_found_callback: None
+        }));
+
+        return self.routers[idx].as_mut();
+    }
+
+    pub fn assets(&mut self, path: &str, max_size_kilobytes_cache_size: usize, expires_in_seconds: u128) -> &mut Self {
+        self.assets = Some(Assets::new(path.to_owned(), max_size_kilobytes_cache_size, expires_in_seconds));
+
+        return self;
+    }
+
+    pub fn session(&mut self, manager: impl SessionManager + 'static) -> &mut Self {
+        self.session_manager = Some(Box::new(manager));
+
+        return self;
+    }
+
+    pub fn view(&mut self, path: &str) -> &mut Self {
+        self.view = Some(View::new(path));
+
+        return self;
+    }
+
+
+    pub fn set_request_max_size(&mut self, kilobytes: usize) -> &mut Self {
+        self.request_max_size = kilobytes * 1000;
+
+        return self;
+    }
+
+    pub fn set_max_parallelism(&mut self, cores: usize) -> &mut Self {
+        self.parallelism_max_size = cores;
+
+        return self;
     }
 
     pub fn init<C>(&mut self, callback: C)
     where
-        C: for<'a> AsyncFn<(), Output = ()> + Send + Sync + 'static
+        C: AsyncFn() -> () + Send + Sync + 'static
     {
-        unsafe {
-            APPLICATION.init_callback = Some(Box::new(move || block_on(callback())));
-        }
+        self.init_callback = Some(Box::new(move || block_on(callback())));
     }
 
-    #[allow(static_mut_refs)]
-    pub fn listen(self) {
-        unsafe { 
-            Builder::new_multi_thread()
-                .worker_threads(APPLICATION.parallelism_max_size)
-                .enable_all()
-                .build()
-                .unwrap()
-                .block_on(self.start());
-        }
+    pub fn listen(&mut self) {
+        Builder::new_multi_thread()
+            .worker_threads(self.parallelism_max_size)
+            .enable_all()
+            .build()
+            .unwrap()
+            .block_on(self.start_server());
     }
 
-    #[allow(static_mut_refs)]
-    async fn start(self) {
-        unsafe {
-            APPLICATION.router.init();
+    async fn start_server(&mut self) {
+        router::resolver::resolve(self);
+        // Using memory address to avoid compiler checks we server will not be mut
+        // Getting server value - (*(server_ptr as *const &mut Server))
+        let ptr = &self as *const &mut Self as usize;
 
-            if let Some(callback) = &APPLICATION.init_callback {
-                tokio::spawn(async {
-                    callback();
-                });
-            }
-
-            join!(tcp::listen(), udp::listen());
+        if self.init_callback.is_some() {
+            tokio::spawn(async move {
+                unsafe { (*(ptr as *const &mut Server)).init_callback.as_ref().unwrap()(); }
+            });
         }
+
+        join!(tcp::listen(ptr), udp::listen(ptr));
+    }
+
+    // TODO: this must handle web and ws requests
+    pub(crate) async fn on_web_request<'a>(&'a mut self, req: &'a mut Request, res: &'a mut Response) -> Result<()> {
+        let handler = RequestHandler::new();
+
+        handler.setup(req, res).await?;
+        res.referer = req.header("referer");
+        self.routes.handle_web_request(req, res);
+
+        if self.assets.is_some() {
+            self.assets.as_mut().unwrap().handle(req, res).unwrap();
+        }
+
+        return Ok(handler.teardown(req, res).await.unwrap());
+    }
+
+    pub(crate) async fn on_ws_request<'a>(&'a mut self, req: &'a mut Request, res: &'a mut Response) -> Option<(&'a Route<WsRoute>, &'a mut Request, &'a mut Response)> {
+        RequestHandler::new().setup(req, res).await.unwrap();
+
+        return self.routes.handle_ws_request(req, res);
     }
 }

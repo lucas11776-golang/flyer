@@ -1,188 +1,178 @@
-pub mod group;
-pub mod route;
-pub mod next;
-pub mod middleware;
-mod resolver;
-
 use async_std::task::block_on;
 
-use crate::router::next::Next;
-use crate::router::route::{GroupRoute, Route};
-use crate::ws::Ws;
+use crate::{
+    request::Request,
+    response::Response,
+    router::{middleware::register, next::Next, route::Route},
+    utils::url::join_url,
+    ws::Ws
+};
 
-use crate::request::Request;
-use crate::response::Response;
-use crate::utils::url::join_paths;
+pub(crate) mod resolver;
+pub(crate) mod middleware;
+pub(crate) mod routes;
+pub mod route;
+pub mod next;
 
-pub(crate) type WebRoute = dyn for<'a> Fn(&'a mut Request, &'a mut Response) -> &'a mut Response + Send + Sync;
-
-pub(crate) type WebRoutes = Vec<Route<Box<WebRoute>>>;
-
-pub(crate) type WsRoute = dyn for<'a> Fn(&'a mut Request, &'a mut Ws) + Send + Sync;
-
-pub(crate) type WsRoutes = Vec<Route<Box<WsRoute>>>;
-
-pub(crate) type Middleware = dyn for<'a> Fn(&'a mut Request, &'a mut Response, &'a mut Next) -> &'a mut Response + Send + Sync;
-
-// pub(crate) type Middlewares = Vec<Box<Middleware>>;
-
-pub(crate) type MiddlewaresPointers = Vec<String>;
-
-pub(crate) type Group = for<'a> fn(&'a mut Router);
-
-// TODO: find a better way do nested routers/groups. 
-pub(crate) type RouterNodes = Vec<Box<Router>>;
-
-pub(crate) type RouteNotFoundCallback = Option<Box<WebRoute>>;
-
+pub(crate) type Middleware = dyn for<'a> Fn(&'a mut Request, &'a mut Response, &'a mut Next) -> &'a mut Response + Send + Sync + 'static;
+pub(crate) type WebRoute = dyn for<'a> Fn(&'a mut Request, &'a mut Response) -> &'a mut Response + Send + Sync + 'static;
+pub(crate) type WsRoute = dyn for<'a> Fn(&'a mut Request, &'a mut Ws) + Send + Sync + 'static;
+pub(crate) type Group = for<'a> fn(&mut Router);
 
 pub struct Router {
-    pub(crate) web: WebRoutes,
-    pub(crate) ws: WsRoutes,
+    pub(crate) web: Vec<Route<WebRoute>>,
+    pub(crate) ws: Vec<Box<Route<WsRoute>>>,
     pub(crate) subdomain: Vec<String>,
-    pub(crate) path: Vec<String>,
-    pub(crate) middlewares: MiddlewaresPointers,
+    pub(crate) path: String,
+    pub(crate) middlewares: Vec<String>,
     pub(crate) group: Option<Group>,
-    pub(crate) nodes: RouterNodes,
-    pub(crate) not_found: Option<Box<WebRoute>>,
+    pub(crate) routers: Vec<Box<Router>>,
+    pub(crate) route_not_found_callback: Option<Box<WebRoute>>,
 }
 
 impl Router {
-    pub fn new() -> Router {
-        return Self {
-            web: vec![],
-            ws: vec![],
-            subdomain: vec![],
-            path: vec!["/".to_string()],
-            middlewares: vec![],
-            group: None,
-            nodes: vec![],
-            not_found: None,
-        }
-    }
-
-    pub fn get<C>(&mut self, path: &str, callback: C) -> &mut Route<Box<WebRoute>>
+    pub fn get<C>(&mut self, path: &str, callback: C) -> &mut Route<WebRoute>
     where
-        C: for<'a> AsyncFn<(&'a mut Request, &'a mut Response), Output = &'a mut Response> + Send + Sync + 'static,
+        C: for<'a> AsyncFn(&'a mut Request, &'a mut Response) -> &'a mut Response + Send + Sync + 'static,
     {
         return self.route("GET", path, callback);
     }
 
-    pub fn post<C>(&mut self, path: &str, callback: C) -> &mut Route<Box<WebRoute>>
+    pub fn post<C>(&mut self, path: &str, callback: C) -> &mut Route<WebRoute>
     where
-        C: for<'a> AsyncFn<(&'a mut Request, &'a mut Response), Output = &'a mut Response> + Send + Sync + 'static,
+        C: for<'a> AsyncFn(&'a mut Request, &'a mut Response) -> &'a mut Response + Send + Sync + 'static,
     {
         return self.route("POST", path, callback);
     }
 
-    pub fn patch<C>(&mut self, path: &str, callback: C) -> &mut Route<Box<WebRoute>>
+    pub fn put<C>(&mut self, path: &str, callback: C) -> &mut Route<WebRoute>
     where
-        C: for<'a> AsyncFn<(&'a mut Request, &'a mut Response), Output = &'a mut Response> + Send + Sync + 'static,
-    {
-        return self.route("PATCH", path, callback);
-    }
-
-    pub fn put<C>(&mut self, path: &str, callback: C) -> &mut Route<Box<WebRoute>>
-    where
-        C: for<'a> AsyncFn<(&'a mut Request, &'a mut Response), Output = &'a mut Response> + Send + Sync + 'static,
+        C: for<'a> AsyncFn(&'a mut Request, &'a mut Response) -> &'a mut Response + Send + Sync + 'static,
     {
         return self.route("PUT", path, callback);
     }
 
-    pub fn delete<C>(&mut self, path: &str, callback: C) -> &mut Route<Box<WebRoute>>
+    pub fn patch<C>(&mut self, path: &str, callback: C) -> &mut Route<WebRoute>
     where
-        C: for<'a> AsyncFn<(&'a mut Request, &'a mut Response), Output = &'a mut Response> + Send + Sync + 'static,
+        C: for<'a> AsyncFn(&'a mut Request, &'a mut Response) -> &'a mut Response + Send + Sync + 'static,
+    {
+        return self.route("PATCH", path, callback);
+    }
+
+    pub fn delete<C>(&mut self, path: &str, callback: C) -> &mut Route<WebRoute>
+    where
+        C: for<'a> AsyncFn(&'a mut Request, &'a mut Response) -> &'a mut Response + Send + Sync + 'static,
     {
         return self.route("DELETE", path, callback);
-    }   
+    }
 
-    pub fn options<C>(&mut self, path: &str, callback: C) -> &mut Route<Box<WebRoute>>
+    pub fn head<C>(&mut self, path: &str, callback: C) -> &mut Route<WebRoute>
     where
-        C: for<'a> AsyncFn<(&'a mut Request, &'a mut Response), Output = &'a mut Response> + Send + Sync + 'static,
+        C: for<'a> AsyncFn(&'a mut Request, &'a mut Response) -> &'a mut Response + Send + Sync + 'static,
+    {
+        return self.route("HEAD", path, callback);
+    }
+
+    pub fn options<C>(&mut self, path: &str, callback: C) -> &mut Route<WebRoute>
+    where
+        C: for<'a> AsyncFn(&'a mut Request, &'a mut Response) -> &'a mut Response + Send + Sync + 'static,
     {
         return self.route("OPTIONS", path, callback);
     }
 
-    pub fn head<C>(&mut self, path: &str, callback: C)
+    pub fn route<C>(&mut self, method: &str, path: &str, callback: C) -> &mut Route<WebRoute>
     where
-        C: for<'a> AsyncFn<(&'a mut Request, &'a mut Response), Output = &'a mut Response> + Send + Sync + 'static,
-    {
-        self.route("CONNECT", path, callback);
-    }
-
-    pub fn route<C>(&mut self, method: &str, path: &str, callback: C) -> &mut Route<Box<WebRoute>>
-    where
-        C: for<'a> AsyncFn<(&'a mut Request, &'a mut Response), Output = &'a mut Response> + Send + Sync + 'static,
+        C: for<'a> AsyncFn(&'a mut Request, &'a mut Response) -> &'a mut Response + Send + Sync + 'static
     {
         let idx = self.web.len();
-        let subdomain = self.subdomain.clone().join(".");
-        let path = join_paths(self.path.join("/"), path.to_string()).join("/");
-        let middlewares = self.middlewares.clone();
 
-        self.web.push(Route{
-            subdomain: subdomain,
-            path: path.clone(),
-            method: method.to_string(),
-            route: Box::new(move |req, res| block_on(callback(req, res))),
-            middlewares: middlewares,
+        self.web.push(Route {
+            subdomain: self.subdomain.clone().join("."),
+            method: String::from(method.to_uppercase()),
+            path: join_url(vec![self.path.clone(), String::from(path)]),
+            handler: Box::new(move |req, res| block_on(callback(req, res))),
+            middlewares: self.middlewares.clone()
         });
 
         return &mut self.web[idx];
     }
 
-    pub fn not_found<C>(&mut self, callback: C)
+    pub fn ws<C>(&mut self, path: &str, callback: C) -> &mut Route<WsRoute>
     where
-        C: for<'a> AsyncFn<(&'a mut Request, &'a mut Response), Output = &'a mut Response> + Send + Sync + 'static
-    {
-        self.not_found = Some(Box::new(move |req, res| block_on(callback(req, res))));
-    }
-    
-
-    pub fn ws<C>(&mut self, path: &str, callback: C) -> &mut Route<Box<WsRoute>>
-    where
-        C: for<'a> AsyncFn<(&'a mut Request, &'a mut Ws), Output = ()> + Send + Sync + 'static,
+        C: for<'a> AsyncFn(&'a mut Request, &'a mut Ws) + Send + Sync + 'static
     {
         let idx = self.ws.len();
-        let subdomain = self.subdomain.clone().join(".");
-        let path = join_paths(self.path.join("/"), path.to_string()).join("/");
-        let middlewares = self.middlewares.clone();
 
-        self.ws.push(Route{
-            path: path.clone(),
-            subdomain: subdomain,
-            method: "GET".to_string(),
-            route: Box::new(move |req, res| block_on(callback(req, res))),
-            middlewares: middlewares,
-        });
+        self.ws.push(Box::new(Route {
+            subdomain: self.subdomain.clone().join("."),
+            method: String::from("GET"),
+            path: join_url(vec![self.path.clone(), String::from(path)]),
+            handler: Box::new(move |req, ws| block_on(callback(req, ws))),
+            middlewares: vec![],
+        }));
 
         return &mut self.ws[idx];
     }
 
-    pub fn group<'g>(&'g mut self , path: &str, group: Group) -> GroupRoute<'g> {
-        let idx = self.nodes.len();
-        let path = join_paths(self.path.join("/"), path.to_string());
-        let middlewares = self.middlewares.clone();
-
-        self.nodes.push(Box::new(Router{
-            web: vec![],
-            ws: vec![],
-            subdomain: vec![],
-            path: path,
-            middlewares: middlewares,
-            group: Some(group),
-            nodes: vec![],
-            not_found: None,
-        }));
-
-        return GroupRoute::new(&mut self.nodes[idx])
+    pub fn not_found<C>(&mut self, callback: C)
+    where
+        C: for<'a> AsyncFn(&'a mut Request, &'a mut Response) -> &'a mut Response + Send + Sync + 'static,
+    {
+        self.route_not_found_callback = Some(Box::new(move |req, res| block_on(callback(req, res))));
     }
 
-    pub fn subdomain<'g>(&'g mut self, domain: &str, group: Group) -> GroupRoute<'g> {
-        let sub_group = self.group("/", group);
-        let subdomain: Vec<String> = domain.split(".").map(|v| v.to_string()).collect();
+    pub fn middleware<C>(&mut self, callback: C) -> &mut Self
+    where
+        C: for<'a> AsyncFn(&'a mut Request, &'a mut Response, &'a mut Next) -> &'a mut Response + Send + Sync + 'static
+    {
+        self.middlewares
+            .push(register(Box::new(move |req, res, next| block_on(callback(req, res, next)))));
 
-        sub_group.router.subdomain.extend(subdomain);
+        return self;
+    }
+    
+    pub fn group<'g>(&'g mut self, path: &str, group: Group) -> GroupRouter<'g> {
+        let idx = self.routers.len();
+        
+        self.routers.push(Box::new(Router {
+            web: Vec::new(),
+            ws: Vec::new(),
+            subdomain: self.subdomain.clone(),
+            path: join_url(vec![self.path.clone(), String::from(path)]),
+            middlewares: self.middlewares.clone(),
+            group: Some(group),
+            routers: vec![],
+            route_not_found_callback: None
+        }));
+
+        return GroupRouter::new(self.routers[idx].as_mut());
+    }
+
+    pub fn subdomain<'g>(&'g mut self, domain: &str, group: Group) -> GroupRouter<'g> {
+        let sub_group = self.group("/", group);
+
+        sub_group.router.subdomain.extend(domain.split(".").map(|v| v.to_string()).collect::<Vec<_>>());
 
         return sub_group;
+    }
+}
+
+pub struct GroupRouter<'g> {
+    router: &'g mut Router
+}
+
+impl <'g>GroupRouter<'g> {
+    pub(crate) fn new(router: &'g mut Router) -> Self {
+        return Self {
+            router: router
+        };
+    }
+
+    pub fn middleware<C>(&mut self, callback: C) -> &mut Self
+    where
+        C: for<'a> AsyncFn(&'a mut Request, &'a mut Response, &'a mut Next) -> &'a mut Response + Send + Sync + 'static
+    {
+        self.router.middleware(callback);
+        return self;
     }
 }

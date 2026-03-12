@@ -23,6 +23,6 @@ pub trait Session: Send + Sync {
 }
 
 pub trait SessionManager: Send + Sync {
-    fn setup<'a>(&mut self, req: &'a mut Request, res: &'a mut Response) -> Result<(&'a mut Request, &'a mut Response)>;
-    fn teardown<'a>(&mut self, req: &'a mut Request, res: &'a mut Response) -> Result<(&'a mut Request, &'a mut Response)>;
+    fn setup<'a>(&'a mut self, req: &'a mut Request, res: &'a mut Response) -> Result<()>;
+    fn teardown<'a>(&'a mut self, req: &'a mut Request, res: &'a mut Response) -> Result<()>;
 }

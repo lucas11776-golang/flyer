@@ -21,7 +21,7 @@ struct ApiInfo<'a> {
 }
 
 fn main() {
-    let mut server = server("127.0.0.1", 80);
+    let server = server("127.0.0.1", 80);
 
     server.router().get("/", async |_req, res| {
         return res.html("<h1>Home Page</h1>");

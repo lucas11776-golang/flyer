@@ -1,22 +1,31 @@
-use flyer::server;
+use flyer::{server_tls};
 
 fn main() {
-    let mut server = server("127.0.0.1", 9999);
+    let server = server_tls("127.0.0.1", 8080, "host.key", "host.cert");
 
-    
-    server.router().get("/", async |_req, res| {
-        if let Some(file) = _req.file("file_0") {
-            file.save_as("/", "image_0").await.unwrap();
-        }        
-
-        if let Some(file) = _req.file("file_1") {
-            file.save("/").await.unwrap();
-        }
-
-        return res.html("<h1>Hello World!!!</h1>")
+    server.router().group("api", |router| {
+        router.get("/", async |_req, res| {
+            return res.html("<h1>Hello World</h1>")
+        });
+        router.group("users", |router| {
+            router.get("/", async |_req, res| {
+                return res
+            });
+            router.group("{id}", |router| {
+                router.get("/", async |_req, res| {
+                    return res
+                });
+            });
+        });
+    }).middleware(async |_req, res, next| {
+        return next.handle(res)
     });
 
-    print!("\r\n\r\nRunning server: {}\r\n\r\n", server.address());
+
+    server.router().ws("/", async |_req, _ws| {
+        println!("WEBSOCKET ROUTE CALLBACK");
+    });
 
     server.listen();
+
 }

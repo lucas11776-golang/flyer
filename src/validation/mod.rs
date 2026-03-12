@@ -37,7 +37,7 @@ impl Field {
 
     pub fn add<R>(&mut self, callback: R, args: Vec<&str>) -> &mut Field
     where
-        R: for<'a> AsyncFn<(&'a Form, String, Vec<String>), Output = Option<String>> + Send + Sync + 'static
+        R: for<'a> AsyncFn(&'a Form, String, Vec<String>) -> Option<String> + Send + Sync + 'static
     {
         self.rules.push((
             Box::new(move |form, field, args| block_on(callback(form, field, args))),

@@ -1,53 +1,29 @@
 use async_std::task::block_on;
 use regex::Regex;
-use once_cell::sync::Lazy;
 use url_domain_parse::Url;
+use once_cell::sync::Lazy;
 
-use crate::router::middleware::register;
-use crate::router::{MiddlewaresPointers, Next, Router};
-use crate::utils::Values;
-use crate::request::Request;
-use crate::response::Response;
-use crate::utils::url::uri_to_vec;
+use crate::{
+    request::Request,
+    response::Response,
+    router::{middleware::register, next::Next},
+    utils::{Values, url::uri_to_vec}
+};
 
 static PARAM_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"\{[a-zA-Z_]+\}").expect("Invalid parameter regex"));
 
-pub struct GroupRoute<'r> {
-    pub(crate) router: &'r mut Box<Router>
-}
-
-pub struct Route<R> {
-    pub subdomain: String,
-    pub path: String,
+pub struct Route<Handler: ?Sized> {
+    pub(crate) subdomain: String,
     pub(crate) method: String,
-    pub(crate) route: R,
-    pub middlewares: MiddlewaresPointers,
+    pub(crate) path: String,
+    pub(crate) handler: Box<Handler>,
+    pub(crate) middlewares: Vec<String>,
 }
 
-impl <'r>GroupRoute<'r> {
-    pub(crate) fn new(router: &'r mut Box<Router>) -> GroupRoute<'r> {
-        return Self {
-            router: router,
-        }
-    }
-
+impl <Handler: ?Sized>Route<Handler> {
     pub fn middleware<C>(&mut self, callback: C) -> &mut Self
     where
-        C: for<'a> AsyncFn<(&'a mut Request, &'a mut Response, &'a mut Next), Output = &'a mut Response> + Send + Sync + 'static,
-    {
-        self.router
-            .middlewares
-            .push(register(Box::new(move |req, res, next| block_on(callback(req, res, next)))));
-
-        return self;
-    }
-}
-
-
-impl <'r, R> Route<R> {
-    pub fn middleware<C>(&mut self, callback: C) -> &mut Self
-    where
-        C: for<'a> AsyncFn<(&'a mut Request, &'a mut Response, &'a mut Next), Output = &'a mut Response> + Send + Sync + 'static,
+        C: for<'a> AsyncFn(&'a mut Request, &'a mut Response, &'a mut Next) -> &'a mut Response + Send + Sync + 'static,
     {
         self.middlewares
             .push(register(Box::new(move |req, res, next| block_on(callback(req, res, next)))));
@@ -55,7 +31,7 @@ impl <'r, R> Route<R> {
         return self;
     }
 
-    pub(crate) fn is_match(&mut self, req: &'r mut Request) -> (bool, Values) {
+    pub(crate) fn is_match<'a>(&self, req: &'a mut Request) -> (bool, Values) {
         if self.method.to_uppercase() != req.method.to_uppercase() {
             return (false, Values::new());
         }
@@ -63,7 +39,7 @@ impl <'r, R> Route<R> {
         return self.parameters_route_match(req);
     }
 
-    fn dymanic_parameter_match(&mut self, path: String, matching: String) -> Option<(String, String)> {
+    fn dynamic_parameter_match(&self, path: String, matching: String) -> Option<(String, String)> {
         if PARAM_REGEX.is_match(&path) == false {
             return None;
         }
@@ -72,12 +48,12 @@ impl <'r, R> Route<R> {
     }
     
     // TODO: refactor
-    fn parameters_route_match(&mut self, req: &'r mut Request) -> (bool, Values) {
+    fn parameters_route_match<'a>(&self, req: &'a mut Request) -> (bool, Values) {
         let mut parameters= Values::new();
-        let route_path= uri_to_vec(self.path.clone());
+        let route_path= uri_to_vec(String::from(self.path.trim_matches('/')));
         let request_path = uri_to_vec(req.path.clone());
         // TODO: fix plugin Domain parser.
-        let url_result = Url::parse(format!("http://{}", &req.host).as_str());
+        let url_result = Url::parse(format!("http://{}", &req.host).as_str()); // TODO: fix
 
         if url_result.is_err() {
             return (false, Values::new());
@@ -101,7 +77,7 @@ impl <'r, R> Route<R> {
                     return (false, Values::new());
                 }
 
-                if let Some((k, v)) = self.dymanic_parameter_match(subdomain_route[j].clone(), subdomain_req[j].clone()) {                    
+                if let Some((k, v)) = self.dynamic_parameter_match(subdomain_route[j].clone(), subdomain_req[j].clone()) {                    
                     parameters.insert(k, v);
 
                     continue;
@@ -127,7 +103,7 @@ impl <'r, R> Route<R> {
                 continue;
             }
 
-            if let Some((k, v)) = self.dymanic_parameter_match(route_path[i].clone(), request_path[i].clone()) {
+            if let Some((k, v)) = self.dynamic_parameter_match(route_path[i].clone(), request_path[i].clone()) {
                 parameters.insert(k, v);
 
                 continue;

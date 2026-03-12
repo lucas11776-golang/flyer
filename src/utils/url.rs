@@ -45,3 +45,11 @@ pub fn join_paths(one: String, two: String) -> Vec<String> {
         .filter(|x| x != "")
         .collect();
 }
+
+pub fn join_url(url: Vec<String>) -> String {
+    return url.iter()
+        .map(|u| String::from(u.trim_matches('/'))).collect::<Vec<_>>()
+        .join("/")
+        .trim_matches('/')
+        .to_string();
+}

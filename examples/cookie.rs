@@ -9,7 +9,7 @@ use flyer::{
 pub async fn home_view<'a>(req: &'a mut Request, res: &'a mut Response) -> &'a mut Response {
     req.cookies()
         .set("user_id", "1")
-        .set_expires(Duration::from_hours(2));
+        .set_expires(Duration::from_secs((60 * 60) * 2));
 
     return res.html("<h1>Cookie has been set visit route /cookie</h1>");
 }
@@ -19,7 +19,7 @@ pub async fn cookie<'a>(req: &'a mut Request, res: &'a mut Response) -> &'a mut 
 }
 
 fn main() {
-    let mut server = server("127.0.0.1", 9999);
+    let server = server("127.0.0.1", 9999);
 
     server.router().group("/", |router| {
         router.get("/", home_view);

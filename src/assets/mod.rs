@@ -37,7 +37,7 @@ impl Assets {
         }
     }
 
-    pub fn handle<'a>(&mut self, req: Request, mut res: Response) -> Result<(Request, Response)> {
+    pub fn handle<'a>(&mut self, req: &'a mut Request, resp: &'a mut Response) -> Result<()> {
         let name = format!("{}/{}", self.path, req.path.trim_start_matches("/"));
         let cached_asset = self.cache.get(&name);
 
@@ -45,29 +45,31 @@ impl Assets {
             let asset = cached_asset.unwrap();
 
             if  asset.expires > timestamp().unwrap() {
-                res.body(&asset.data).status_code(200)
+                resp.body(&asset.data)
+                    .status_code(200)
                     .header("Content-Type", &asset.content_type);
 
-                return Ok((req, res));
+                return Ok(());
             }
         }
 
         let cached_asset = self.read_asset(name.clone()).unwrap();
 
         if !cached_asset.is_some() {
-            return Ok((req, res));
+            return Ok(());
         }
 
         let asset = cached_asset.unwrap();
 
-        res.body(&asset.data).status_code(200)
+        resp.body(&asset.data)
+            .status_code(200)
             .header("Content-Type", &asset.content_type);
 
         if asset.size > self.max_size.clone() {
             self.cache.remove(&name.clone());
         }
 
-        return Ok((req, res));
+        return Ok(());
     }
 
     fn read_asset(&mut self, name: String) -> Result<Option<&Asset>> {

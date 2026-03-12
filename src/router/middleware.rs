@@ -20,15 +20,18 @@ impl Container {
     }
 
     pub fn insert(&mut self, call: Box<Middleware>) -> String {
-        let reference = format!("{:p}", &call);
+        let fat_ptr: *const Middleware = Box::into_raw(call);
+        let [_, vtable_ptr] = unsafe { std::mem::transmute_copy::<*const Middleware, [usize; 2]>(&fat_ptr) };
+        let call = unsafe { Box::from_raw(fat_ptr as *mut Middleware) };
+        let ptr = format!("0x{:x}", vtable_ptr);
 
-        self.middlewares.insert(reference.clone(), call);
-
-        return reference;
+        self.middlewares.insert(ptr.clone(), call);
+        
+        return ptr;
     }
 
     pub fn call<'a>(&mut self, reference: String, req: &'a mut Request, res: &'a mut Response, next: &'a mut Next) -> &'a mut Response {
-        return self.middlewares.get(&reference).unwrap().call((req, res, next));
+        return self.middlewares.get(&reference).unwrap()(req, res, next);
     }
 }
 

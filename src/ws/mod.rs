@@ -1,6 +1,5 @@
 use async_std::task::block_on;
 
-
 pub const SEC_WEB_SOCKET_ACCEPT_STATIC: &str = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 
 pub(crate) type OnEvent = dyn Fn(Event, &mut Box<dyn Writer + Send + Sync>) + Send + Sync + 'static;
@@ -41,7 +40,7 @@ impl Ws {
 
     pub fn on<C>(&mut self, callback: C)
     where
-        C: for<'a> AsyncFn<(Event, &'a mut Box<dyn Writer + Send + Sync>), Output = ()> + Send + Sync + 'static
+        C: for<'a> AsyncFn(Event, &'a mut Box<dyn Writer + Send + Sync>) -> () + Send + Sync + 'static
     {
         self.event = Some(Box::new(move |event, writer| block_on(callback(event, writer))));
     }

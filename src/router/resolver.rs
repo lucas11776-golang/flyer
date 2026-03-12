@@ -1,40 +1,63 @@
 use std::mem::take;
 
-use crate::router::{
-    RouteNotFoundCallback,
-    RouterNodes,
-    WebRoutes,
-    WsRoutes
-};
+use crate::{router::{Route, Router, WebRoute, WsRoute}, server::Server};
 
-pub fn resolve_router_nodes<'a>(nodes: &'a mut RouterNodes) -> (WebRoutes, WsRoutes, RouteNotFoundCallback) {
-    let mut web = WebRoutes::new();
-    let mut ws = WsRoutes::new();
-    let mut not_found = RouteNotFoundCallback::None;
 
-    for node in &mut *nodes {
-        if let Some(group) = node.group {
-            group(node);
+#[derive(Default)]
+struct ResolvedRoutes {
+    pub(crate) web: Vec<Route<WebRoute>>,
+    pub(crate) ws: Vec<Box<Route<WsRoute>>>,
+    pub(crate) not_found_callback: Option<Box<WebRoute>>,
+}
+
+impl ResolvedRoutes {
+    pub(crate) fn new(routers: &mut Vec<Box<Router>>) -> Self {
+        let mut resolved = ResolvedRoutes::default();
+
+        for router in &mut *routers {
+            resolved = Self::resolve(resolved, router)
         }
 
-        web.extend(take(&mut node.web));
-        ws.extend(take(&mut node.ws));
-        
+        return resolved;
+    }
+    
+    pub(crate) fn resolve<'q>(mut resolved: ResolvedRoutes, router: &mut Router) -> ResolvedRoutes {
+        for node in &mut *router.routers {
+            if let Some(group) = node.group {
+                group(node);
+            }
 
-        if node.not_found.is_none() {
-            not_found = take(&mut node.not_found);                
+            resolved.web.extend(take(&mut node.web));
+            resolved.ws.extend(take(&mut node.ws));
+
+            resolved = Self::resolve(resolved, node);
+
+            if node.route_not_found_callback.is_some() {
+                resolved.not_found_callback = take(&mut node.route_not_found_callback);
+            }
         }
 
-        let (temp_web, temp_ws, temp_not_found) = resolve_router_nodes(&mut node.nodes);
+        resolved.web.extend(take(&mut router.web));
+        resolved.ws.extend(take(&mut router.ws));
 
-        web.extend(temp_web);
-        ws.extend(temp_ws);
-
-
-        if temp_not_found.is_none() {
-            not_found = temp_not_found;                
+        if router.route_not_found_callback.is_some() {
+            resolved.not_found_callback = take(&mut router.route_not_found_callback);
         }
+
+        return resolved;
+    }
+}
+
+
+pub(crate) fn resolve(server: &mut Server)  {
+    let mut resolved = ResolvedRoutes::new(&mut server.routers);
+
+    server.routes.web.extend(take(&mut resolved.web));
+    server.routes.ws.extend(take(&mut resolved.ws));
+
+    if resolved.not_found_callback.is_some() {
+        server.routes.not_found_callback = take(&mut resolved.not_found_callback);
     }
 
-    return (web, ws, not_found);
+    server.routers.clear();
 }

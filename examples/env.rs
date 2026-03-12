@@ -45,8 +45,8 @@ pub async fn index<'a>(_req: &'a mut Request, res: &'a mut Response) -> &'a mut 
 fn main() {
     load_env(".env");
 
-    let mut server = server(env("HOST").as_str(), env("PORT").parse().unwrap())
-        .session(new_session_manager(Duration::from_hours(2), "cookie_token", "test_123"))
+    let server = server(env("HOST").as_str(), env("PORT").parse().unwrap())
+        .session(new_session_manager(Duration::from_secs((60 * 60) * 2), "cookie_token", "test_123"))
         .view("views");
 
     server.router().group("/", |router| {
