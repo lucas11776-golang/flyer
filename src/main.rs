@@ -21,6 +21,11 @@ fn main() {
         return next.handle(res)
     });
 
+
+    server.router().ws("/", async |_req, _ws| {
+        println!("WEBSOCKET ROUTE CALLBACK");
+    });
+
     server.listen();
 
 }

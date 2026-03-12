@@ -37,7 +37,7 @@ TODO: Create file called `index.html` in folder called `views` and copy the cont
 */
 
 fn main() {
-    let server = server("127.0.0.1", 8888)
+    let server = server("127.0.0.1", 9999)
         .assets("assets", 1024, Duration::from_secs((60 * 60) * 2).as_millis())
         .view("views");
 

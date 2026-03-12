@@ -1,22 +1,30 @@
+use std::thread::available_parallelism;
+
 use anyhow::Result;
+use async_std::task::block_on;
 use rustls::ServerConfig;
 use tokio::{join, runtime::Builder};
+use lazy_static::lazy_static;
 
 use crate::{
-    assets::Assets, request::Request, response::Response, router::{self, Router, routes::Routes}, server::{helpers::{Handler, RequestHandler}, transport::{tcp, udp}}, session::SessionManager, view::View
+    assets::Assets,
+    request::Request,
+    response::Response,
+    router::{self, Router, WsRoute, route::Route, routes::Routes},
+    server::{helpers::{Handler, RequestHandler},
+    transport::{tcp, udp}},
+    session::SessionManager,
+    view::View
 };
 
 pub(crate) mod transport;
 pub(crate) mod helpers;
 
-use lazy_static::lazy_static;
-
+pub(crate) type InitCallback = dyn Fn() + Send + Sync;
 
 lazy_static! {
     pub(crate) static ref SERVER: Option<Server> = None;
 }
-
-
 
 pub struct Server {
     pub(crate) host: String,
@@ -26,11 +34,10 @@ pub struct Server {
     pub(crate) session_manager: Option<Box<dyn SessionManager>>,
     pub(crate) view: Option<View>,
     pub(crate) assets: Option<Assets>,
-
-    // pub(crate) parallelism_max_size: usize,
-
+    pub(crate) request_max_size: usize,
+    pub(crate) parallelism_max_size: usize,
     pub(crate) server_config: Option<ServerConfig>,
-
+    pub(crate) init_callback: Option<Box<InitCallback>>,
 }
 
 impl Server {
@@ -43,11 +50,10 @@ impl Server {
             session_manager: None,
             view: None,
             assets: None,
-
-            // parallelism_max_size: parallelism_max_size,
-
-
-            server_config: server_config
+            request_max_size: (1024 * 20) * 1000,
+            parallelism_max_size: available_parallelism().unwrap().into(),
+            server_config: server_config,
+            init_callback: None
         }
     }
 
@@ -61,6 +67,7 @@ impl Server {
         self.routers.push(Box::new(Router {
             web: Vec::new(),
             ws: Vec::new(),
+            subdomain: Vec::new(),
             path: String::new(),
             middlewares: Vec::new(),
             group: None,
@@ -89,8 +96,52 @@ impl Server {
         return self;
     }
 
+
+    pub fn set_request_max_size(&mut self, kilobytes: usize) -> &mut Self {
+        self.request_max_size = kilobytes * 1000;
+
+        return self;
+    }
+
+    pub fn set_max_parallelism(&mut self, cores: usize) -> &mut Self {
+        self.parallelism_max_size = cores;
+
+        return self;
+    }
+
+    pub fn init<C>(&mut self, callback: C)
+    where
+        C: AsyncFn() -> () + Send + Sync + 'static
+    {
+        self.init_callback = Some(Box::new(move || block_on(callback())));
+    }
+
+    pub fn listen(&mut self) {
+        Builder::new_multi_thread()
+            .worker_threads(self.parallelism_max_size)
+            .enable_all()
+            .build()
+            .unwrap()
+            .block_on(self.start_server());
+    }
+
+    async fn start_server(&mut self) {
+        router::resolver::resolve(self);
+        // Using memory address to avoid compiler checks we server will not be mut
+        // Getting server value - (*(server_ptr as *const &mut Server))
+        let ptr = &self as *const &mut Self as usize;
+
+        if self.init_callback.is_some() {
+            tokio::spawn(async move {
+                unsafe { (*(ptr as *const &mut Server)).init_callback.as_ref().unwrap()(); }
+            });
+        }
+
+        join!(tcp::listen(ptr), udp::listen(ptr));
+    }
+
     // TODO: this must handle web and ws requests
-    pub(crate) async fn on_request<'a>(&'a mut self, req: &'a mut Request, res: &'a mut Response) -> Result<()> {
+    pub(crate) async fn on_web_request<'a>(&'a mut self, req: &'a mut Request, res: &'a mut Response) -> Result<()> {
         let handler = RequestHandler::new();
 
         handler.setup(req, res).await?;
@@ -104,20 +155,9 @@ impl Server {
         return Ok(handler.teardown(req, res).await.unwrap());
     }
 
-    pub(crate) async fn init(&mut self) {
-        router::resolver::resolve(self);
-        // Using memory address to avoid compiler checks we server will not be mut
-        // Getting server value - (*(server_ptr as *const &mut Server))
-        join!(tcp::listen(&self as *const &mut Self as usize), udp::listen(&self as *const &mut Self as usize));
-    }
+    pub(crate) async fn on_ws_request<'a>(&'a mut self, req: &'a mut Request, res: &'a mut Response) -> Option<(&'a Route<WsRoute>, &'a mut Request, &'a mut Response)> {
+        RequestHandler::new().setup(req, res).await.unwrap();
 
-    pub fn listen(&mut self) {
-        Builder::new_multi_thread()
-            .worker_threads(8)
-            .enable_all()
-            .build()
-            .unwrap()
-            .block_on(self.init());
+        return self.routes.handle_ws_request(req, res);
     }
-
 }

@@ -33,18 +33,18 @@ fn main() {
             });
         });
 
-        // router.ws("private", async |_req, ws| {
-        //     ws.on(async |event, writer| {
-        //         match event {
-        //             flyer::ws::Event::Ready() => todo!(),
-        //             flyer::ws::Event::Text(_items) => writer.write("Hello This Private Route".into()),
-        //             flyer::ws::Event::Binary(_items) => todo!(),
-        //             flyer::ws::Event::Ping(_items) => todo!(),
-        //             flyer::ws::Event::Pong(_items) => todo!(),
-        //             flyer::ws::Event::Close(_reason) => todo!(),
-        //         }
-        //     });
-        // }).middleware(auth);
+        router.ws("private", async |_req, ws| {
+            ws.on(async |event, writer| {
+                match event {
+                    flyer::ws::Event::Ready() => todo!(),
+                    flyer::ws::Event::Text(_items) => writer.write("Hello This Private Route".into()),
+                    flyer::ws::Event::Binary(_items) => todo!(),
+                    flyer::ws::Event::Ping(_items) => todo!(),
+                    flyer::ws::Event::Pong(_items) => todo!(),
+                    flyer::ws::Event::Close(_reason) => todo!(),
+                }
+            });
+        }).middleware(auth);
     });
 
     print!("\r\n\r\nRunning server: {}\r\n\r\n", server.address());

@@ -1,10 +1,14 @@
-use crate::{request::Request, response::Response, router::{Route, WebRoute, WsRoute, middleware::call, next::Next}};
+use crate::{
+    request::Request,
+    response::Response,
+    router::{Route, WebRoute, WsRoute, middleware::call, next::Next}
+};
 
 #[derive(Default)]
 pub(crate) struct Routes {
     pub(crate) web: Vec<Route<WebRoute>>,
     pub(crate) ws: Vec<Box<Route<WsRoute>>>,
-    pub(crate) not_found_callback: Option<Route<WebRoute>>,
+    pub(crate) not_found_callback: Option<Box<WebRoute>>,
 }
 
 impl Routes {
@@ -28,7 +32,7 @@ impl Routes {
         }
 
         if self.not_found_callback.is_some() {
-            (self.not_found_callback.as_ref().unwrap().handler)(req, res);
+            self.not_found_callback.as_ref().unwrap()(req, res);
 
             return;
         }
@@ -38,21 +42,21 @@ impl Routes {
         return;
     }
 
-    pub fn handle_ws_request<'r>(&'r self, req: &'r mut Request, res: &'r mut Response) -> Option<&'r Route<WsRoute>> {
+    pub fn handle_ws_request<'r>(&'r self, req: &'r mut Request, res: &'r mut Response) -> Option<(&'r Route<WsRoute>, &'r mut Request, &'r mut Response)> {
         for route in &self.ws {
             let (is_match, parameters) = route.is_match(req);
 
             if !is_match {
                 continue;
             }
-            
+
             req.parameters = parameters;
 
             if !self.handle_middlewares(req, res, &route.middlewares) {
                 return None;
             }
 
-            return Some(&route);
+            return Some((&route, req, res));
         }
 
         return None;

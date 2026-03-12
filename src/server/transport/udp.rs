@@ -63,7 +63,7 @@ async fn listen_peer_server_connection(mut server: H3Server<H3Conn, Bytes>) {
                 let mut handler = http3::Handler::new(request, stream);
                 let (mut req, mut res) = (handler.handle().await.unwrap(), Response::new());
 
-                GLOBAL_SERVER.get_mut().unwrap().on_request(&mut req, &mut res).await.unwrap(); // TODO: need to remove and use `server_ptr`
+                GLOBAL_SERVER.get_mut().unwrap().on_web_request(&mut req, &mut res).await.unwrap(); // TODO: need to remove and use `server_ptr`
 
                 handler.write(&mut req, &mut res).await.unwrap();
             }

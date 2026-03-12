@@ -6,7 +6,7 @@ use h2::server;
 use tokio::{io::{AsyncBufReadExt, AsyncRead, AsyncWrite, BufReader}, net::TcpListener};
 use tokio_rustls::TlsAcceptor;
 
-use crate::server::transport::handler::http2;
+use crate::{request::Request, server::transport::handler::{ws, http2}};
 use crate::{GLOBAL_SERVER, response::Response, server::transport::handler::http2::H2_PREFACE};
 use crate::{server::{Server, transport::{Protocol, handler::http1}}, utils::server::get_tls_acceptor, warn};
 
@@ -76,6 +76,27 @@ where
 }
 
 #[allow(static_mut_refs)]
+async fn ws_protocol<RW>(rw: BufReader<RW>, req: &mut Request, res: &mut Response) -> Result<()>
+where
+    RW: AsyncRead + AsyncWrite + Unpin  + Sync + Send + 'static,
+{
+    unsafe {
+        return Ok(
+            match GLOBAL_SERVER.get_mut().unwrap().on_ws_request(req, res).await {
+                Some((route, req, res)) => {
+
+
+                    let mut handler = ws::Handler::new(rw, req, res).await.unwrap();
+
+                    handler.handle(route).await.unwrap();
+                },
+                None => { drop(rw); },
+            }
+        );
+    }
+}
+
+#[allow(static_mut_refs)]
 async fn http_1_protocol<RW>(mut rw: BufReader<RW>, addr: SocketAddr) -> Result<()>
 where
     RW: AsyncRead + AsyncWrite + Unpin + Sync + Send + 'static,
@@ -92,16 +113,10 @@ where
         let mut res = Response::new();
 
         if req.header("upgrade").to_lowercase() == "websocket" {
-            // let (mut req, mut res) = RequestHandler::new().setup(req, res).await.unwrap();
-
-            // handle_web_socket(rw, &mut req, &mut res).await.unwrap();
-
-            println!("Socket Request...");
-
-            todo!()
+            return ws_protocol(rw, &mut req, &mut res).await;
         }
 
-        GLOBAL_SERVER.get_mut().unwrap().on_request(&mut req, &mut res).await.unwrap(); // TODO: need to remove and use `server_ptr`
+        GLOBAL_SERVER.get_mut().unwrap().on_web_request(&mut req, &mut res).await.unwrap(); // TODO: need to remove and use `server_ptr`
         handler.write(&mut req, &mut res).await.unwrap();
 
         drop(rw);
@@ -125,7 +140,7 @@ where
                                 let mut handler = http2::Handler::new(addr, send);
                                 let (mut req, mut res) = (handler.transform(request).await.unwrap(), Response::new());
 
-                                GLOBAL_SERVER.get_mut().unwrap().on_request(&mut req, &mut res).await.unwrap(); // TODO: need to remove and use `server_ptr`
+                                GLOBAL_SERVER.get_mut().unwrap().on_web_request(&mut req, &mut res).await.unwrap(); // TODO: need to remove and use `server_ptr`
 
                                 handler.write(&mut req, &mut res).await.unwrap();
                             });
@@ -135,9 +150,7 @@ where
                 }
                 return Ok(());
             },
-            Err(err) => {
-                return Err(err.into());
-            },
+            Err(err) => { return Err(err.into()); },
         }
     }
 }

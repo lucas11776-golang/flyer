@@ -13,6 +13,7 @@ use tokio::io::{
     BufReader
 };
 
+use crate::GLOBAL_SERVER;
 use crate::cookie::Cookies;
 use crate::request::form::{Files, Form};
 use crate::request::parser::parse_content_type;
@@ -142,8 +143,7 @@ where
             let trimmed = line.trim_end();
 
             if trimmed.is_empty() {
-                // End of headers
-                break; 
+                break; // End of headers
             }
 
             if let Some((k, v)) = trimmed.split_once(':') {
@@ -153,7 +153,8 @@ where
 
         return Ok(headers);
     }
-
+    
+    #[allow(static_mut_refs)]
     async fn read_body(&mut self, headers: &mut Headers) -> Result<Vec<u8>> {
         // If Transfer-Encoding is present, it MUST take precedence over Content-Length.
         if let Some(te) = headers.get("transfer-encoding") {
@@ -166,9 +167,9 @@ where
             let length = length_str.parse::<usize>()
                 .map_err(|_| Error::new(ErrorKind::InvalidData, "invalid content-length"))?;
             
-            // if length > unsafe { APPLICATION.request_max_size } {
-            //     return Err(Error::new(ErrorKind::InvalidData, "body too large"));
-            // }
+            if length > unsafe { GLOBAL_SERVER.get_mut().unwrap().request_max_size  } {
+                return Err(Error::new(ErrorKind::InvalidData, "body too large").into());
+            }
             
             return self.read_content_length(length).await;
         }
@@ -180,8 +181,9 @@ where
         let mut body = vec![0u8; length];
         self.rw.read_exact(&mut body).await?;
         Ok(body)
-    } 
+    }
 
+    #[allow(static_mut_refs)]
     async unsafe fn read_body_transfer_encoding(&mut self) -> Result<Vec<u8>> {
         let mut body = Vec::new();
 
@@ -202,9 +204,9 @@ where
                 break;
             }
 
-            // if body.len() + size > unsafe { APPLICATION.request_max_size } {
-            //     return Err(Error::new(ErrorKind::InvalidData, "chunked body too large"));
-            // }
+            if body.len() + size > unsafe { GLOBAL_SERVER.get_mut().unwrap().request_max_size } {
+                return Err(Error::new(ErrorKind::InvalidData, "chunked body too large").into());
+            }
 
             let mut chunk = vec![0u8; size];
             self.rw.read_exact(&mut chunk).await?;

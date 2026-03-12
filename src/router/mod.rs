@@ -22,6 +22,7 @@ pub(crate) type Group = for<'a> fn(&mut Router);
 pub struct Router {
     pub(crate) web: Vec<Route<WebRoute>>,
     pub(crate) ws: Vec<Box<Route<WsRoute>>>,
+    pub(crate) subdomain: Vec<String>,
     pub(crate) path: String,
     pub(crate) middlewares: Vec<String>,
     pub(crate) group: Option<Group>,
@@ -86,7 +87,7 @@ impl Router {
         let idx = self.web.len();
 
         self.web.push(Route {
-            subdomain: String::new(),
+            subdomain: self.subdomain.clone().join("."),
             method: String::from(method.to_uppercase()),
             path: join_url(vec![self.path.clone(), String::from(path)]),
             handler: Box::new(move |req, res| block_on(callback(req, res))),
@@ -95,34 +96,22 @@ impl Router {
 
         return &mut self.web[idx];
     }
-    
-    pub fn group<'g>(&'g mut self, path: &str, group: Group) -> GroupRouter<'g> {
-        let idx = self.routers.len();
-        
-        self.routers.push(Box::new(Router {
-            web: Vec::new(),
-            ws: Vec::new(),
-            path: join_url(vec![self.path.clone(), String::from(path)]),
-            middlewares: self.middlewares.clone(),
-            group: Some(group),
-            routers: vec![],
-            route_not_found_callback: None
-        }));
 
-        return GroupRouter::new(self.routers[idx].as_mut());
-    }
-
-    pub fn ws<C>(&mut self, path: &str, callback: C)
+    pub fn ws<C>(&mut self, path: &str, callback: C) -> &mut Route<WsRoute>
     where
         C: for<'a> AsyncFn(&'a mut Request, &'a mut Ws) + Send + Sync + 'static
     {
+        let idx = self.ws.len();
+
         self.ws.push(Box::new(Route {
-            subdomain: String::new(),
+            subdomain: self.subdomain.clone().join("."),
             method: String::from("GET"),
             path: join_url(vec![self.path.clone(), String::from(path)]),
             handler: Box::new(move |req, ws| block_on(callback(req, ws))),
             middlewares: vec![],
         }));
+
+        return &mut self.ws[idx];
     }
 
     pub fn not_found<C>(&mut self, callback: C)
@@ -141,7 +130,31 @@ impl Router {
 
         return self;
     }
+    
+    pub fn group<'g>(&'g mut self, path: &str, group: Group) -> GroupRouter<'g> {
+        let idx = self.routers.len();
+        
+        self.routers.push(Box::new(Router {
+            web: Vec::new(),
+            ws: Vec::new(),
+            subdomain: self.subdomain.clone(),
+            path: join_url(vec![self.path.clone(), String::from(path)]),
+            middlewares: self.middlewares.clone(),
+            group: Some(group),
+            routers: vec![],
+            route_not_found_callback: None
+        }));
 
+        return GroupRouter::new(self.routers[idx].as_mut());
+    }
+
+    pub fn subdomain<'g>(&'g mut self, domain: &str, group: Group) -> GroupRouter<'g> {
+        let sub_group = self.group("/", group);
+
+        sub_group.router.subdomain.extend(domain.split(".").map(|v| v.to_string()).collect::<Vec<_>>());
+
+        return sub_group;
+    }
 }
 
 pub struct GroupRouter<'g> {

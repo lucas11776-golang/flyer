@@ -28,7 +28,7 @@ pub struct User<'a> {
 }
 
 fn main() {
-    let server = server("127.0.0.1", 8888)
+    let server = server("127.0.0.1", 9999)
         .view("views");
 
     server.router().get("/", async |_req, res| {
