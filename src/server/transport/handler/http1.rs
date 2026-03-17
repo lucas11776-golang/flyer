@@ -13,12 +13,12 @@ use tokio::io::{
     BufReader
 };
 
-use crate::GLOBAL_SERVER;
 use crate::cookie::Cookies;
 use crate::request::form::{Files, Form};
 use crate::request::parser::parse_content_type;
 use crate::response::parser::parse;
 use crate::response::{Response};
+use crate::server::Server;
 use crate::utils::url::parse_query_params;
 use crate::utils::{Headers, Values};
 use crate::request::Request;
@@ -27,6 +27,7 @@ const MAX_LINE_LENGTH: usize = 4096;           // 4KB per line (e.g., Request Li
 const MAX_TOTAL_HEADERS_SIZE: usize = 16384;   // 16KB total for all headers
 
 pub(crate) struct Handler<'a, RW> {
+    server_ptr: usize,
     rw: Pin<&'a mut BufReader<RW>>,
     addr: SocketAddr,
 }
@@ -43,8 +44,12 @@ impl<'a, RW> Handler<'a, RW>
 where
     RW: AsyncRead + AsyncWrite + Unpin + Send + Sync,
 {
-    pub fn new(rw: Pin<&'a mut BufReader<RW>>, addr: SocketAddr) -> Self {
-        Self { rw, addr }
+    pub fn new(ptr: usize, rw: Pin<&'a mut BufReader<RW>>, addr: SocketAddr) -> Self {
+        return Self {
+            server_ptr: ptr,
+            rw: rw,
+            addr: addr
+        };
     }
 
     pub async unsafe fn handle(&mut self) -> Result<Request> {
@@ -154,7 +159,6 @@ where
         return Ok(headers);
     }
     
-    #[allow(static_mut_refs)]
     async fn read_body(&mut self, headers: &mut Headers) -> Result<Vec<u8>> {
         // If Transfer-Encoding is present, it MUST take precedence over Content-Length.
         if let Some(te) = headers.get("transfer-encoding") {
@@ -167,7 +171,7 @@ where
             let length = length_str.parse::<usize>()
                 .map_err(|_| Error::new(ErrorKind::InvalidData, "invalid content-length"))?;
             
-            if length > unsafe { GLOBAL_SERVER.get_mut().unwrap().request_max_size  } {
+            if length > Server::instance(self.server_ptr).request_max_size {
                 return Err(Error::new(ErrorKind::InvalidData, "body too large").into());
             }
             
@@ -183,7 +187,6 @@ where
         Ok(body)
     }
 
-    #[allow(static_mut_refs)]
     async unsafe fn read_body_transfer_encoding(&mut self) -> Result<Vec<u8>> {
         let mut body = Vec::new();
 
@@ -204,7 +207,8 @@ where
                 break;
             }
 
-            if body.len() + size > unsafe { GLOBAL_SERVER.get_mut().unwrap().request_max_size } {
+
+            if body.len() + size > Server::instance(self.server_ptr).request_max_size {
                 return Err(Error::new(ErrorKind::InvalidData, "chunked body too large").into());
             }
 

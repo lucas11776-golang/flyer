@@ -23,7 +23,7 @@ pub(crate) mod helpers;
 pub(crate) type InitCallback = dyn Fn() + Send + Sync;
 
 lazy_static! {
-    pub(crate) static ref SERVER: Option<Server> = None;
+    static ref SERVER: Option<Server> = None;
 }
 
 pub struct Server {
@@ -133,31 +133,40 @@ impl Server {
 
         if self.init_callback.is_some() {
             tokio::spawn(async move {
-                unsafe { (*(ptr as *const &mut Server)).init_callback.as_ref().unwrap()(); }
+                Self::instance(ptr).init_callback.as_mut().unwrap()();
             });
         }
 
         join!(tcp::listen(ptr), udp::listen(ptr));
     }
 
-    // TODO: this must handle web and ws requests
     pub(crate) async fn on_web_request<'a>(&'a mut self, req: &'a mut Request, res: &'a mut Response) -> Result<()> {
         let handler = RequestHandler::new();
+        let ptr = &self as *const &mut Self as usize;
 
-        handler.setup(req, res).await?;
+        handler.setup(ptr, req, res).await.unwrap();
         res.referer = req.header("referer");
         self.routes.handle_web_request(req, res);
 
-        if self.assets.is_some() {
-            self.assets.as_mut().unwrap().handle(req, res).unwrap();
+        // Route not found check if path exist in assets.
+        if res.status_code == 404 {
+            if let Some(assets) = &mut self.assets {
+                assets.handle(req, res);
+            }
         }
 
-        return Ok(handler.teardown(req, res).await.unwrap());
+        return handler.teardown(ptr, req, res).await;
     }
 
     pub(crate) async fn on_ws_request<'a>(&'a mut self, req: &'a mut Request, res: &'a mut Response) -> Option<(&'a Route<WsRoute>, &'a mut Request, &'a mut Response)> {
-        RequestHandler::new().setup(req, res).await.unwrap();
+        let ptr = &self as *const &mut Self as usize;
+
+        RequestHandler::new().setup(ptr, req, res).await.unwrap();
 
         return self.routes.handle_ws_request(req, res);
+    }
+
+    pub(crate) fn instance<'s>(ptr: usize) -> &'s mut Self {
+        return unsafe { *(ptr as *mut &mut Server) };
     }
 }
