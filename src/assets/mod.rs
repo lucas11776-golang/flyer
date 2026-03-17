@@ -11,6 +11,9 @@ use crate::{
     response::Response,
     utils::timestamp
 };
+
+
+#[derive(Clone)]
 pub(crate) struct Asset {
     pub size: usize,
     pub expires: u128,
@@ -19,6 +22,7 @@ pub(crate) struct Asset {
 }
 
 pub(crate) type Cache = HashMap<String, Asset>;
+
 pub(crate) struct Assets {
     path: String,
     expires: u128,
@@ -38,64 +42,59 @@ impl Assets {
     }
 
     pub fn handle<'a>(&mut self, req: &'a mut Request, resp: &'a mut Response) -> Result<()> {
-        let name = format!("{}/{}", self.path, req.path.trim_start_matches("/"));
-        let cached_asset = self.cache.get(&name);
-
-        if cached_asset.is_some() {
-            let asset = cached_asset.unwrap();
-
-            if  asset.expires > timestamp().unwrap() {
-                resp.body(&asset.data)
-                    .status_code(200)
-                    .header("Content-Type", &asset.content_type);
-
-                return Ok(());
-            }
-        }
-
-        let cached_asset = self.read_asset(name.clone()).unwrap();
-
-        if !cached_asset.is_some() {
+        if req.path.trim_matches('/').is_empty() {
             return Ok(());
         }
 
-        let asset = cached_asset.unwrap();
+        let name = format!("{}/{}", self.path, req.path.trim_start_matches("/"));
 
-        resp.body(&asset.data)
-            .status_code(200)
-            .header("Content-Type", &asset.content_type);
-
-        if asset.size > self.max_size.clone() {
-            self.cache.remove(&name.clone());
-        }
+        match self.cache.get(&name) {
+            Some(asset) => {
+                resp.body(&asset.data)
+                    .status_code(200)
+                    .header("Content-Type", &asset.content_type);
+            },
+            None => {
+                match self.read_asset(&name) {
+                    Some(asset) => {
+                        resp.body(&asset.data)
+                            .header("Content-Type", &asset.content_type)
+                            .status_code(200);
+                    },
+                    None => { },
+                };
+            },
+        };
 
         return Ok(());
     }
 
-    fn read_asset(&mut self, name: String) -> Result<Option<&Asset>> {
-        let file = File::open(name.clone());
+    fn read_asset(&mut self, filename: &str) -> Option<Asset> {
+        return match File::open(filename) {
+            Ok(mut file) => {
+                let mut data= String::new();
 
-        if !file.is_ok() {
-            return Ok(None);
-        }
+                let asset = Asset {
+                    size: file.read_to_string(&mut data).unwrap(),
+                    expires: timestamp().unwrap() + (1000 * self.expires),
+                    data: data.into_bytes(),
+                    content_type: self.get_content_type(filename),
+                };
 
-        let mut content = String::new();
-        let reading = file.unwrap().read_to_string(&mut content);
+                if asset.size <= self.max_size {
+                    if let Some(asset) = self.cache.insert(filename.to_string(), asset.clone()) {
+                        return Some(asset)
+                    }
+                }
 
-        if !reading.is_ok() {
-            return Ok(None);
-        }
+                return Some(asset);
+            },
+            Err(_) => None,
+        };
+    }
 
-        self.cache.insert(name.clone(), Asset {
-            size: reading.unwrap(),
-            expires: timestamp().unwrap() + (1000 * self.expires),
-            data: content.into(),
-            content_type: from_path(name.split("/").last().unwrap_or("")).first_or_octet_stream().to_string(),
-        });
-
-        let asset = self.cache.get(&name).unwrap();
-
-        return Ok(Some(asset))
+    fn get_content_type(&self, filename: &str) -> String {
+        return from_path(filename.split("/").last().unwrap_or("")).first_or_octet_stream().to_string();
     }
 
 }
