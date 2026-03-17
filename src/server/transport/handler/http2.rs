@@ -4,14 +4,10 @@ use std::net::SocketAddr;
 use bytes::Bytes;
 
 use h2::server::SendResponse;
-use http::{HeaderMap, Response as HttpResponse};
+use http::Response as HttpResponse;
 use url_domain_parse::Url;
 
-use crate::{
-    cookie::Cookies,
-    request::{form::{Files, Form}, parser::parse_content_type},
-    utils::Headers
-};
+use crate::{cookie::Cookies, request::{form::{Files, Form}}, utils::Headers};
 use crate::response::{Response};
 use crate::request::Request;
 use crate::utils::url::parse_query_params;
@@ -32,10 +28,18 @@ impl Handler {
         };
     }
 
-    pub async fn transform(&mut self, request: http::Request<h2::RecvStream>,) -> Result<Request> {
-        let headers = self.hashmap_to_headers(request.headers());
+    pub async fn handle(&mut self, request: http::Request<h2::RecvStream>,) -> Result<Request> {
+        let headers = {
+            let mut hd = Headers::new();
 
-        let mut req = Request {
+            for (k, v) in request.headers().iter() {
+                hd.insert(k.as_str().to_string(), v.to_str().unwrap_or_default().to_string());
+            }
+            
+            hd
+        };
+
+        return Ok(Request {
             ip: self.addr.ip().to_string(),
             host: headers.get("host")
                 .cloned()
@@ -45,20 +49,14 @@ impl Handler {
             method: request.method().to_string(),
             path: Url::parse(request.uri().to_string().as_str()).unwrap().path().to_string(),
             parameters: Values::new(),
-            query: parse_query_params(request.uri().query().unwrap_or(""))?,
+            query: parse_query_params(request.uri().query().unwrap_or("")),
             protocol: "HTTP/2.0".to_string(),
             headers: headers,
             body: request.into_body().data().await.or(Some(Ok(Bytes::new()))).unwrap().unwrap().to_vec(),
             form: Form::new(Values::new(), Files::new()),
             session: None,
             cookies: Box::new(Cookies::new(Values::new())),
-        };
-
-        if req.method == "POST" || req.method == "PATCH" || req.method == "PUT" {
-            req = parse_content_type(req).await.unwrap();
-        }
-
-        return Ok(req);
+        });
     }
 
     pub async fn write(&mut self, req: &mut Request, res: &mut Response) -> Result<()> {
@@ -79,15 +77,4 @@ impl Handler {
 
         Ok(())
     }
-
-    fn hashmap_to_headers(&mut self, map: &HeaderMap) -> Headers {
-        let mut headers = Headers::new();
-
-        for (k, v) in map.iter() {
-            headers.insert(k.as_str().to_string(), v.to_str().unwrap_or_default().to_string());
-        }
-
-        return headers;
-    }
-
 }

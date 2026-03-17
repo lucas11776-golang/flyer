@@ -1,6 +1,6 @@
 use anyhow::Result;
 
-use crate::{request::Request, response::Response, server::Server, utils::cookie::cookie_parse};
+use crate::{request::{Request, parser::parse_content_type}, response::Response, server::Server, utils::cookie::cookie_parse};
 
 pub(crate) trait Handler {
     fn new() -> Self;
@@ -28,6 +28,10 @@ impl Handler for RequestHandler {
     }
 
     async fn setup<'a>(&self, ptr: usize, req: &'a mut Request, res: &'a mut Response) -> Result<()> {
+        if req.method == "POST" || req.method == "PATCH" || req.method == "PUT" {
+            parse_content_type(req).await.unwrap();
+        }
+
         if let Ok(cookies) = cookie_parse(req.header("cookie")) {
             req.cookies.cookies = cookies;
         }

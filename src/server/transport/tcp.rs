@@ -126,7 +126,7 @@ where
                     Ok((request, send)) => {
                         tokio::spawn(async move {
                             let mut handler = http2::Handler::new(addr, send);
-                            let (mut req, mut res) = (handler.transform(request).await.unwrap(), Response::new());
+                            let (mut req, mut res) = (handler.handle(request).await.unwrap(), Response::new());
 
                             Server::instance(ptr).on_web_request(&mut req, &mut res).await.unwrap();
 

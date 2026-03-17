@@ -9,7 +9,6 @@ use h3_quinn::BidiStream;
 use crate::cookie::Cookies;
 use crate::request::Request;
 use crate::request::form::{Files, Form};
-use crate::request::parser::parse_content_type;
 use crate::response::Response;
 use crate::utils::url::parse_query_params;
 use crate::utils::Values;
@@ -25,6 +24,25 @@ impl Handler {
             request: request,
             stream: stream
         }
+    }
+    
+    pub async fn handle(&mut self) -> Result<Request> {
+        let headers = self.get_headers();
+        
+        return Ok(Request{
+            ip: "127.0.0.1".to_owned(), // TODO: Get real request ip address
+            host: self.get_host(&headers),
+            headers: headers,
+            method: self.request.method().to_string().to_uppercase(),
+            path: self.request.uri().path().to_string(),
+            parameters: Values::new(),
+            query: parse_query_params(self.request.uri().query().unwrap_or("")),
+            protocol: "HTTP/3.0".to_string(),
+            body: vec![],
+            form: Form::new(Values::new(), Files::new()),
+            session: None,
+            cookies: Box::new(Cookies::new(Values::new())),
+        });
     }
 
     fn get_headers(&mut self) -> Values {
@@ -44,31 +62,6 @@ impl Handler {
             .or_else(|| headers.get(":authority").cloned())
             .or_else(|| Some(String::from("127.0.0.1"))) // TODO: fix this temp (src/router/route.rs domain)
             .unwrap_or_default();
-    }
-
-    pub async fn handle(&mut self) -> Result<Request> {
-        let headers = self.get_headers();
-        
-        let mut req = Request{
-            ip: "127.0.0.1".to_owned(), // TODO: Get real request ip address
-            host: self.get_host(&headers),
-            headers: headers,
-            method: self.request.method().to_string().to_uppercase(),
-            path: self.request.uri().path().to_string(),
-            parameters: Values::new(),
-            query: parse_query_params(self.request.uri().query().unwrap_or(""))?,
-            protocol: "HTTP/3.0".to_string(),
-            body: vec![],
-            form: Form::new(Values::new(), Files::new()),
-            session: None,
-            cookies: Box::new(Cookies::new(Values::new())),
-        };
-
-        if req.method == "POST" || req.method == "PATCH" || req.method == "PUT" {
-            req = parse_content_type(req).await.unwrap();
-        }
-
-        return Ok(req);
     }
 
     pub async fn write(&mut self, req: &mut Request, res: &mut Response) -> Result<()> {
