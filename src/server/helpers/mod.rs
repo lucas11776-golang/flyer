@@ -7,6 +7,8 @@ use crate::{
     utils::cookie::cookie_parse
 };
 
+pub(crate) mod parse;
+
 pub(crate) trait Handler {
     fn new() -> Self;
     async fn setup<'a>(&self, ptr: usize, req: &'a mut Request, res: &'a mut Response) -> Result<()>;

@@ -29,15 +29,11 @@ impl Handler {
     }
 
     pub async fn handle(&mut self, request: http::Request<h2::RecvStream>,) -> Result<Request> {
-        let headers = {
-            let mut hd = Headers::new();
+        let mut headers = Headers::new();
 
-            for (k, v) in request.headers().iter() {
-                hd.insert(k.as_str().to_string(), v.to_str().unwrap_or_default().to_string());
-            }
-            
-            hd
-        };
+        for (k, v) in request.headers().iter() {
+            headers.insert(String::from(k.as_str().to_lowercase()), v.to_str().unwrap_or_default().to_string());
+        }
 
         return Ok(Request {
             ip: self.addr.ip().to_string(),

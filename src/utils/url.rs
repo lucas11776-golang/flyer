@@ -12,8 +12,11 @@ pub fn clean_url(uri: String) -> String {
         .to_string();
 }
 
-pub fn uri_to_vec(uri: String) -> Vec<String> {
-    return clean_url(uri).split("/").map(|x| x.to_string()).collect();
+pub fn uri_to_segments(uri: String) -> Vec<String> {
+    return uri.split('/')
+        .filter(|s| !s.is_empty())
+        .map(|s| String::from(s))
+        .collect()
 }
 
 pub fn parse_query_params(query: &str) -> Values {

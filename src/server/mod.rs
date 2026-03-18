@@ -4,13 +4,12 @@ use anyhow::Result;
 use async_std::task::block_on;
 use rustls::ServerConfig;
 use tokio::{join, runtime::Builder};
-use lazy_static::lazy_static;
 
 use crate::{
     assets::Assets,
     request::Request,
     response::Response,
-    router::{self, Router, WsRoute, route::Route, routes::Routes},
+    router::{Router, WsRoute, resolver::RouterResolver, route::Route, routes::Routes},
     server::{helpers::{Handler, RequestHandler},
     transport::{tcp, udp}},
     session::SessionManager,
@@ -21,10 +20,6 @@ pub(crate) mod transport;
 pub(crate) mod helpers;
 
 pub(crate) type InitCallback = dyn Fn() + Send + Sync;
-
-lazy_static! {
-    static ref SERVER: Option<Server> = None;
-}
 
 pub struct Server {
     pub(crate) host: String,
@@ -126,7 +121,7 @@ impl Server {
     }
 
     async fn start_server(&mut self) {
-        router::resolver::resolve(self);
+        RouterResolver::resolve(self);
         // Using memory address to avoid compiler checks we server will not be mut
         // Getting server value - (*(server_ptr as *const &mut Server))
         let ptr = &self as *const &mut Self as usize;

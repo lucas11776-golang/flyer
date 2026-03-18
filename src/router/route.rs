@@ -7,10 +7,10 @@ use crate::{
     request::Request,
     response::Response,
     router::{middleware::register, next::Next},
-    utils::{Values, url::uri_to_vec}
+    utils::{Values, url::uri_to_segments}
 };
 
-static PARAM_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"\{[a-zA-Z_]+\}").expect("Invalid parameter regex"));
+const PARAM_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"^\{([a-zA-Z_]+)\}$").expect("Invalid parameter regex"));
 
 pub struct Route<Handler: ?Sized> {
     pub(crate) subdomain: String,
@@ -38,85 +38,66 @@ impl <Handler: ?Sized>Route<Handler> {
 
         return self.parameters_route_match(req);
     }
-
-    fn dynamic_parameter_match(&self, path: String, matching: String) -> Option<(String, String)> {
-        if PARAM_REGEX.is_match(&path) == false {
-            return None;
-        }
-
-        return Some((path.trim_start_matches('{').trim_end_matches('}').to_owned(), matching));
-    }
     
-    // TODO: refactor
-    fn parameters_route_match<'a>(&self, req: &'a mut Request) -> (bool, Values) {
-        let mut parameters= Values::new();
-        let route_path= uri_to_vec(String::from(self.path.trim_matches('/')));
-        let request_path = uri_to_vec(req.path.clone());
-        // TODO: fix plugin Domain parser.
-        let url_result = Url::parse(format!("http://{}", &req.host).as_str()); // TODO: fix
+    pub fn parameters_route_match(&self, req: &Request) -> (bool, Values) {
+        let mut parameters = Values::new();
 
-        if url_result.is_err() {
+        let host_clean = req.host.trim_start_matches("http://").trim_start_matches("https://");
+        let Ok(url) = Url::parse(&format!("http://{}", host_clean)) else {
+            return (false, Values::new());
+        };
+        let sub_route: Vec<&str> = self.subdomain.split('.').filter(|s| !s.is_empty()).collect();
+        let sub_req_str = url.subdomain().unwrap_or_default();
+        let sub_req: Vec<&str> = sub_req_str.split('.').filter(|s| !s.is_empty()).collect();
+
+        if sub_route.len() != sub_req.len() {
             return (false, Values::new());
         }
 
-        let url = url_result.unwrap();
-        let subdomain_route: Vec<String> = self.subdomain.split(".").map(|v| v.to_string()).collect();
-        let subdomain_req: Vec<String> = url.subdomain().or(Some(String::new())).unwrap().split(".").map(|v| v.to_string()).collect();
-
-        for (i, _) in request_path.iter().enumerate() {
-            if subdomain_route.len() != subdomain_req.len() {
-                return (false, Values::new());
+        for (r_sub, q_sub) in sub_route.iter().zip(sub_req.iter()) {
+            if r_sub == q_sub {
+                continue;
             }
 
-            for (j, _ )in subdomain_route.iter().enumerate() {
-                if subdomain_route[j] == subdomain_req[j] {
-                    continue;
-                }
-
-                if subdomain_req[j] == "" {
-                    return (false, Values::new());
-                }
-
-                if let Some((k, v)) = self.dynamic_parameter_match(subdomain_route[j].clone(), subdomain_req[j].clone()) {                    
-                    parameters.insert(k, v);
-
-                    continue;
-                }
-
+            if let Some((k, v)) = self.dynamic_parameter_match(r_sub, q_sub) {
+                parameters.insert(k, v);
+            } else {
                 return (false, Values::new());
             }
+        }
 
-            if i > route_path.len() - 1 {
-                return (false, Values::new());
-            }
+        let route_segments = uri_to_segments(self.path.clone());
+        let req_segments = uri_to_segments(req.path.clone());
+        let has_wildcard = route_segments.last() == Some(&String::from("*"));
+        
+        if !has_wildcard && route_segments.len() != req_segments.len() {
+            return (false, Values::new());
+        }
 
-            if route_path[i] == "*" {
+        for (i, req_seg) in route_segments.iter().enumerate() {
+            if *req_seg == "*" {
                 return (true, parameters);
             }
 
-            if route_path[i] == request_path[i] {
-                // Off guard
-                if request_path.len() - 1 == i && route_path.len() > request_path.len() {
-                    return (false, Values::new());
-                }
+            let Some(q_seg) = req_segments.get(i) else {
+                return (false, Values::new());
+            };
 
+            if req_seg == q_seg {
                 continue;
             }
 
-            if let Some((k, v)) = self.dynamic_parameter_match(route_path[i].clone(), request_path[i].clone()) {
+            if let Some((k, v)) = self.dynamic_parameter_match(req_seg, q_seg) {
                 parameters.insert(k, v);
-
-                continue;
-            }
-
-            // Off guard
-            if request_path.len() - 1 == i && route_path.len() > request_path.len() {
+            } else {
                 return (false, Values::new());
             }
-
-            return (false, Values::new());
         }
 
-        return (true, parameters)
+        return (true, parameters);
+    }
+
+    fn dynamic_parameter_match(&self, route_seg: &str, req_seg: &str) -> Option<(String, String)> {
+        return PARAM_REGEX.captures(route_seg).map(|cap| (cap[1].to_string(), req_seg.to_string()));
     }
 }

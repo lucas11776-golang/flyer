@@ -10,8 +10,8 @@ use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader};
 
 use crate::cookies::Cookies;
 use crate::request::form::{Files, Form};
-use crate::response::parser::parse;
 use crate::response::{Response};
+use crate::server::helpers::parse::http_1_parse;
 use crate::utils::url::parse_query_params;
 use crate::utils::{Headers, Values};
 use crate::request::Request;
@@ -48,8 +48,8 @@ where
                 return Err(Error::new(ErrorKind::UnexpectedEof, "connection closed").into());
             }
 
-            let mut headers = [httparse::EMPTY_HEADER; 64];
-            let mut req = httparse::Request::new(&mut headers);
+            let mut headers_ptr = [httparse::EMPTY_HEADER; 64];
+            let mut req = httparse::Request::new(&mut headers_ptr);
             
             if let httparse::Status::Complete(size) = req.parse(&buffer).unwrap() {
                 break size;
@@ -115,10 +115,10 @@ where
             }
         }
 
-        let mut hd = Headers::new();
+        let mut headers = Headers::new();
 
         for h in req.headers.iter().filter(|h| !h.name.is_empty()) {
-            hd.insert(h.name.to_lowercase(), String::from_utf8_lossy(h.value).to_string());
+            headers.insert(h.name.to_lowercase(), String::from_utf8_lossy(h.value).to_string());
         }
 
         let url = req.path.unwrap_or("");
@@ -132,20 +132,20 @@ where
             cookies: Box::new(Cookies::new(Values::new())),
             session: None,
             ip: self.addr.ip().to_string(),
-            host: hd.get("host").cloned().unwrap_or_default(),
+            host: headers.get("host").cloned().unwrap_or_default(),
             method: req.method.unwrap_or("GET").to_string(),
             path: path.to_string(),
             query,
             parameters: Values::new(),
             protocol: "HTTP/1.1".to_string(),
-            headers: hd,
+            headers,
             body,
             form: Form::new(Values::new(), Files::new()),
         })
     }
 
     pub async fn write(&mut self, req: &mut Request, res: &mut Response) -> Result<()> {
-        self.rw.write_all(&parse(res, Some(&mut req.cookies.new_cookie))).await.unwrap();
+        self.rw.write_all(&http_1_parse(res, Some(&mut req.cookies.new_cookie))).await.unwrap();
         self.rw.flush().await.unwrap();
         Ok(())
     }

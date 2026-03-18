@@ -30,11 +30,15 @@ impl Handler {
     }
     
     pub async fn handle(&mut self) -> Result<Request> {
-        let headers = self.get_headers();
+        let mut headers = Values::new();
+
+        for (k, v) in self.request.headers() {
+            headers.insert(k.to_string(), v.to_str().unwrap().to_string());
+        }
         
         return Ok(Request{
             ip: self.addr.to_string(),
-            host: self.get_host(&headers),
+            host: self.get_host(),
             headers: headers,
             method: self.request.method().to_string().to_uppercase(),
             path: self.request.uri().path().to_string(),
@@ -48,22 +52,14 @@ impl Handler {
         });
     }
 
-    fn get_headers(&mut self) -> Values {
-        let mut headers = Values::new();
-
-        for (k, v) in self.request.headers() {
-            headers.insert(k.to_string(), v.to_str().unwrap().to_string());
-        }
-
-        return headers;
-    }
-
-    fn get_host(&mut self, headers: &Values) -> String {
-        return headers
-            .get("host")
-            .cloned()
-            .or_else(|| headers.get(":authority").cloned())
-            .or_else(|| Some(String::from("127.0.0.1"))) // TODO: fix this temp (src/router/route.rs domain)
+    fn get_host(&mut self) -> String {
+        return self.request.uri()
+            .authority()
+            .map(|a| String::from(a.as_str()))
+            .or(self.request
+                .headers()
+                .get(http::header::HOST)
+                .and_then(|h| Some(String::from(h.to_str().unwrap()))))
             .unwrap_or_default();
     }
 
