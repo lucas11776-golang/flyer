@@ -7,7 +7,7 @@ use h2::server::SendResponse;
 use http::Response as HttpResponse;
 use url_domain_parse::Url;
 
-use crate::{cookie::Cookies, request::{form::{Files, Form}}, utils::Headers};
+use crate::{cookies::Cookies, request::{form::{Files, Form}}, utils::Headers};
 use crate::response::{Response};
 use crate::request::Request;
 use crate::utils::url::parse_query_params;

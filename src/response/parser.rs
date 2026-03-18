@@ -1,4 +1,6 @@
-use crate::{cookie::Cookie, response::Response};
+
+
+use crate::{cookies::Cookie, response::Response};
 
 pub fn parse(response: &mut Response, cookies: Option<&mut Vec<Cookie>>) -> Vec<u8> {
     let mut res = Vec::new();

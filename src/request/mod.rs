@@ -4,7 +4,7 @@ pub mod parser;
 use std::cmp::Ordering;
 
 use crate::{
-    cookie::Cookies,
+    cookies::Cookies,
     request::form::{File, Files, Form},
     session::Session,
     utils::{Headers, Values}

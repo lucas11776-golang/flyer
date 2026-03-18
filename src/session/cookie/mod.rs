@@ -1,6 +1,6 @@
-use std::io::Result;
 use std::time::Duration;
 
+use anyhow::Result;
 use cookie::Cookie;
 use serde::{Deserialize, Serialize};
 use cookie::time::{Duration as DurationCookie, OffsetDateTime};
@@ -22,6 +22,16 @@ pub struct SessionCookieManager {
     encryption_key: String,
 }
 
+impl SessionCookieManager {
+    pub fn new(expires: Duration, cookie_name: &str, encryption_key: &str) -> Self {
+        return Self {
+            expires: expires,
+            cookie_name: cookie_name.to_owned(),
+            encryption_key: string_fixed_length(encryption_key, 32),
+        };
+    }
+}
+
 #[derive(Debug)]
 pub(crate) struct SessionCookie {
     pub(crate) values: Values,
@@ -31,6 +41,18 @@ pub(crate) struct SessionCookie {
     pub(crate) new_errors: Values,
 }
 
+impl SessionCookie {
+    pub(crate) fn new(values: Values, errors: Values, old: Values) -> Self {
+        return Self {
+            values: values,
+            errors: errors,
+            old: old,
+            new_old: Values::new(),
+            new_errors: Values::new(),
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize)]
 pub(crate) struct CookieStorage {
     pub values: Values,
@@ -38,16 +60,7 @@ pub(crate) struct CookieStorage {
     pub old: Values,
 }
 
-pub(crate) fn new_session_cookie(values: Values, errors: Values, old: Values) -> SessionCookie {
-    return SessionCookie {
-        values: values,
-        errors: errors,
-        old: old,
-        new_old: Values::new(),
-        new_errors: Values::new(),
-    }
-}
-
+#[deprecated]
 pub fn new_session_manager(expires: Duration, cookie_name: &str, encryption_key: &str) -> impl SessionManager {
     return SessionCookieManager {
         expires: expires,
@@ -58,26 +71,27 @@ pub fn new_session_manager(expires: Duration, cookie_name: &str, encryption_key:
 
 pub(crate) fn parse_raw_cookie(encryption_key: String, raw_cookie: Option<&String>) -> Result<SessionCookie> {
     if raw_cookie.is_none() {
-        return Ok(new_session_cookie(Values::new(), Values::new(), Values::new()));
+        return Ok(SessionCookie::new(Values::new(), Values::new(), Values::new()));
     }
 
     let payload = decrypt(&encryption_key, raw_cookie.unwrap());
 
     if payload.is_err() {
-        return Ok(new_session_cookie(Values::new(), Values::new(), Values::new()));
+        return Ok(SessionCookie::new(Values::new(), Values::new(), Values::new()));
     }
 
     let result = serde_json::from_str::<CookieStorage>(&payload.unwrap());
 
     if result.is_err() {
-        return Ok(new_session_cookie(Values::new(), Values::new(), Values::new()));
+        return Ok(SessionCookie::new(Values::new(), Values::new(), Values::new()));
     }
 
     let storage = result.unwrap();
 
-    return Ok(new_session_cookie(storage.values, storage.errors, storage.old));
+    return Ok(SessionCookie::new(storage.values, storage.errors, storage.old));
 }
 
+// TODO: refactor
 impl SessionManager for SessionCookieManager {
     fn setup<'a>(&mut self, req: &'a mut Request, _res: &'a mut Response) -> Result<()> {
         let cookies = cookie_parse(req.header("cookie")).unwrap();
@@ -101,15 +115,10 @@ impl SessionManager for SessionCookieManager {
                 old: session.new_old.clone(),
             });
 
-
-            // println!("COOKIE -> {:?}", data.unwrap());
-
             let payload = encrypt(self.encryption_key.as_str(), data.unwrap().as_str()).unwrap();
             let mut cookie = Cookie::new(self.cookie_name.clone(), payload);
 
             cookie.set_expires(OffsetDateTime::now_utc() + DurationCookie::seconds(self.expires.as_secs().try_into().unwrap()));
-
-
 
             res.header("Set-Cookie", &cookie.to_string());
 

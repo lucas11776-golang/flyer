@@ -11,7 +11,7 @@ pub mod response;
 pub mod ws;
 pub mod server;
 pub mod utils;
-pub mod cookie;
+pub mod cookies;
 pub mod session;
 pub mod view;
 pub mod validation;

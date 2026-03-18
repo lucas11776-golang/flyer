@@ -1,6 +1,11 @@
 use anyhow::Result;
 
-use crate::{request::{Request, parser::parse_content_type}, response::Response, server::Server, utils::cookie::cookie_parse};
+use crate::{
+    request::{Request, parser::parse_content_type},
+    response::Response,
+    server::Server,
+    utils::cookie::cookie_parse
+};
 
 pub(crate) trait Handler {
     fn new() -> Self;
@@ -8,17 +13,29 @@ pub(crate) trait Handler {
     async fn teardown<'a>(&self, ptr: usize, req: &'a mut Request, res: &'a mut Response) -> Result<()>;
 }
 
-pub(crate) struct RequestHandler;
+pub(crate) struct RequestHandler { }
 
 impl RequestHandler {
-    fn handle_session<'a>(&self, ptr: usize, req: &'a mut Request, res: &'a mut Response) -> Result<()> {
-        if !req.is_asset() {
-            if let Some(manager) = &mut Server::instance(ptr).session_manager {
-                manager.setup(req, res).unwrap();
-            }
+    fn setup_session<'a>(&self, ptr: usize, req: &'a mut Request, res: &'a mut Response) -> Result<()> {
+        if req.is_asset() {
+            return Ok(());
         }
 
-        return Ok(());
+        return Ok(match &mut Server::instance(ptr).session_manager  {
+            Some(manager) =>  manager.setup(req, res).unwrap(),
+            None => {},
+        });
+    }
+
+    fn teardown_session<'a>(&self, ptr: usize, req: &'a mut Request, res: &'a mut Response) -> Result<()> {
+        if req.is_asset() {
+            return Ok(());
+        }
+
+        return Ok(match &mut Server::instance(ptr).session_manager {
+            Some(manager) => manager.teardown(req, res).unwrap(),
+            None => (),
+        });
     }
 }
 
@@ -36,7 +53,7 @@ impl Handler for RequestHandler {
             req.cookies.cookies = cookies;
         }
 
-        return self.handle_session(ptr, req, res);
+        return self.setup_session(ptr, req, res);
     }
 
     async fn teardown<'a>(&self, ptr: usize, req: &'a mut Request, res: &'a mut Response) -> Result<()> {
@@ -46,6 +63,6 @@ impl Handler for RequestHandler {
             }
         }
 
-        return self.handle_session(ptr, req, res);
+        return self.teardown_session(ptr, req, res);
     }
 }

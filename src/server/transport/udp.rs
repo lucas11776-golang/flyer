@@ -1,11 +1,13 @@
+use std::net::SocketAddr;
 use std::sync::{Arc, LazyLock};
 use std::io::Result;
 
 use bytes::Bytes;
 use h3_quinn::quinn::crypto::rustls::QuicServerConfig;
 use quinn::{Endpoint, ServerConfig as QuinnServerConfig};
-use h3::server::Connection as H3Server;
-use h3_quinn::Connection as H3Conn;
+use h3_quinn::Connection as H3QuinnConn;
+
+use h3::server::Connection as H3ServerConn;
 use rustls::ServerConfig;
 
 use crate::response::Response;
@@ -40,8 +42,10 @@ async fn listener(ptr: usize, listener: Endpoint) {
         tokio::spawn(async move {
             match incoming.await {
                 Ok(conn) => {
-                    match H3Server::<H3Conn, Bytes>::new(H3Conn::new(conn)).await {
-                        Ok(server) => listen_peer_server_connection(ptr, server).await,
+                    let addr = conn.remote_address();
+
+                    match H3ServerConn::<H3QuinnConn, Bytes>::new(H3QuinnConn::new(conn)).await {
+                        Ok(server) => listen_peer_server_connection(ptr, server, addr).await,
                         Err(_) => { /* Log */ },
                     }
                 },
@@ -51,11 +55,11 @@ async fn listener(ptr: usize, listener: Endpoint) {
     }
 }
 
-async fn listen_peer_server_connection(ptr: usize, mut server: H3Server<H3Conn, Bytes>) {
-    while let Ok(Some(resolver)) = server.accept().await {
+async fn listen_peer_server_connection(ptr: usize, mut server: H3ServerConn<H3QuinnConn, Bytes>, addr: SocketAddr) {
+    while let Ok(Some(incoming)) = server.accept().await {
         tokio::spawn(async move {
-            let (request, stream) = resolver.resolve_request().await.unwrap();
-            let mut handler = http3::Handler::new(request, stream);
+            let (request, stream) = incoming.resolve_request().await.unwrap();
+            let mut handler = http3::Handler::new(request, stream, addr);
             let (mut req, mut res) = (handler.handle().await.unwrap(), Response::new());
 
             Server::instance(ptr).on_web_request(&mut req, &mut res).await.unwrap();

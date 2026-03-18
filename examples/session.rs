@@ -5,7 +5,7 @@ use flyer::{
     response::Response,
     router::next::Next,
     server,
-    session::cookie::new_session_manager
+    session::cookie::SessionCookieManager
 };
 
 /// Controller
@@ -57,7 +57,7 @@ pub async fn guest<'a>(req: &'a mut Request, res: &'a mut Response, next: &'a mu
 
 fn main() {
     let server = server("127.0.0.1", 9999)
-        .session(new_session_manager(Duration::from_secs((60 * 60) * 2), "session_cookie_key_name", "encryption"));
+        .session(SessionCookieManager::new(Duration::from_secs((60 * 60) * 2), "session_cookie_key_name", "encryption"));
 
     server.router().group("/", |router| {
         router.get("/", home_view).middleware(auth);

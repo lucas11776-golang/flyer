@@ -59,8 +59,10 @@ impl LruCache {
         if let Some(&idx) = self.map.get(&key) {
             self.total_size = self.total_size + value.size - self.nodes[idx].value.size;
             self.nodes[idx].value = value;
+
             self.move_to_head(idx);
             self.evict_if_needed();
+            
             return;
         }
 
@@ -88,7 +90,9 @@ impl LruCache {
 
         self.map.insert(key, idx);
         self.insert_at_head(idx);
+        
         self.total_size += value.size;
+
         self.evict_if_needed();
     }
 
@@ -168,6 +172,7 @@ impl LruCache {
 
         self.map.remove(&node.key);
         self.free.push(idx);
+
         self.total_size = self.total_size.saturating_sub(node.value.size);
 
         return node.value

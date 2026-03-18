@@ -4,7 +4,7 @@ fn main() {
     // let server = server_tls("127.0.0.1", 8080, "host.key", "host.cert");
     let server = server("127.0.0.1", 9999);
 
-    server.router().get("/", async |req, res| {
+    server.router().get("/", async |_req, res| {
         return res.html("<h1>Hello World</h1>");
     });
 
@@ -26,11 +26,9 @@ fn main() {
         return next.handle(res)
     });
 
-
     server.router().ws("/", async |_req, _ws| {
         println!("WEBSOCKET ROUTE CALLBACK");
     });
 
     server.listen();
-
 }

@@ -1,4 +1,4 @@
-use flyer::{server, view::view_data};
+use flyer::{server, view::ViewData};
 use serde::Serialize;
 
 /*
@@ -32,7 +32,7 @@ fn main() {
         .view("views");
 
     server.router().get("/", async |_req, res| {
-        let mut data = view_data();
+        let mut data = ViewData::new();
 
         data.insert("user", &User{
             first_name: "Jeo",

@@ -442,7 +442,7 @@ Create file called `index.html` in folder called views and copy the content belo
 The next step to insert code below in `main.rs`.
 
 ```rust
-use flyer::{server, view::view_data};
+use flyer::{server, view::ViewData};
 use serde::Serialize;
 
 #[derive(Serialize)]
@@ -456,7 +456,7 @@ fn main() {
         .view("views");
 
     server.router().get("/", async |_req, res| {
-        let mut data = view_data();
+        let mut data = ViewData::new();
 
         data.insert("user", &User{
             first_name: "Jeo",
@@ -511,7 +511,7 @@ use flyer::{
     request::Request,
     response::Response,
     server,
-    session::cookie::new_session_manager,
+    session::cookie::SessionCookieManager,
     utils::{env, load_env}
 };
 
@@ -523,7 +523,7 @@ fn main() {
     load_env(".env");
 
     let mut server = server(env("HOST").as_str(), env("PORT").parse().unwrap())
-        .session(new_session_manager(Duration::from_hours(2), "cookie_token", "test_123"))
+        .session(SessionCookieManager::new(Duration::from_hours(2), "cookie_token", "test_123"))
         .view("views");
 
     server.router().group("/", |router| {
@@ -574,7 +574,7 @@ The next step to insert code below in `main.rs`.
 ```rs
 use std::time::Duration;
 
-use flyer::{server, view::view_data};
+use flyer::{server, view::ViewData};
 
 fn main() {
     let mut server = server("127.0.0.1", 9999)
@@ -582,7 +582,7 @@ fn main() {
         .view("views");
 
     server.router().get("/", async |_req, res| {
-        return res.view("index.html", Some(view_data()));
+        return res.view("index.html", Some(ViewData::new()));
     });
 
     println!("Running Server: {}", server.address());
@@ -664,7 +664,7 @@ use flyer::{
     response::Response,
     router::next::Next,
     server,
-    session::cookie::new_session_manager
+    session::cookie::SessionCookieManager
 };
 
 /// Controller
@@ -711,7 +711,7 @@ pub async fn guest<'a>(req: &'a mut Request, res: &'a mut Response, next: &'a mu
 
 fn main() {
     let mut server = server("127.0.0.1", 9999)
-        .session(new_session_manager(Duration::from_hours(2), "session_cookie_key_name", "encryption"));
+        .session(SessionCookieManager::new(Duration::from_hours(2), "session_cookie_key_name", "encryption"));
 
     server.router().group("/", |router| {
         router.get("/", home_view).middleware(auth);
@@ -813,12 +813,12 @@ use flyer::{
     request::Request,
     response::Response,
     server, 
-    session::cookie::new_session_manager,
-    view::view_data
+    session::cookie::SessionCookieManager,
+    view::ViewData
 };
 
 pub async fn home<'a>(_req: &'a mut Request, res: &'a mut Response) -> &'a mut Response {
-    return res.view("index.html", Some(view_data()));
+    return res.view("index.html", Some(ViewData::new()));
 }
 
 pub async fn upload<'a>(req: &'a mut Request, res: &'a mut Response) -> &'a mut Response {
@@ -835,7 +835,7 @@ pub async fn upload<'a>(req: &'a mut Request, res: &'a mut Response) -> &'a mut 
 
 fn main() {
     let mut server = server("127.0.0.1", 9999)
-        .session(new_session_manager(Duration::from_hours(2), "session_cookie_key_name", "encryption"))
+        .session(SessionCookieManager::new(Duration::from_hours(2), "session_cookie_key_name", "encryption"))
         .view("views")
         .set_request_max_size(1024 * 100); // Max Request size 100MB
 
@@ -1003,7 +1003,7 @@ use flyer::{
     response::Response,
     router::next::Next,
     server,
-    session::cookie::new_session_manager,
+    session::cookie::SessionCookieManager,
     validation::{Rules, Validator, rules}
 };
 use tokio::time::sleep;
@@ -1060,7 +1060,7 @@ async fn login_form<'a>(req: &'a mut Request, res: &'a mut Response, next: &'a m
 
 fn main() {
     let mut server = server("127.0.0.1", 9999)
-        .session(new_session_manager(Duration::from_hours(2), "session_cookie_key_name", "encryption"))
+        .session(SessionCookieManager::new(Duration::from_hours(2), "session_cookie_key_name", "encryption"))
         .view("views")
         .assets("assets", 1024, Duration::from_hours(2).as_millis());
 

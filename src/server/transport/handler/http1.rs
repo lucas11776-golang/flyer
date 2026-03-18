@@ -8,7 +8,7 @@ use anyhow::Result;
 use bytes::BytesMut;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader};
 
-use crate::cookie::Cookies;
+use crate::cookies::Cookies;
 use crate::request::form::{Files, Form};
 use crate::response::parser::parse;
 use crate::response::{Response};
@@ -16,7 +16,7 @@ use crate::utils::url::parse_query_params;
 use crate::utils::{Headers, Values};
 use crate::request::Request;
 
-const MAX_LINE_LENGTH: usize = 4096;           // 4KB per line (e.g., Request Line)
+const MAX_LINE_LENGTH: usize = 4096; // 4KB per line (e.g., Request Line)
 
 #[allow(dead_code)]
 pub(crate) struct Handler<'a, RW> {

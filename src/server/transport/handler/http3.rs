@@ -1,4 +1,5 @@
 use std::io::Result;
+use std::net::SocketAddr;
 
 use bytes::Bytes;
 
@@ -6,7 +7,7 @@ use http::Request as HttpRequest;
 use h3::server::RequestStream;
 use h3_quinn::BidiStream;
 
-use crate::cookie::Cookies;
+use crate::cookies::Cookies;
 use crate::request::Request;
 use crate::request::form::{Files, Form};
 use crate::response::Response;
@@ -15,14 +16,16 @@ use crate::utils::Values;
 
 pub(crate) struct Handler {
     request: HttpRequest<()>,
-    stream: RequestStream<BidiStream<Bytes>, Bytes>
+    stream: RequestStream<BidiStream<Bytes>, Bytes>,
+    addr: SocketAddr
 }
 
 impl Handler {
-    pub fn new(request: HttpRequest<()>, stream: RequestStream<BidiStream<Bytes>, Bytes>) -> Self {
+    pub fn new(request: HttpRequest<()>, stream: RequestStream<BidiStream<Bytes>, Bytes>, add: SocketAddr) -> Self {
         return Self {
             request: request,
-            stream: stream
+            stream: stream,
+            addr: add
         }
     }
     
@@ -30,7 +33,7 @@ impl Handler {
         let headers = self.get_headers();
         
         return Ok(Request{
-            ip: "127.0.0.1".to_owned(), // TODO: Get real request ip address
+            ip: self.addr.to_string(),
             host: self.get_host(&headers),
             headers: headers,
             method: self.request.method().to_string().to_uppercase(),

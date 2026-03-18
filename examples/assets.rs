@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use flyer::{server, view::view_data};
+use flyer::{server, view::ViewData};
 
 /*
 
@@ -42,7 +42,7 @@ fn main() {
         .view("views");
 
     server.router().get("/", async |_req, res| {
-        return res.view("index.html", Some(view_data()));
+        return res.view("index.html", Some(ViewData::new()));
     });
 
     println!("Running Server: {}", server.address());

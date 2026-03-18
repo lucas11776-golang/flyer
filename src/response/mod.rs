@@ -2,9 +2,8 @@ pub mod parser;
 
 use serde::Serialize;
 
-use crate::{
-    utils::{Headers, Values},
-    view::ViewData,
+use crate::{utils::{Headers, Values},
+    view::{ViewBag, ViewData},
     ws::Writer
 };
 
@@ -17,11 +16,6 @@ pub struct Response {
     pub(crate) view: Option<ViewBag>,
     pub(crate) errors: Values,
     pub(crate) old: Values,
-}
-
-pub struct ViewBag {
-    pub(crate) view: String,
-    pub(crate) data: Option<ViewData>,
 }
 
 impl Response {
@@ -85,7 +79,7 @@ impl Response {
     }
 
     pub fn redirect(&mut self, to: &str) -> &mut Response {
-        let html = format!(r#"
+        let document = &format!(r#"
         <!DOCTYPE html>
         <meta http-equiv="Refresh" content="0, url='{}'">
         <head>
@@ -94,17 +88,15 @@ impl Response {
         </html>
         "#, to);
 
-        return self.html(&html).status_code(307);
+        return self.html(document).status_code(307);
     }
 
     pub fn back(&mut self) -> &mut Self {
-        let redirect = self.referer.clone();
-
-        if redirect == "" {
+        if self.referer.is_empty() {
             return self.redirect("/");
         }
         
-        return self.redirect(&redirect);
+        return self.redirect(&self.referer.clone());
     }
 
     pub fn with_error(&mut self, name: &str, error: &str) -> &mut Response {

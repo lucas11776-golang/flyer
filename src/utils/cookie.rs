@@ -4,14 +4,14 @@ use cookie::Cookie;
 
 use crate::utils::Values;
 
-pub fn cookie_parse<'a>(raw_cookie: String) -> Result<Values> {
-    let mut values = Values::new();
+pub fn cookie_parse<'a>(raw: String) -> Result<Values> {
+    let mut cookies = Values::new();
 
-    for result in Cookie::split_parse(raw_cookie) {
-        let cookie = result.unwrap();
-
-        values.insert(cookie.name().to_string(), cookie.value().to_string());
+    for cookie in Cookie::split_parse(raw) {
+        if let Ok(c) = cookie {
+            cookies.insert(c.name().to_string(), c.value().to_string());
+        }
     }
 
-    return Ok(values);
+    return Ok(cookies);
 }

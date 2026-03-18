@@ -4,8 +4,8 @@ use flyer::{
     request::Request,
     response::Response,
     server, 
-    session::cookie::new_session_manager,
-    view::view_data
+    session::cookie::SessionCookieManager,
+    view::ViewData
 };
 
 /*
@@ -48,7 +48,7 @@ TODO: Create file called index.html in views folder and paste html content below
 */
 
 pub async fn home<'a>(_req: &'a mut Request, res: &'a mut Response) -> &'a mut Response {
-    return res.view("index.html", Some(view_data()));
+    return res.view("index.html", Some(ViewData::new()));
 }
 
 pub async fn upload<'a>(req: &'a mut Request, res: &'a mut Response) -> &'a mut Response {
@@ -65,7 +65,7 @@ pub async fn upload<'a>(req: &'a mut Request, res: &'a mut Response) -> &'a mut 
 
 fn main() {
     let server = server("127.0.0.1", 9999)
-        .session(new_session_manager(Duration::from_secs((60 * 60) * 2), "session_cookie_key_name", "encryption"))
+        .session(SessionCookieManager::new(Duration::from_secs((60 * 60) * 2), "session_cookie_key_name", "encryption"))
         .view("views")
         .set_request_max_size(1024 * 100); // Max Request size 100MB
 

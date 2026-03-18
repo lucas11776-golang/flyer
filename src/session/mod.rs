@@ -1,6 +1,7 @@
 pub mod cookie;
 
-use std::io::Result;
+
+use anyhow::Result;
 
 use crate::request::Request;
 use crate::response::Response;
