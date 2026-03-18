@@ -1,11 +1,11 @@
-pub mod cookie;
-
-
 use anyhow::Result;
 
 use crate::request::Request;
 use crate::response::Response;
 use crate::utils::Values;
+
+pub mod cookie;
+pub mod file;
 
 pub trait Session: Send + Sync {
     fn values(&mut self) -> Values;

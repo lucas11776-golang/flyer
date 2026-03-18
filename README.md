@@ -599,7 +599,7 @@ You should see background color of black and Hello World with white color if you
 ```rust
 use flyer::{
     request::Request,
-    response::Response,
+    response::{HTTP_UNAUTHORIZED, Response},
     router::next::Next,
     server
 };
@@ -618,7 +618,7 @@ pub struct JsonMessage {
 
 pub async fn auth<'a>(req: &'a mut Request, res: &'a mut Response, next: &mut Next) -> &'a mut Response {
     if req.header("authorization") != "ey.jwt.token" {
-        return res.status_code(401).json(&JsonMessage{
+        return res.status_code(HTTP_UNAUTHORIZED).json(&JsonMessage{
             message: "Unauthorized Access".to_owned()
         })
     }

@@ -12,7 +12,7 @@ use crate::{
     router::{Router, WsRoute, resolver::RouterResolver, route::Route, routes::Routes},
     server::{helpers::{Handler, RequestHandler},
     transport::{tcp, udp}},
-    session::SessionManager,
+    session::{SessionManager, file::FileSessionManager},
     view::View
 };
 
@@ -42,13 +42,13 @@ impl Server {
             port: port,
             routers: Vec::new(),
             routes: Routes::default(),
-            session_manager: None,
             view: None,
             assets: None,
             request_max_size: (1024 * 20) * 1000,
             parallelism_max_size: available_parallelism().unwrap().into(),
             server_config: server_config,
-            init_callback: None
+            init_callback: None,
+            session_manager: Some(Box::new(FileSessionManager::new(None))),
         }
     }
 
