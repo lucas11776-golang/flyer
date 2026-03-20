@@ -56,9 +56,6 @@ pub(crate) async fn load_session(path: &str, session_id: String) -> FileStorage 
 }
 
 pub(crate) async fn save_session(path: &str, session_id: String, storage: &FileStorage) -> Result<()> {
-
-    println!("PATH -----> {}", format!("{}/{}", path.trim_end_matches("/"), session_id));
-
     return match File::create(format!("{}/{}", path.trim_end_matches("/"), session_id)).await {
         Ok(mut file) => {
             match file.write_all(serialize(storage).as_bytes()).await {

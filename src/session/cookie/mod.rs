@@ -87,14 +87,11 @@ impl SessionManager for SessionCookieManager {
         unsafe {
             let ptr = req.session.as_mut().unwrap() as *mut Box<dyn Session + 'static> as usize;
             let session = &mut **(ptr as *mut Box<SessionCookie>);
-
-            session.set_errors(res.errors.clone());
-            session.set_old(res.old.clone());
-
+            
             let data = serde_json::to_string(&CookieStorage {
                 values: session.values.clone(),
-                errors: session.new_errors.clone(),
-                old: session.new_old.clone(),
+                errors: res.errors.clone(),
+                old: res.old.clone(),
             });
 
             let payload = encrypt(self.encryption_key.as_str(), data.unwrap().as_str()).unwrap();

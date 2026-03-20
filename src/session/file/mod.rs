@@ -19,6 +19,8 @@ const SESSION_FILE_PREFIX: &str = "flyer_session";
 const SESSION_ID_NAME: &str = "session-id";
 
 #[derive(Serialize, Deserialize, Default)]
+
+#[derive(Debug)]
 pub(crate) struct FileStorage {
     pub values: Values,
     pub errors: Values,
@@ -43,8 +45,7 @@ impl FileSessionManager {
     pub fn new(path: Option<&str>) -> Self {
         let manager = Self {
             path: String::from(path.map(|p| p.trim_end_matches("/"))
-            .unwrap_or(&String::from(env::temp_dir()
-            .to_string_lossy())))
+                .unwrap_or(&String::from(env::temp_dir().to_string_lossy())))
         };
 
         cleanup(manager.path.clone(),  Duration::from_secs((60 * 60) * 2));
@@ -54,12 +55,12 @@ impl FileSessionManager {
 }
 
 impl SessionManager for FileSessionManager {
-    fn setup<'a>(&'a mut self, req: &'a mut Request, res: &'a mut Response) -> Result<()> {
+    fn setup<'a>(&'a mut self, req: &'a mut Request, _res: &'a mut Response) -> Result<()> {
         let session_id = req.cookies
             .cookies
             .get(SESSION_ID_NAME)
             .map(|id| String::from(id))
-            .unwrap_or(uuid::Uuid::new_v4().to_string());
+            .unwrap_or(format!("{}_{}", SESSION_FILE_PREFIX, uuid::Uuid::new_v4().to_string().replace("-", "")));
         let storage = block_on(load_session(&self.path, session_id.clone()));
 
         req.session = Some(Box::new(SessionFile {
@@ -78,10 +79,11 @@ impl SessionManager for FileSessionManager {
         unsafe {
             let ptr = req.session.as_mut().unwrap() as *mut Box<dyn Session + 'static> as usize;
             let session = &mut **(ptr as *mut Box<SessionFile>);
+
             let saved = block_on(save_session(
                 &self.path,
                 session.session_id.clone(),
-                &FileStorage::new(session.values.clone(), session.new_errors.clone(), session.new_old.clone())
+                &FileStorage::new(session.values.clone(), res.errors.clone(), res.old.clone())
             ));
 
             match saved {

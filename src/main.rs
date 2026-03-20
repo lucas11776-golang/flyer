@@ -7,7 +7,6 @@ use flyer::{
     response::Response,
     router::next::Next,
     server,
-    session::cookie::SessionCookieManager,
     validation::{Rules, Validator, rules}
 };
 use tokio::time::sleep;
@@ -207,7 +206,6 @@ async fn login_form<'a>(req: &'a mut Request, res: &'a mut Response, next: &'a m
 
 fn main() {
     let server = server("127.0.0.1", 9999)
-        // .session(SessionCookieManager::new(Duration::from_secs((60 * 60) * 2), "session_cookie_key_name", "encryption"))
         .view("views")
         .assets("assets", 1024, Duration::from_secs((60 * 60) * 2).as_millis());
 

@@ -511,7 +511,6 @@ use flyer::{
     request::Request,
     response::Response,
     server,
-    session::cookie::SessionCookieManager,
     utils::{env, load_env}
 };
 
@@ -523,7 +522,6 @@ fn main() {
     load_env(".env");
 
     let mut server = server(env("HOST").as_str(), env("PORT").parse().unwrap())
-        .session(SessionCookieManager::new(Duration::from_hours(2), "cookie_token", "test_123"))
         .view("views");
 
     server.router().group("/", |router| {
@@ -664,7 +662,6 @@ use flyer::{
     response::Response,
     router::next::Next,
     server,
-    session::cookie::SessionCookieManager
 };
 
 /// Controller
@@ -710,8 +707,7 @@ pub async fn guest<'a>(req: &'a mut Request, res: &'a mut Response, next: &'a mu
 }
 
 fn main() {
-    let mut server = server("127.0.0.1", 9999)
-        .session(SessionCookieManager::new(Duration::from_hours(2), "session_cookie_key_name", "encryption"));
+    let mut server = server("127.0.0.1", 9999);
 
     server.router().group("/", |router| {
         router.get("/", home_view).middleware(auth);
@@ -812,8 +808,7 @@ use std::time::Duration;
 use flyer::{
     request::Request,
     response::Response,
-    server, 
-    session::cookie::SessionCookieManager,
+    server,
     view::ViewData
 };
 
@@ -835,7 +830,6 @@ pub async fn upload<'a>(req: &'a mut Request, res: &'a mut Response) -> &'a mut 
 
 fn main() {
     let mut server = server("127.0.0.1", 9999)
-        .session(SessionCookieManager::new(Duration::from_hours(2), "session_cookie_key_name", "encryption"))
         .view("views")
         .set_request_max_size(1024 * 100); // Max Request size 100MB
 
@@ -1003,7 +997,6 @@ use flyer::{
     response::Response,
     router::next::Next,
     server,
-    session::cookie::SessionCookieManager,
     validation::{Rules, Validator, rules}
 };
 use tokio::time::sleep;
@@ -1060,7 +1053,6 @@ async fn login_form<'a>(req: &'a mut Request, res: &'a mut Response, next: &'a m
 
 fn main() {
     let mut server = server("127.0.0.1", 9999)
-        .session(SessionCookieManager::new(Duration::from_hours(2), "session_cookie_key_name", "encryption"))
         .view("views")
         .assets("assets", 1024, Duration::from_hours(2).as_millis());
 
