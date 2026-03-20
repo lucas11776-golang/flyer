@@ -5,7 +5,7 @@ use cookie::Cookie;
 use serde::{Deserialize, Serialize};
 use cookie::time::{Duration as DurationCookie, OffsetDateTime};
 
-use crate::session::cookie::utils::parse_raw_cookie;
+use crate::session::cookie::utils::parse_encrypted_raw_cookie;
 use crate::session::{Session, SessionManager};
 use crate::response::Response;
 use crate::request::Request;
@@ -14,7 +14,7 @@ pub(crate) mod utils;
 
 use crate::utils::{
     Values,
-    encrypt::{decrypt, encrypt},
+    encrypt::encrypt,
     string::string_fixed_length,
     cookie::cookie_parse
 };
@@ -35,7 +35,7 @@ impl SessionCookieManager {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub(crate) struct SessionCookie {
     pub(crate) values: Values,
     pub(crate) errors: Values,
@@ -56,13 +56,6 @@ impl SessionCookie {
     }
 }
 
-#[derive(Serialize, Deserialize)]
-pub(crate) struct CookieStorage {
-    pub values: Values,
-    pub errors: Values,
-    pub old: Values,
-}
-
 #[deprecated]
 pub fn new_session_manager(expires: Duration, cookie_name: &str, encryption_key: &str) -> impl SessionManager {
     return SessionCookieManager {
@@ -72,13 +65,20 @@ pub fn new_session_manager(expires: Duration, cookie_name: &str, encryption_key:
     };
 }
 
+#[derive(Serialize, Deserialize)]
+pub(crate) struct CookieStorage {
+    pub values: Values,
+    pub errors: Values,
+    pub old: Values,
+}
 
 // TODO: refactor
 impl SessionManager for SessionCookieManager {
     fn setup<'a>(&mut self, req: &'a mut Request, _res: &'a mut Response) -> Result<()> {
-        let cookies = cookie_parse(req.header("cookie")).unwrap();
-        let raw_cookie = cookies.get(&self.cookie_name);
-        req.session = Some(Box::new(parse_raw_cookie(self.encryption_key.to_owned(), raw_cookie).unwrap()));
+        req.session = match cookie_parse(req.header("cookie")).unwrap().get(&self.cookie_name) {
+            Some(raw) => Some(Box::new(parse_encrypted_raw_cookie(self.encryption_key.to_owned(), raw).unwrap())),
+            None => Some(Box::new(SessionCookie::default())),
+        };
 
         return Ok(())
     }
@@ -109,7 +109,6 @@ impl SessionManager for SessionCookieManager {
     }
 }
 
-
 impl Session for SessionCookie {
     fn values(&mut self) -> Values {
         return self.values.clone();
@@ -126,13 +125,7 @@ impl Session for SessionCookie {
     }
 
     fn get(&mut self, key: &str) -> String {
-        let value = self.values.get(key);
-
-        if value.is_none() {
-            return String::new();
-        }
-
-        return value.unwrap().to_owned();
+        return self.values.get(key).map(|v| String::from(v)).unwrap_or(String::new());
     }
 
     fn remove(&mut self, key: &str) {
@@ -154,13 +147,7 @@ impl Session for SessionCookie {
     }
 
     fn get_error(&mut self, key: &str) -> String {
-        let error = self.errors.get(key);
-
-        if error.is_none() {
-            return String::new();
-        }
-        
-        return error.unwrap().to_owned();
+        return self.errors.get(key).map(|e| String::from(e)).unwrap_or(String::new());
     }
 
     fn remove_error(&mut self, key: &str) {
