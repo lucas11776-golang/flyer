@@ -1,23 +1,44 @@
 pub mod rules;
 
+use std::{collections::HashMap, sync::LazyLock};
+
 use async_std::task::block_on;
 
 use crate::{
     request::{Request, form::{Files, Form}},
     response::Response,
-    router::next::Next, utils::Values
+    router::next::Next, utils::Values,
+    validation::rules::{
+        required,
+        string,
+        min,
+        max,
+        confirmed,
+        file
+    }
 };
 
 pub type Rule = dyn Fn(&Form, String, Vec<String>) -> Option<String> + 'static;
+
+static mut RULES: LazyLock<HashMap<String, Box<Rule>>> = LazyLock::new(|| {
+    let mut map: HashMap<String, Box<Rule>> = HashMap::new();
+
+    map.insert(String::from("required"), Box::new(|form, field, args| block_on(required(form, field, args))));
+    map.insert(String::from("string"), Box::new(|form, field, args| block_on(string(form, field, args))));
+    map.insert(String::from("min"), Box::new(|form, field, args| block_on(min(form, field, args))));
+    map.insert(String::from("max"), Box::new(|form, field, args| block_on(max(form, field, args))));
+    map.insert(String::from("confirmed"), Box::new(|form, field, args| block_on(confirmed(form, field, args))));
+    map.insert(String::from("file"), Box::new(|form, field, args| block_on(file(form, field, args))));
+
+    return map;
+});
+
 
 pub struct Field {
     pub(crate) name: String,
     pub(crate) rules: Vec<(Box<Rule>, Vec<String>)>
 }
 
-pub struct Rules {
-    pub(crate) fields: Vec<Field>
-}
 
 #[allow(dead_code)]
 pub struct Validator<'a> {
@@ -48,6 +69,12 @@ impl Field {
     }
 }
 
+pub struct Rules {
+    pub(crate) fields: Vec<Field>
+}
+
+
+
 impl<'a> Rules {
     pub fn new() -> Rules {
         return Self {
@@ -55,6 +82,7 @@ impl<'a> Rules {
         }
     }
 
+    #[deprecated]
     pub fn field(&mut self, field: &str) -> &mut Field {
         let idx = self.fields.len();
 
@@ -62,6 +90,26 @@ impl<'a> Rules {
 
         return &mut self.fields[idx];
     }
+
+    pub fn rule(&mut self, field: &str, rules: Vec<&str>) -> &mut Self {
+        return self;
+    }
+
+    #[allow(static_mut_refs)]
+    pub fn add<R>(name: &str, callback: R)
+    where
+        R: for<'c> AsyncFn(&'c Form, String, Vec<String>) -> Option<String> + Send + Sync + 'static
+    {
+        unsafe {
+            RULES.insert(String::from(name), Box::new(move |form, field, args| block_on(callback(form, field, args))));
+        };
+    }
+
+
+    pub fn handle(&mut self, req: &'a mut Request, res: &'a mut Response, next: &'a mut Next) -> &'a mut Response {
+        return next.handle(res);
+    }
+
 }
 
 impl <'a>Validator<'a> {

@@ -1,5 +1,14 @@
 # TODO LIST
 
+### Working on simplifying FormValidation rules
+
+```rust
+rules
+    .rule("email", vec!["required", "email"])
+    .rule("password", vec!["required", "string", "min:5", "max:21", "confirmed"])
+    .handle(req, res, next);
+```
+
 - Impl file session cleanup to check if file has `FLYER` prefix.
 - Refactor session file.
 - Write docs for session `Cookie` and `File`.

@@ -190,6 +190,10 @@ pub async fn email_exists(form: &Form, field: String, _args: Vec<String>) -> Opt
 async fn login_form<'a>(req: &'a mut Request, res: &'a mut Response, next: &'a mut Next) -> &'a mut Response {
     let mut rules = Rules::new();
 
+    // let a= vec![
+    //     ["email", ["required", "string", "email"]]
+    // ];
+
     rules.field("email")
         .add(rules::required, vec![])
         .add(rules::string, vec![])
