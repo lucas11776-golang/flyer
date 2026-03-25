@@ -209,7 +209,8 @@ async fn login_form<'a>(req: &'a mut Request, res: &'a mut Response, next: &'a m
 
 
     return rules
-        .rule("email", vec!["required", "email"])
+        // .rule("email", vec!["required", "email"])
+        .rule("email", vec!["required"])
         .rule("password", vec!["required", "string", "min:5", "max:21", "confirmed"])
         .handle(req, res, next);
 }

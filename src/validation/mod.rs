@@ -1,6 +1,6 @@
 pub mod rules;
 
-use std::{collections::HashMap, sync::LazyLock};
+use std::{collections::{HashMap, VecDeque}, sync::LazyLock};
 
 use async_std::task::block_on;
 
@@ -34,56 +34,54 @@ static mut RULES: LazyLock<HashMap<String, Box<Rule>>> = LazyLock::new(|| {
 });
 
 
-pub struct Field {
+pub struct Field<'a> {
     pub(crate) name: String,
-    pub(crate) rules: Vec<(Box<Rule>, Vec<String>)>
+    pub(crate) rules: Vec<(&'a Box<Rule>, Vec<String>)>
 }
 
 
 #[allow(dead_code)]
-pub struct Validator<'a> {
-    pub(crate) form: &'a Form,
-    pub(crate) rules: Rules,
+pub struct Validator<'f> {
+    pub(crate) form: &'f Form,
+    pub(crate) rules: Rules<'f>,
     pub(crate) errors: Values,
     pub(crate) validated: Form,
 }
 
-impl Field {
-    pub(crate) fn new(field: &str) -> Field {
+impl <'f>Field<'f> {
+    pub(crate) fn new(field: &str) -> Field<'f> {
         return Self {
             name: field.to_string(),
             rules: Vec::new()
         }
     }
 
-    pub fn add<R>(&mut self, callback: R, args: Vec<&str>) -> &mut Field
+    pub fn add<R>(&mut self, callback: R, args: Vec<&str>) -> &mut Field<'f>
     where
-        R: for<'a> AsyncFn(&'a Form, String, Vec<String>) -> Option<String> + Send + Sync + 'static
+        R: for<'a> AsyncFn(&'f Form, String, Vec<String>) -> Option<String> + Send + Sync + 'static
     {
-        self.rules.push((
-            Box::new(move |form, field, args| block_on(callback(form, field, args))),
-            args.iter().map(|v| v.to_string()).collect()
-        ));
+        // self.rules.push((
+        //     Box::new(move |form, field, args| block_on(callback(form, field, args))),
+        //     args.iter().map(|v| v.to_string()).collect()
+        // ));
 
         return self;
     }
 }
 
-pub struct Rules {
-    pub(crate) fields: Vec<Field>
+pub struct Rules<'r> {
+    pub(crate) fields: Vec<Field<'r>>
 }
 
-
-
-impl<'a> Rules {
-    pub fn new() -> Rules {
+impl <'r>Rules<'r> {
+    pub fn new() -> Rules<'r> {
         return Self {
             fields: Vec::new(),
         }
     }
 
     #[deprecated]
-    pub fn field(&mut self, field: &str) -> &mut Field {
+    pub fn field(&mut self, field: &str) -> &mut Field<'r> {
         let idx = self.fields.len();
 
         self.fields.push(Field::new(field));
@@ -91,7 +89,32 @@ impl<'a> Rules {
         return &mut self.fields[idx];
     }
 
+    #[allow(static_mut_refs)]
     pub fn rule(&mut self, field: &str, rules: Vec<&str>) -> &mut Self {
+        let mut v = Vec::new();
+
+        for rule in rules {
+            let mut split = VecDeque::from(rule.split(":").collect::<Vec<&str>>());
+            let name = split.pop_front().unwrap();
+            let args = split.pop_front().unwrap_or("").split(",").map(|v| String::from(v.trim())).collect::<Vec<String>>();
+
+            println!("Name {}", name);
+
+            let rule_callback = unsafe {
+                match RULES.get(name) {
+                    Some(rule) => rule,
+                    None => panic!("The rule `{}` does not exist", name),
+                }
+            };
+
+            v.push((rule_callback, args));
+        };
+
+        self.fields.push(Field {
+            name: String::from(field),
+            rules: v
+        });
+
         return self;
     }
 
@@ -105,15 +128,18 @@ impl<'a> Rules {
         };
     }
 
+    pub fn handle(&mut self, req: &'r mut Request, res: &'r mut Response, next: &'r mut Next) -> &'r mut Response {
 
-    pub fn handle(&mut self, req: &'a mut Request, res: &'a mut Response, next: &'a mut Next) -> &'a mut Response {
+
+        println!("Hello World");
+
         return next.handle(res);
     }
 
 }
 
 impl <'a>Validator<'a> {
-    pub fn new(form: &'a Form, rules: Rules) -> Self {
+    pub fn new(form: &'a Form, rules: Rules<'a>) -> Validator<'a> {
         return Self {
             form: form,
             rules: rules,
@@ -132,7 +158,7 @@ impl <'a>Validator<'a> {
         return self.errors.len() == 0;
     }
 
-    pub async fn handle(req: &'a mut Request, res: &'a mut Response, next: &'a mut Next, rules: Rules) -> &'a mut Response {
+    pub async fn handle(req: &'a mut Request, res: &'a mut Response, next: &'a mut Next, rules: Rules<'a>) -> &'a mut Response {
         let mut validator = Self::new(&req.form, rules);
 
         if !validator.validate().await {
