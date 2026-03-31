@@ -2,6 +2,8 @@
 
 ### Working on simplifying FormValidation rules
 
+- 127.0.0.1 is not the same as localhost...
+
 ```rust
 rules
     .rule("email", vec!["required", "email"])

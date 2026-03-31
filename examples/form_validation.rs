@@ -194,17 +194,17 @@ async fn login_form<'a>(req: &'a mut Request, res: &'a mut Response, next: &'a m
     //     ["email", ["required", "string", "email"]]
     // ];
 
-    rules.field("email")
-        .add(rules::required, vec![])
-        .add(rules::string, vec![])
-        .add(email_exists, vec![]);
+    // rules.field("email")
+    //     .add(rules::required, vec![])
+    //     .add(rules::string, vec![])
+    //     .add(email_exists, vec![]);
     
-    rules.field("password")
-        .add(rules::required, vec![])
-        .add(rules::string, vec![])
-        .add(rules::min, vec!["8"])
-        .add(rules::max, vec!["21"])
-        .add(rules::confirmed, vec![]);
+    // rules.field("password")
+    //     .add(rules::required, vec![])
+    //     .add(rules::string, vec![])
+    //     .add(rules::min, vec!["8"])
+    //     .add(rules::max, vec!["21"])
+    //     .add(rules::confirmed, vec![]);
 
     return Validator::handle(req, res, next, rules).await;
 }

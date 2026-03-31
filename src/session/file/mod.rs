@@ -60,8 +60,9 @@ impl SessionManager for FileSessionManager {
         let session_id = req.cookies
             .cookies
             .get(SESSION_ID_NAME)
-            .map(|id| String::from(id))
+            .map(|v| String::from(v))
             .unwrap_or(format!("{}_{}", SESSION_FILE_PREFIX, uuid::Uuid::new_v4().to_string().replace("-", "")));
+
         let storage = block_on(load_session(&self.path, session_id.clone()));
 
         req.session = Some(Box::new(SessionFile {
@@ -87,11 +88,13 @@ impl SessionManager for FileSessionManager {
                 &FileStorage::new(session.values.clone(), res.errors.clone(), res.old.clone())
             ));
 
-            match saved {
-                Ok(_) => { req.cookies.set("session-id", &session.session_id); },
-                Err(_) => { /* TODO: file not save log. */ },
+            if let Ok(_) = saved {
+                req.cookies
+                    .set("session-id", &session.session_id)
+                    .set_http_only(true)
+                    .set_domain(&req.host);
             }
-
+            
             return Ok(())
         }
     }

@@ -7,6 +7,7 @@ use cookie::{
 
 use crate::utils::Values;
 
+#[derive(Debug)]
 pub struct Cookie {
     name: String,
     value: String,
@@ -18,6 +19,7 @@ pub struct Cookie {
     http_only: Option<bool>,
 }
 
+#[derive(Debug)]
 pub struct Cookies {
     pub(crate) cookies: Values,
     pub(crate) new_cookie: Vec<Cookie>,

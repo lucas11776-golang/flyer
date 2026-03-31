@@ -56,17 +56,17 @@ impl <'f>Field<'f> {
         }
     }
 
-    pub fn add<R>(&mut self, callback: R, args: Vec<&str>) -> &mut Field<'f>
-    where
-        R: for<'a> AsyncFn(&'f Form, String, Vec<String>) -> Option<String> + Send + Sync + 'static
-    {
-        // self.rules.push((
-        //     Box::new(move |form, field, args| block_on(callback(form, field, args))),
-        //     args.iter().map(|v| v.to_string()).collect()
-        // ));
+    // pub fn add<R>(&mut self, callback: R, args: Vec<&str>) -> &mut Field<'f>
+    // where
+    //     R: for<'a> AsyncFn(&'f Form, String, Vec<String>) -> Option<String> + Send + Sync + 'static
+    // {
+    //     // self.rules.push((
+    //     //     Box::new(move |form, field, args| block_on(callback(form, field, args))),
+    //     //     args.iter().map(|v| v.to_string()).collect()
+    //     // ));
 
-        return self;
-    }
+    //     return self;
+    // }
 }
 
 pub struct Rules<'r> {
@@ -98,8 +98,6 @@ impl <'r>Rules<'r> {
             let name = split.pop_front().unwrap();
             let args = split.pop_front().unwrap_or("").split(",").map(|v| String::from(v.trim())).collect::<Vec<String>>();
 
-            println!("Name {}", name);
-
             let rule_callback = unsafe {
                 match RULES.get(name) {
                     Some(rule) => rule,
@@ -128,12 +126,8 @@ impl <'r>Rules<'r> {
         };
     }
 
-    pub fn handle(&mut self, req: &'r mut Request, res: &'r mut Response, next: &'r mut Next) -> &'r mut Response {
-
-
-        println!("Hello World");
-
-        return next.handle(res);
+    pub fn handle(self, req: &'r mut Request, res: &'r mut Response, next: &'r mut Next) -> &'r mut Response {
+        return block_on(Validator::handle(req, res, next, self));
     }
 
 }
@@ -162,16 +156,14 @@ impl <'a>Validator<'a> {
         let mut validator = Self::new(&req.form, rules);
 
         if !validator.validate().await {
-            return res.with_old(req.form.values.clone())
-                .with_errors(validator.errors)
-                .back();
+            return res.with_old(req.form.values.clone()).with_errors(validator.errors).back();
         }
 
         return next.handle(res);
     }
 
     pub fn errors(&mut self) -> Values {
-        return Values::new();
+        return self.errors.clone();
     }
 
     fn validate_field(form: &Form, field: &mut Field) -> Option<String> {

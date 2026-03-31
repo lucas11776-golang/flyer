@@ -50,7 +50,8 @@ where
 
             let mut headers_ptr = [httparse::EMPTY_HEADER; 64];
             let mut req = httparse::Request::new(&mut headers_ptr);
-            
+
+            // TODO: unhandled error...
             if let httparse::Status::Complete(size) = req.parse(&buffer).unwrap() {
                 break size;
             }

@@ -7,7 +7,7 @@ use flyer::{
     response::Response,
     router::next::Next,
     server,
-    validation::{Rules, Validator, rules}
+    validation::{Rules}
 };
 use tokio::time::sleep;
 
@@ -189,30 +189,10 @@ pub async fn email_exists(form: &Form, field: String, _args: Vec<String>) -> Opt
 async fn login_form<'a>(req: &'a mut Request, res: &'a mut Response, next: &'a mut Next) -> &'a mut Response {
     let mut rules = Rules::new();
 
+    rules.rule("email", vec!["required"])
+        .rule("password", vec!["required", "string", "min:5", "max:21", "confirmed"]);
 
-    // rules.rule("email", vec!["required", "email"])
-    //     .rule("password", vec!["required", "string", "min:5", "max:21", "confirmed"]);
-
-    // rules.field("email")
-    //     .add(rules::required, vec![])
-    //     .add(rules::string, vec![])
-    //     .add(email_exists, vec![]);
-    
-    // rules.field("password")
-    //     .add(rules::required, vec![])
-    //     .add(rules::string, vec![])
-    //     .add(rules::min, vec!["8"])
-    //     .add(rules::max, vec!["21"])
-    //     .add(rules::confirmed, vec![]);
-
-    // return Validator::handle(req, res, next, rules).await;
-
-
-    return rules
-        // .rule("email", vec!["required", "email"])
-        .rule("email", vec!["required"])
-        .rule("password", vec!["required", "string", "min:5", "max:21", "confirmed"])
-        .handle(req, res, next);
+    return rules.handle(req, res, next);
 }
 
 fn main() {
