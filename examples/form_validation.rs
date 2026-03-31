@@ -186,7 +186,7 @@ pub async fn email_exists(form: &Form, field: String, args: Vec<String>) -> Opti
     return if user_exists(&args[0], form.values.get(&field).unwrap_or(&String::new())).await {
         None
     } else {
-        Some(String::from("The email does not exist."))
+        Some(String::from("The email does not exist"))
     };
 }
 

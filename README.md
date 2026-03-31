@@ -847,7 +847,22 @@ fn main() {
 
 ### Form Validation
 
-Create file called `register.html` in folder called views and copy the content below in the file.
+use std::{collections::HashMap, time::Duration};
+
+use serde::{Deserialize, Serialize};
+
+use flyer::{
+    request::{Request, form::Form},
+    response::Response,
+    router::next::Next,
+    server,
+    validation::{Rules}
+};
+use tokio::time::sleep;
+
+/*
+
+TODO: Create file called `register.html` in folder called `views` and copy the content below in the file.
 
 ```html
 <!DOCTYPE html>
@@ -985,22 +1000,9 @@ Create file called `register.html` in folder called views and copy the content b
 </html>
 ```
 
-The next step to insert code below in `main.rs`.
+*/
 
 ```rust
-use std::time::Duration;
-
-use serde::{Deserialize, Serialize};
-
-use flyer::{
-    request::{Request, form::Form},
-    response::Response,
-    router::next::Next,
-    server,
-    validation::{Rules, Validator, rules}
-};
-use tokio::time::sleep;
-
 #[derive(Serialize, Deserialize)]
 pub struct Token {
     pub token: String,
@@ -1016,45 +1018,43 @@ pub async fn login<'a>(_req: &'a mut Request, res: &'a mut Response) -> &'a mut 
     return res.json(&Token {
         token: String::from("eye.jwt.token"),
         r#type: String::from("jwt"),
-        expires: Duration::from_hours(24).as_millis()
+        expires: Duration::from_secs((606 * 60) * 24).as_millis()
     });
 }
 
-pub async fn email_exists(form: &Form, field: String, _args: Vec<String>) -> Option<String> {
-    let users_table = vec!["jeo@doe.com", "jane@deo.com"];
+pub async fn user_exists(table: &str, email: &str) -> bool {
+    let mut db: HashMap<&str, Vec<&str>> = HashMap::new();
 
-    sleep(Duration::from_millis(250)).await; // Database call simulation 
+    db.insert("users", vec!["john@deo.com", "jane@deo.com"]);
 
-    for email in users_table {
-        if form.values.get(&field).unwrap().eq(email) {
-            return Some(format!("The {} already exists in database", field))
-        }
-    }
+    sleep(Duration::from_millis(250)).await;
 
-    return None
+    return db.get(table).unwrap_or(&Vec::new()).iter().find(|&u| u.eq(&email)).is_some();
+}
+
+pub async fn email_exists(form: &Form, field: String, args: Vec<String>) -> Option<String> {
+    return if user_exists(&args[0], form.values.get(&field).unwrap_or(&String::new())).await {
+        None
+    } else {
+        Some(String::from("The email does not exist"))
+    };
 }
 
 async fn login_form<'a>(req: &'a mut Request, res: &'a mut Response, next: &'a mut Next) -> &'a mut Response {
     let mut rules = Rules::new();
 
-    rules.field("email")
-        .add(rules::required, vec![])
-        .add(rules::string, vec![])
-        .add(email_exists, vec![]);
-    rules.field("password")
-        .add(rules::required, vec![])
-        .add(rules::string, vec![])
-        .add(rules::min, vec!["8"])
-        .add(rules::max, vec!["21"])
-        .add(rules::confirmed, vec![]);
+    rules.rule("email", vec!["required", "string", "email_exists:users"])
+        .rule("password", vec!["required", "string", "min:5", "max:21", "confirmed"]);
 
-    return Validator::handle(req, res, next, rules).await;
+    return rules.handle(req, res, next);
 }
 
 fn main() {
-    let mut server = server("127.0.0.1", 9999)
+    let server = server("127.0.0.1", 9999)
         .view("views")
-        .assets("assets", 1024, Duration::from_hours(2).as_millis());
+        .assets("assets", 1024, Duration::from_secs((60 * 60) * 2).as_millis());
+
+    Rules::add("email_exists", email_exists);
 
     server.router().group("/", |router| {
         router.get("/", index);
