@@ -559,7 +559,7 @@ And also create file called `index.html` in folder called `views` and copy the c
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <base href="http://127.0.0.1:9999/">
   <title>Assets Test</title>
-  <link href="/style.css" rel="stylesheet">
+  <link href="{{ url(path="style.css") }}" rel="stylesheet">
 </head>
 <body>
   <h1>Hello World</h1>

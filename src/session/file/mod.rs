@@ -15,9 +15,9 @@ pub(crate) mod utils;
 
 // TODO: Refactor All
 
-// session_{{session-id}}
-const SESSION_FILE_PREFIX: &str = "flyer_session";
-const SESSION_ID_NAME: &str = "session-id";
+// flyer_session_{{session-id}}
+pub(crate) const SESSION_FILE_PREFIX: &str = "flyer_session";
+pub(crate) const SESSION_ID_NAME: &str = "session-id";
 
 #[derive(Serialize, Deserialize, Default)]
 

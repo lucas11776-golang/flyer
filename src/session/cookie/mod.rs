@@ -60,7 +60,7 @@ impl SessionCookie {
 pub fn new_session_manager(expires: Duration, cookie_name: &str, encryption_key: &str) -> impl SessionManager {
     return SessionCookieManager {
         expires: expires,
-        cookie_name: cookie_name.to_owned(),
+        cookie_name: String::from(cookie_name),
         encryption_key: string_fixed_length(encryption_key, 32),
     };
 }

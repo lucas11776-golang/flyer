@@ -1,10 +1,10 @@
 use std::{thread::sleep, time::Duration};
 
 use anyhow::{Result};
-use async_std::{fs::{File, read_dir}, io::{ReadExt, WriteExt}, stream::StreamExt, task::block_on};
+use async_std::{fs::{File, read_dir, remove_file}, io::{ReadExt, WriteExt}, stream::StreamExt, task::block_on};
 use tokio::runtime::Runtime;
 
-use crate::{session::file::FileStorage, utils::Values};
+use crate::{session::file::{FileStorage, SESSION_FILE_PREFIX}, utils::Values};
 
 // TODO: Refactor All
 
@@ -17,12 +17,17 @@ pub(crate) fn cleanup(path: String, expires: Duration)  {
                         while let Some(entry) = entries.next().await {
                             match entry {
                                 Ok(file) => {
-                                    if let Ok(meta) = file.metadata().await {
-                                        if let Ok(last) = meta.accessed() {
-                                            if let Ok(passed) = last.elapsed() {
-                                                if passed.as_secs() > expires.as_secs() {
-                                                    // TODO: disable still testing can delete other program temp files...
-                                                    // if let Err(_) = remove_file(file.path()).await { /*  TODO: some error */ }
+                                    let name = file.file_name();
+                                    let filename = name.to_str().unwrap_or("").split("_").collect::<Vec<&str>>();
+
+                                    if filename.len() == 3 && format!("{}_{}", filename[0], filename[1]).eq(SESSION_FILE_PREFIX) {
+                                        if let Ok(meta) = file.metadata().await {
+                                            if let Ok(last) = meta.accessed() {
+                                                if let Ok(passed) = last.elapsed() {
+                                                    if passed.as_secs() > expires.as_secs() {
+                                                        // TODO: disable still testing can delete other program temp files...
+                                                        if let Err(_) = remove_file(file.path()).await { /*  TODO: some error */ }
+                                                    }
                                                 }
                                             }
                                         }
