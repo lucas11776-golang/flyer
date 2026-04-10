@@ -1,3 +1,4 @@
+use std::fmt;
 use crate::{
     request::Request,
     response::Response,
@@ -9,6 +10,16 @@ pub(crate) struct Routes {
     pub(crate) web: Vec<Route<WebRoute>>,
     pub(crate) ws: Vec<Box<Route<WsRoute>>>,
     pub(crate) not_found_callback: Option<Box<WebRoute>>,
+}
+
+impl fmt::Debug for Routes {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt.debug_struct("Routes")
+            .field("web", &self.web)
+            .field("ws", &self.ws)
+            .field("not_found_callback", &self.not_found_callback.as_ref().map(|_| "Fn(...)"))
+            .finish()
+    }
 }
 
 impl Routes {

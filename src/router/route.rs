@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 use async_std::task::block_on;
 use regex::Regex;
 use url_domain_parse::Url;
@@ -18,6 +20,17 @@ pub struct Route<Handler: ?Sized> {
     pub(crate) path: String,
     pub(crate) handler: Box<Handler>,
     pub(crate) middlewares: Vec<String>,
+}
+
+impl<Handler: ?Sized> Debug for Route<Handler> {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        fmt.debug_struct("Route")
+            .field("subdomain", &self.subdomain)
+            .field("method", &self.method)
+            .field("path", &self.path)
+            .field("middlewares", &self.middlewares)
+            .finish()
+    }
 }
 
 impl <Handler: ?Sized>Route<Handler> {
