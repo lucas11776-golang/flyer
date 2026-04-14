@@ -15,6 +15,7 @@ rules
 - Refactor session file.
 - Write docs for session `Cookie` and `File`.
 - Remove old code with new rewrite.
+- DNS check os and apply ADD route command base on OS.
 
 
 # NEXT VERSION
@@ -30,7 +31,7 @@ pub fn setup() {
 // TODO: example
 pub fn home_page_test() {
     setup();
-    
+
     let app = test(server());
     let req = TestRequest::new()
         .path("dashboard")

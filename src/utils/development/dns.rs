@@ -9,13 +9,11 @@ use hickory_proto::rr::{Name, RData, Record, RecordType, rdata::SOA};
 use hickory_proto::serialize::binary::{BinDecodable, BinEncodable};
 use url_domain_parse::utils::Domain;
 
-// const DNS_HOST: &'static str = "127.0.0.1";
-// const DNS_PORT: u16 = 5354;
 const DNS_BUFFER_SIZE: usize = 1024;
 
 pub fn run(domain_name: &str, host: &str, port: u16) {
     block_on(async {
-        join!(udp(domain_name.clone(), host, port), tcp(domain_name, host, port));
+        join!(udp(domain_name, host, port), tcp(domain_name, host, port));
     });
 }
 

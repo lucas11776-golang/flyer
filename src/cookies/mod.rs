@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use anyhow::{Ok, Result};
 use cookie::{
     Cookie as CookieJar,
     time::{Duration as CookieDuration, OffsetDateTime}
@@ -136,5 +137,11 @@ impl Cookies {
         self.new_cookie.push(Cookie::new(name, value));
 
         return &mut self.new_cookie[idx];
+    }
+
+    pub fn remove(&mut self, name: &str) -> Result<()> {
+        self.cookies.remove(name);
+
+        return Ok(())
     }
 }
