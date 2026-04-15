@@ -906,6 +906,8 @@ fn main() {
 }
 ```
 
+For more validation rules visit [Rules Docs](https://github.com/lucas11776-golang/flyer/blob/main/VALIDATION.md)
+
 
 ### Websocket
 

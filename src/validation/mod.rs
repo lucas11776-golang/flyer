@@ -8,21 +8,7 @@ use crate::{
     request::{Request, form::{Files, Form}},
     response::Response,
     router::next::Next, utils::Values,
-    validation::rules::{
-        required,
-        string,
-        alpha,
-        alpha_numeric,
-        email,
-        min_length,
-        max_length,
-        numeric,
-        url,
-        min,
-        max,
-        confirmed,
-        file
-    }
+    validation::rules::*
 };
 
 pub type Rule = dyn Fn(&Form, String, Vec<String>) -> Option<String> + 'static;
@@ -30,19 +16,89 @@ pub type Rule = dyn Fn(&Form, String, Vec<String>) -> Option<String> + 'static;
 static mut RULES: LazyLock<HashMap<String, Box<Rule>>> = LazyLock::new(|| {
     let mut map: HashMap<String, Box<Rule>> = HashMap::new();
 
-    map.insert(String::from("required"), Box::new(|form, field, args| block_on(required(form, field, args))));
-    map.insert(String::from("string"), Box::new(|form, field, args| block_on(string(form, field, args))));
+    map.insert(String::from("accepted"), Box::new(|form, field, args| block_on(accepted(form, field, args))));
+    map.insert(String::from("accepted_if"), Box::new(|form, field, args| block_on(accepted_if(form, field, args))));
+    map.insert(String::from("active_url"), Box::new(|form, field, args| block_on(active_url(form, field, args))));
+    map.insert(String::from("after"), Box::new(|form, field, args| block_on(after(form, field, args))));
+    map.insert(String::from("after_or_equal"), Box::new(|form, field, args| block_on(after_or_equal(form, field, args))));
     map.insert(String::from("alpha"), Box::new(|form, field, args| block_on(alpha(form, field, args))));
+    map.insert(String::from("alpha_dash"), Box::new(|form, field, args| block_on(alpha_dash(form, field, args))));
     map.insert(String::from("alpha_numeric"), Box::new(|form, field, args| block_on(alpha_numeric(form, field, args))));
-    map.insert(String::from("email"), Box::new(|form, field, args| block_on(email(form, field, args))));
-    map.insert(String::from("min_length"), Box::new(|form, field, args| block_on(min_length(form, field, args))));
-    map.insert(String::from("max_length"), Box::new(|form, field, args| block_on(max_length(form, field, args))));
-    map.insert(String::from("numeric"), Box::new(|form, field, args| block_on(numeric(form, field, args))));
-    map.insert(String::from("url"), Box::new(|form, field, args| block_on(url(form, field, args))));
-    map.insert(String::from("min"), Box::new(|form, field, args| block_on(min(form, field, args))));
-    map.insert(String::from("max"), Box::new(|form, field, args| block_on(max(form, field, args))));
+    map.insert(String::from("alpha_num"), Box::new(|form, field, args| block_on(alpha_numeric(form, field, args))));
+    map.insert(String::from("ascii"), Box::new(|form, field, args| block_on(ascii(form, field, args))));
+    map.insert(String::from("before"), Box::new(|form, field, args| block_on(before(form, field, args))));
+    map.insert(String::from("before_or_equal"), Box::new(|form, field, args| block_on(before_or_equal(form, field, args))));
+    map.insert(String::from("between"), Box::new(|form, field, args| block_on(between(form, field, args))));
+    map.insert(String::from("boolean"), Box::new(|form, field, args| block_on(boolean(form, field, args))));
     map.insert(String::from("confirmed"), Box::new(|form, field, args| block_on(confirmed(form, field, args))));
+    map.insert(String::from("date"), Box::new(|form, field, args| block_on(date(form, field, args))));
+    map.insert(String::from("date_equals"), Box::new(|form, field, args| block_on(date_equals(form, field, args))));
+    map.insert(String::from("date_format"), Box::new(|form, field, args| block_on(date_format(form, field, args))));
+    map.insert(String::from("decimal"), Box::new(|form, field, args| block_on(decimal(form, field, args))));
+    map.insert(String::from("declined"), Box::new(|form, field, args| block_on(declined(form, field, args))));
+    map.insert(String::from("declined_if"), Box::new(|form, field, args| block_on(declined_if(form, field, args))));
+    map.insert(String::from("different"), Box::new(|form, field, args| block_on(different(form, field, args))));
+    map.insert(String::from("digits"), Box::new(|form, field, args| block_on(digits(form, field, args))));
+    map.insert(String::from("digits_between"), Box::new(|form, field, args| block_on(digits_between(form, field, args))));
+    map.insert(String::from("doesnt_start_with"), Box::new(|form, field, args| block_on(doesnt_start_with(form, field, args))));
+    map.insert(String::from("doesnt_end_with"), Box::new(|form, field, args| block_on(doesnt_end_with(form, field, args))));
+    map.insert(String::from("email"), Box::new(|form, field, args| block_on(email(form, field, args))));
+    map.insert(String::from("ends_with"), Box::new(|form, field, args| block_on(ends_with(form, field, args))));
+    map.insert(String::from("extensions"), Box::new(|form, field, args| block_on(extensions(form, field, args))));
     map.insert(String::from("file"), Box::new(|form, field, args| block_on(file(form, field, args))));
+    map.insert(String::from("filled"), Box::new(|form, field, args| block_on(filled(form, field, args))));
+    map.insert(String::from("gt"), Box::new(|form, field, args| block_on(gt(form, field, args))));
+    map.insert(String::from("gte"), Box::new(|form, field, args| block_on(gte(form, field, args))));
+    map.insert(String::from("hex_color"), Box::new(|form, field, args| block_on(hex_color(form, field, args))));
+    map.insert(String::from("image"), Box::new(|form, field, args| block_on(image(form, field, args))));
+    map.insert(String::from("in"), Box::new(|form, field, args| block_on(in_rule(form, field, args))));
+    map.insert(String::from("integer"), Box::new(|form, field, args| block_on(integer(form, field, args))));
+    map.insert(String::from("ip"), Box::new(|form, field, args| block_on(ip(form, field, args))));
+    map.insert(String::from("ipv4"), Box::new(|form, field, args| block_on(ipv4(form, field, args))));
+    map.insert(String::from("ipv6"), Box::new(|form, field, args| block_on(ipv6(form, field, args))));
+    map.insert(String::from("json"), Box::new(|form, field, args| block_on(json(form, field, args))));
+    map.insert(String::from("lt"), Box::new(|form, field, args| block_on(lt(form, field, args))));
+    map.insert(String::from("lte"), Box::new(|form, field, args| block_on(lte(form, field, args))));
+    map.insert(String::from("lowercase"), Box::new(|form, field, args| block_on(lowercase(form, field, args))));
+    map.insert(String::from("mac_address"), Box::new(|form, field, args| block_on(mac_address(form, field, args))));
+    map.insert(String::from("max"), Box::new(|form, field, args| block_on(max(form, field, args))));
+    map.insert(String::from("max_digits"), Box::new(|form, field, args| block_on(max_digits(form, field, args))));
+    map.insert(String::from("mimetypes"), Box::new(|form, field, args| block_on(mimetypes(form, field, args))));
+    map.insert(String::from("mimes"), Box::new(|form, field, args| block_on(mimes(form, field, args))));
+    map.insert(String::from("min"), Box::new(|form, field, args| block_on(min(form, field, args))));
+    map.insert(String::from("min_digits"), Box::new(|form, field, args| block_on(min_digits(form, field, args))));
+    map.insert(String::from("missing"), Box::new(|form, field, args| block_on(missing(form, field, args))));
+    map.insert(String::from("missing_if"), Box::new(|form, field, args| block_on(missing_if(form, field, args))));
+    map.insert(String::from("missing_unless"), Box::new(|form, field, args| block_on(missing_unless(form, field, args))));
+    map.insert(String::from("multiple_of"), Box::new(|form, field, args| block_on(multiple_of(form, field, args))));
+    map.insert(String::from("not_in"), Box::new(|form, field, args| block_on(not_in(form, field, args))));
+    map.insert(String::from("not_regex"), Box::new(|form, field, args| block_on(not_regex(form, field, args))));
+    map.insert(String::from("numeric"), Box::new(|form, field, args| block_on(numeric(form, field, args))));
+    map.insert(String::from("present"), Box::new(|form, field, args| block_on(present(form, field, args))));
+    map.insert(String::from("present_if"), Box::new(|form, field, args| block_on(present_if(form, field, args))));
+    map.insert(String::from("present_unless"), Box::new(|form, field, args| block_on(present_unless(form, field, args))));
+    map.insert(String::from("prohibited"), Box::new(|form, field, args| block_on(prohibited(form, field, args))));
+    map.insert(String::from("prohibited_if"), Box::new(|form, field, args| block_on(prohibited_if(form, field, args))));
+    map.insert(String::from("prohibited_unless"), Box::new(|form, field, args| block_on(prohibited_unless(form, field, args))));
+    map.insert(String::from("prohibited_with"), Box::new(|form, field, args| block_on(prohibited_with(form, field, args))));
+    map.insert(String::from("prohibited_with_all"), Box::new(|form, field, args| block_on(prohibited_with_all(form, field, args))));
+    map.insert(String::from("regex"), Box::new(|form, field, args| block_on(regex(form, field, args))));
+    map.insert(String::from("required"), Box::new(|form, field, args| block_on(required(form, field, args))));
+    map.insert(String::from("required_if"), Box::new(|form, field, args| block_on(required_if(form, field, args))));
+    map.insert(String::from("required_if_accepted"), Box::new(|form, field, args| block_on(required_if_accepted(form, field, args))));
+    map.insert(String::from("required_unless"), Box::new(|form, field, args| block_on(required_unless(form, field, args))));
+    map.insert(String::from("required_with"), Box::new(|form, field, args| block_on(required_with(form, field, args))));
+    map.insert(String::from("required_with_all"), Box::new(|form, field, args| block_on(required_with_all(form, field, args))));
+    map.insert(String::from("required_without"), Box::new(|form, field, args| block_on(required_without(form, field, args))));
+    map.insert(String::from("required_without_all"), Box::new(|form, field, args| block_on(required_without_all(form, field, args))));
+    map.insert(String::from("same"), Box::new(|form, field, args| block_on(same(form, field, args))));
+    map.insert(String::from("size"), Box::new(|form, field, args| block_on(size(form, field, args))));
+    map.insert(String::from("starts_with"), Box::new(|form, field, args| block_on(starts_with(form, field, args))));
+    map.insert(String::from("string"), Box::new(|form, field, args| block_on(string(form, field, args))));
+    map.insert(String::from("uppercase"), Box::new(|form, field, args| block_on(uppercase(form, field, args))));
+    map.insert(String::from("url"), Box::new(|form, field, args| block_on(url(form, field, args))));
+    map.insert(String::from("ulid"), Box::new(|form, field, args| block_on(ulid(form, field, args))));
+    map.insert(String::from("uuid"), Box::new(|form, field, args| block_on(uuid(form, field, args))));
 
     return map;
 });

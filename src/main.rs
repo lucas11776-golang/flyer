@@ -206,6 +206,9 @@ fn main() {
 
     Rules::add("email_exists", email_exists);
 
+
+
+
     server.router().group("/", |router| {
         router.get("/", index);
         router.group("register", |router| {
