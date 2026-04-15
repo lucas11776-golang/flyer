@@ -684,20 +684,7 @@ fn main() {
 
 ### Form Validation
 
-use std::{collections::HashMap, time::Duration};
 
-use serde::{Deserialize, Serialize};
-
-use flyer::{
-    request::{Request, form::Form},
-    response::Response,
-    router::next::Next,
-    server,
-    validation::{Rules}
-};
-use tokio::time::sleep;
-
-/*
 
 TODO: Create file called `register.html` in folder called `views` and copy the content below in the file.
 
@@ -837,9 +824,20 @@ TODO: Create file called `register.html` in folder called `views` and copy the c
 </html>
 ```
 
-*/
-
 ```rust
+use std::{collections::HashMap, time::Duration};
+
+use serde::{Deserialize, Serialize};
+
+use flyer::{
+    request::{Request, form::Form},
+    response::Response,
+    router::next::Next,
+    server,
+    validation::{Rules}
+};
+use tokio::time::sleep;
+
 #[derive(Serialize, Deserialize)]
 pub struct Token {
     pub token: String,
