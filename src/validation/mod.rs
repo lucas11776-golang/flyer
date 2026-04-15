@@ -11,6 +11,13 @@ use crate::{
     validation::rules::{
         required,
         string,
+        alpha,
+        alpha_numeric,
+        email,
+        min_length,
+        max_length,
+        numeric,
+        url,
         min,
         max,
         confirmed,
@@ -25,6 +32,13 @@ static mut RULES: LazyLock<HashMap<String, Box<Rule>>> = LazyLock::new(|| {
 
     map.insert(String::from("required"), Box::new(|form, field, args| block_on(required(form, field, args))));
     map.insert(String::from("string"), Box::new(|form, field, args| block_on(string(form, field, args))));
+    map.insert(String::from("alpha"), Box::new(|form, field, args| block_on(alpha(form, field, args))));
+    map.insert(String::from("alpha_numeric"), Box::new(|form, field, args| block_on(alpha_numeric(form, field, args))));
+    map.insert(String::from("email"), Box::new(|form, field, args| block_on(email(form, field, args))));
+    map.insert(String::from("min_length"), Box::new(|form, field, args| block_on(min_length(form, field, args))));
+    map.insert(String::from("max_length"), Box::new(|form, field, args| block_on(max_length(form, field, args))));
+    map.insert(String::from("numeric"), Box::new(|form, field, args| block_on(numeric(form, field, args))));
+    map.insert(String::from("url"), Box::new(|form, field, args| block_on(url(form, field, args))));
     map.insert(String::from("min"), Box::new(|form, field, args| block_on(min(form, field, args))));
     map.insert(String::from("max"), Box::new(|form, field, args| block_on(max(form, field, args))));
     map.insert(String::from("confirmed"), Box::new(|form, field, args| block_on(confirmed(form, field, args))));

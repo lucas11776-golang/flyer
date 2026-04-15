@@ -1,5 +1,8 @@
 # TODO LIST
 
+
+- Need to add flush in session.
+
 ### Working on simplifying FormValidation rules
 
 - 127.0.0.1 is not the same as localhost...
@@ -42,3 +45,4 @@ pub fn home_page_test() {
         .assertView("dashboard/index.html");
 }
 ```
+
