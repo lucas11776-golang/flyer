@@ -1,4 +1,5 @@
 use std::io::Result;
+use std::net::SocketAddr;
 
 use bytes::Bytes;
 
@@ -6,69 +7,60 @@ use http::Request as HttpRequest;
 use h3::server::RequestStream;
 use h3_quinn::BidiStream;
 
-use crate::cookie::Cookies;
+use crate::cookies::Cookies;
 use crate::request::Request;
 use crate::request::form::{Files, Form};
-use crate::request::parser::parse_content_type;
 use crate::response::Response;
 use crate::utils::url::parse_query_params;
 use crate::utils::Values;
 
 pub(crate) struct Handler {
     request: HttpRequest<()>,
-    stream: RequestStream<BidiStream<Bytes>, Bytes>
+    stream: RequestStream<BidiStream<Bytes>, Bytes>,
+    addr: SocketAddr
 }
 
 impl Handler {
-    pub fn new(request: HttpRequest<()>, stream: RequestStream<BidiStream<Bytes>, Bytes>) -> Self {
+    pub fn new(request: HttpRequest<()>, stream: RequestStream<BidiStream<Bytes>, Bytes>, add: SocketAddr) -> Self {
         return Self {
             request: request,
-            stream: stream
+            stream: stream,
+            addr: add
         }
     }
-
-    fn get_headers(&mut self) -> Values {
+    
+    pub async fn handle(&mut self) -> Result<Request> {
         let mut headers = Values::new();
 
         for (k, v) in self.request.headers() {
             headers.insert(k.to_string(), v.to_str().unwrap().to_string());
         }
-
-        return headers;
-    }
-
-    fn get_host(&mut self, headers: &Values) -> String {
-        return headers
-            .get("host")
-            .cloned()
-            .or_else(|| headers.get(":authority").cloned())
-            .or_else(|| Some(String::from("127.0.0.1"))) // TODO: fix this temp (src/router/route.rs domain)
-            .unwrap_or_default();
-    }
-
-    pub async fn handle(&mut self) -> Result<Request> {
-        let headers = self.get_headers();
         
-        let mut req = Request{
-            ip: "127.0.0.1".to_owned(), // TODO: Get real request ip address
-            host: self.get_host(&headers),
+        return Ok(Request{
+            ip: self.addr.to_string(),
+            host: self.get_host(),
             headers: headers,
             method: self.request.method().to_string().to_uppercase(),
             path: self.request.uri().path().to_string(),
             parameters: Values::new(),
-            query: parse_query_params(self.request.uri().query().unwrap_or(""))?,
+            query: parse_query_params(self.request.uri().query().unwrap_or("")),
             protocol: "HTTP/3.0".to_string(),
             body: vec![],
             form: Form::new(Values::new(), Files::new()),
             session: None,
             cookies: Box::new(Cookies::new(Values::new())),
-        };
+        });
+    }
 
-        if req.method == "POST" || req.method == "PATCH" || req.method == "PUT" {
-            req = parse_content_type(req).await.unwrap();
-        }
-
-        return Ok(req);
+    fn get_host(&mut self) -> String {
+        return self.request.uri()
+            .authority()
+            .map(|a| String::from(a.as_str()))
+            .or(self.request
+                .headers()
+                .get(http::header::HOST)
+                .and_then(|h| Some(String::from(h.to_str().unwrap()))))
+            .unwrap_or_default();
     }
 
     pub async fn write(&mut self, req: &mut Request, res: &mut Response) -> Result<()> {

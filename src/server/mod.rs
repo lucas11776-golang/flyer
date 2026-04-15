@@ -4,16 +4,15 @@ use anyhow::Result;
 use async_std::task::block_on;
 use rustls::ServerConfig;
 use tokio::{join, runtime::Builder};
-use lazy_static::lazy_static;
 
 use crate::{
     assets::Assets,
     request::Request,
     response::Response,
-    router::{self, Router, WsRoute, route::Route, routes::Routes},
+    router::{Router, WsRoute, resolver::RouterResolver, route::Route, routes::Routes},
     server::{helpers::{Handler, RequestHandler},
     transport::{tcp, udp}},
-    session::SessionManager,
+    session::{SessionManager, file::FileSessionManager},
     view::View
 };
 
@@ -21,10 +20,6 @@ pub(crate) mod transport;
 pub(crate) mod helpers;
 
 pub(crate) type InitCallback = dyn Fn() + Send + Sync;
-
-lazy_static! {
-    pub(crate) static ref SERVER: Option<Server> = None;
-}
 
 pub struct Server {
     pub(crate) host: String,
@@ -47,13 +42,13 @@ impl Server {
             port: port,
             routers: Vec::new(),
             routes: Routes::default(),
-            session_manager: None,
             view: None,
             assets: None,
             request_max_size: (1024 * 20) * 1000,
             parallelism_max_size: available_parallelism().unwrap().into(),
             server_config: server_config,
-            init_callback: None
+            init_callback: None,
+            session_manager: Some(Box::new(FileSessionManager::new(None))),
         }
     }
 
@@ -126,38 +121,47 @@ impl Server {
     }
 
     async fn start_server(&mut self) {
-        router::resolver::resolve(self);
+        RouterResolver::resolve(self);
         // Using memory address to avoid compiler checks we server will not be mut
         // Getting server value - (*(server_ptr as *const &mut Server))
         let ptr = &self as *const &mut Self as usize;
 
         if self.init_callback.is_some() {
             tokio::spawn(async move {
-                unsafe { (*(ptr as *const &mut Server)).init_callback.as_ref().unwrap()(); }
+                Self::instance(ptr).init_callback.as_mut().unwrap()();
             });
         }
 
         join!(tcp::listen(ptr), udp::listen(ptr));
     }
 
-    // TODO: this must handle web and ws requests
     pub(crate) async fn on_web_request<'a>(&'a mut self, req: &'a mut Request, res: &'a mut Response) -> Result<()> {
         let handler = RequestHandler::new();
+        let ptr = &self as *const &mut Self as usize;
 
-        handler.setup(req, res).await?;
+        handler.setup(ptr, req, res).await.unwrap();
         res.referer = req.header("referer");
         self.routes.handle_web_request(req, res);
 
-        if self.assets.is_some() {
-            self.assets.as_mut().unwrap().handle(req, res).unwrap();
+        // Route not found check if path exist in assets.
+        if res.status_code == 404 {
+            if let Some(assets) = &mut self.assets {
+                assets.handle(req, res);
+            }
         }
 
-        return Ok(handler.teardown(req, res).await.unwrap());
+        return handler.teardown(ptr, req, res).await;
     }
 
     pub(crate) async fn on_ws_request<'a>(&'a mut self, req: &'a mut Request, res: &'a mut Response) -> Option<(&'a Route<WsRoute>, &'a mut Request, &'a mut Response)> {
-        RequestHandler::new().setup(req, res).await.unwrap();
+        let ptr = &self as *const &mut Self as usize;
+
+        RequestHandler::new().setup(ptr, req, res).await.unwrap();
 
         return self.routes.handle_ws_request(req, res);
+    }
+
+    pub(crate) fn instance<'s>(ptr: usize) -> &'s mut Self {
+        return unsafe { *(ptr as *mut &mut Server) };
     }
 }

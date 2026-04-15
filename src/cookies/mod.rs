@@ -1,12 +1,14 @@
 use std::time::Duration;
 
+use anyhow::{Ok, Result};
 use cookie::{
-    Cookie as OrgCookie,
+    Cookie as CookieJar,
     time::{Duration as CookieDuration, OffsetDateTime}
 };
 
 use crate::utils::Values;
 
+#[derive(Debug)]
 pub struct Cookie {
     name: String,
     value: String,
@@ -16,9 +18,9 @@ pub struct Cookie {
     path: Option<String>,
     secure: Option<bool>,
     http_only: Option<bool>,
-
 }
 
+#[derive(Debug)]
 pub struct Cookies {
     pub(crate) cookies: Values,
     pub(crate) new_cookie: Vec<Cookie>,
@@ -62,14 +64,14 @@ impl Cookie {
         return self;
     }
 
-    pub fn set_domain(&mut self, value: &str) -> &mut Self {
-        self.domain = Some(value.to_string());
+    pub fn set_path(&mut self, value: &str) -> &mut Self {
+        self.path = Some(value.to_string());
 
         return self;
     }
 
-    pub fn set_path(&mut self, value: &str) -> &mut Self {
-        self.path = Some(value.to_string());
+    pub fn set_domain(&mut self, value: &str) -> &mut Self {
+        self.domain = Some(value.to_string());
 
         return self;
     }
@@ -87,30 +89,30 @@ impl Cookie {
     }
 
     pub(crate) fn parse(&mut self) -> String {
-        let mut cookie = OrgCookie::new(self.name.to_string(), self.value.to_string());
+        let mut cookie = CookieJar::new(self.name.to_string(), self.value.to_string());
 
-        if self.expires.is_some() {
-            cookie.set_expires(OffsetDateTime::now_utc() + CookieDuration::seconds(self.expires.unwrap().as_secs().try_into().unwrap()));
+        if let Some(expires) = self.expires {
+            cookie.set_expires(OffsetDateTime::now_utc() + CookieDuration::seconds(expires.as_secs() as i64));
         }
 
-        if self.max_age.is_some() {
-            cookie.set_max_age(CookieDuration::new(self.max_age.unwrap().as_secs().try_into().unwrap(), 0));
+        if let Some(max_age) = self.max_age {
+            cookie.set_max_age(CookieDuration::new(max_age.as_secs() as i64, 0));
         }
 
-        if self.domain.is_some() {
-            cookie.set_domain(self.domain.as_ref().unwrap());
+        if let Some(path) = &self.path {
+            cookie.set_path(path);
         }
 
-        if self.domain.is_some() {
-            cookie.set_domain(self.domain.as_ref().unwrap());
+        if let Some(domain) = &self.domain {
+            cookie.set_domain(domain);
         }
 
-        if self.secure.is_some() && self.secure.unwrap() {
-            cookie.set_secure(true);
+        if let Some(secure) = self.secure {
+            cookie.set_secure(secure);
         }
 
-        if self.http_only.is_some() && self.http_only.unwrap() {
-            cookie.set_http_only(true);
+        if let Some(http_only) = self.http_only {
+            cookie.set_http_only(http_only);
         }
 
         return cookie.to_string();
@@ -126,13 +128,7 @@ impl Cookies {
     }
 
     pub fn get(&mut self, name: &str) -> String {
-        let cookie = self.cookies.get(name);
-
-        if cookie.is_none() {
-            return String::new()
-        }
-
-        return cookie.unwrap().to_owned();
+        return self.cookies.get(name).map(|v| String::from(v)).unwrap_or(String::new());
     }
 
     pub fn set(&mut self, name: &str, value: &str) -> &mut Cookie {
@@ -141,5 +137,11 @@ impl Cookies {
         self.new_cookie.push(Cookie::new(name, value));
 
         return &mut self.new_cookie[idx];
+    }
+
+    pub fn remove(&mut self, name: &str) -> Result<()> {
+        self.cookies.remove(name);
+
+        return Ok(())
     }
 }

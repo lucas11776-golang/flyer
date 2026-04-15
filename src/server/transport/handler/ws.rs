@@ -16,8 +16,8 @@ use tungstenite::{Message, protocol::Role::Server};
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::sync::mpsc::unbounded_channel;
 
-use crate::response::parser::parse;
 use crate::router::route::Route;
+use crate::server::helpers::parse::http_1_parse;
 use crate::ws::Reason;
 use crate::{
     request::Request,
@@ -174,7 +174,7 @@ where
             .header("Connection", "Upgrade")
             .header("Sec-WebSocket-Accept", Self::get_sec_web_socket_accept(req.header("sec-websocket-key")).as_str());
 
-        rw.write_all(&parse(res, Some(&mut req.cookies.new_cookie))).await.unwrap();
+        rw.write_all(&http_1_parse(res, Some(&mut req.cookies.new_cookie))).await.unwrap();
         rw.flush().await.unwrap();
 
         return Ok(());

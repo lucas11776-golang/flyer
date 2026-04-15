@@ -1,5 +1,3 @@
-use std::{io::Result};
-
 use urlencoding::decode;
 
 use crate::utils::{Values, merge};
@@ -14,11 +12,14 @@ pub fn clean_url(uri: String) -> String {
         .to_string();
 }
 
-pub fn uri_to_vec(uri: String) -> Vec<String> {
-    return clean_url(uri).split("/").map(|x| x.to_string()).collect();
+pub fn uri_to_segments(uri: String) -> Vec<String> {
+    return uri.split('/')
+        .filter(|s| !s.is_empty())
+        .map(|s| String::from(s))
+        .collect()
 }
 
-pub fn parse_query_params(query: &str) -> Result<Values> {
+pub fn parse_query_params(query: &str) -> Values {
     let mut out = Values::new();
 
     for kv in query.split('&') {
@@ -30,13 +31,10 @@ pub fn parse_query_params(query: &str) -> Result<Values> {
         let k = it.next().unwrap_or("");
         let v = it.next().unwrap_or("");
 
-        out.insert(
-            decode(k).unwrap().to_string(), 
-            decode(v).unwrap().to_string()
-        );
+        out.insert(decode(k).unwrap().to_string(), decode(v).unwrap().to_string());
     }
 
-    Ok(out)
+    return out;
 } 
 
 pub fn join_paths(one: String, two: String) -> Vec<String> {

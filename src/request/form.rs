@@ -6,12 +6,14 @@ use crate::utils::Values;
 
 pub type Files = HashMap<String, File>;
 
+#[derive(Debug, Clone)]
 pub struct File {
     pub name: String,
     pub mime: String,
     pub content: Vec<u8>,
 }
 
+#[derive(Debug, Clone)]
 pub struct Form {
     pub values: Values,
     pub files: Files,

@@ -179,21 +179,9 @@ Remove-DnsClientNrptRule -Namespace "tracker.com"
 Insert code below in `main.rs`.
 
 ```rs
-use std::io::Result;
-
 use flyer::server;
+use flyer::utils::development::dns;
 use serde::{Deserialize, Serialize};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::join;
-use tokio::net::{TcpListener, UdpSocket};
-use hickory_proto::op::{Edns, Message, MessageType, Query, ResponseCode};
-use hickory_proto::rr::{Name, RData, Record, RecordType, rdata::SOA};
-use hickory_proto::serialize::binary::{BinDecodable, BinEncodable};
-use url_domain_parse::utils::Domain;
-
-const DNS_HOST: &'static str = "127.0.0.1";
-const DNS_PORT: u16 = 5354;
-const DNS_BUFFER_SIZE: usize = 1024;
 
 #[derive(Serialize, Deserialize)]
 struct ApiInfo<'a> {
@@ -202,7 +190,7 @@ struct ApiInfo<'a> {
 }
 
 fn main() {
-    let mut server = server("127.0.0.1", 80);
+    let server = server("127.0.0.1", 80);
 
     server.router().get("/", async |_req, res| {
         return res.html("<h1>Home Page</h1>");
@@ -230,7 +218,9 @@ fn main() {
     });
 
     server.init(async || {
-        join!(udp(), tcp());
+        tokio::spawn(async {
+            dns::run("tracker.com", "127.0.0.1", 5354);
+        });
     });
 
     print!("\r\n\r\nRunning server: {}\r\n\r\n", server.address());
@@ -238,165 +228,6 @@ fn main() {
     server.listen();
 }
 
-
-async fn udp() {
-    let socket = UdpSocket::bind(format!("{}:{}", DNS_HOST, DNS_PORT)).await.unwrap();
-
-    loop {
-        let mut buf = [0u8; DNS_BUFFER_SIZE];
-        let recv_result = socket.recv_from(&mut buf).await;
-
-        if recv_result.is_err() {
-            continue;
-        }
-
-        // TODO: add tokio::spawn
-        let (size, peer_addr) = recv_result.unwrap();
-        let query = Message::from_bytes(&buf[..size]).unwrap();
-        let response = handle_query(query).await.unwrap();
-        let data = response.to_bytes().unwrap();
-        let result = socket.send_to(&data, peer_addr).await;
-
-        if result.is_err() {
-            continue;
-        }
-
-        result.unwrap();
-    }
-}
-
-async fn tcp() {
-    let listener = TcpListener::bind(format!("{}:{}", DNS_HOST, DNS_PORT)).await.unwrap();
-
-    while let Ok((mut stream, _)) = listener.accept().await {
-        tokio::spawn(async move {
-            let mut buf = [0u8; DNS_BUFFER_SIZE];
-            let result = stream.read(&mut buf).await;
-
-            if result.is_err() {
-                return;
-            }
-
-            let size = result.unwrap();
-            let query = Message::from_bytes(&buf[..size]).unwrap();
-            let response = handle_query(query).await.unwrap();
-            let data = response.to_bytes().unwrap();
-            let result = stream.write(&data.to_bytes().unwrap()).await;
-
-            if result.is_err() {
-                return;
-            }
-
-            result.unwrap();
-        });
-    }
-}
-
-async fn handle_query(request: Message) -> Result<Message> {
-    let mut response = Message::new();
-
-    response.set_id(request.id());
-    response.set_message_type(MessageType::Response);
-    response.set_op_code(request.op_code());
-    response.set_authoritative(true);
-    response.set_recursion_desired(request.recursion_desired());
-    response.set_recursion_available(request.recursion_desired());
-    response.set_response_code(ResponseCode::NoError);
-
-    for query in request.queries() {
-        let domain = Domain::parse(query.name().to_string().trim_end_matches("."));
-
-        if domain.host.is_none() {
-            response.set_response_code(ResponseCode::BADNAME);
-
-            return Ok(response);
-        }
-
-        let mut response_edns = Edns::new();
-
-        response_edns.set_max_payload(DNS_BUFFER_SIZE.try_into().unwrap());
-        response.set_edns(response_edns);
-        response.add_query(query.clone());
-        response.set_response_code(ResponseCode::NoError);
-
-        let search_result = search_dns_record(&mut response, query).await;
-
-        if search_result.is_err() {
-            response.set_response_code(ResponseCode::BADNAME);
-
-            return Ok(response);
-        }
-    }
-
-    Ok(response)
-}
-
-// TODO: check if domain match all host will be resolved :(
-async fn search_dns_record(response: &mut Message, query: &Query) -> Result<()> {
-    match query.query_type() {
-        RecordType::A => {
-            response.add_answer(Record::from_rdata(
-                query.name().clone(),
-                60,
-                RData::A("127.0.0.1".parse().unwrap()),
-            ));
-        }
-        RecordType::AAAA => {
-            response.add_name_server(Record::from_rdata(
-                query.name().clone(),
-                60,
-                RData::SOA(SOA::new(
-                    Name::from_str_relaxed("ns1.tracker.com.").unwrap(),
-                    Name::from_str_relaxed("admin.tracker.com.").unwrap(),
-                    2023101001,
-                    3600,
-                    600,
-                    86400,
-                    60,
-                )),
-            ));
-        }
-        RecordType::ANAME => todo!(),
-        RecordType::ANY => todo!(),
-        RecordType::AXFR => todo!(),
-        RecordType::CAA => todo!(),
-        RecordType::CDS => todo!(),
-        RecordType::CDNSKEY => todo!(),
-        RecordType::CERT => todo!(),
-        RecordType::CNAME => todo!(),
-        RecordType::CSYNC => todo!(),
-        RecordType::DNSKEY => todo!(),
-        RecordType::DS => todo!(),
-        RecordType::HINFO => todo!(),
-        RecordType::HTTPS => todo!(),
-        RecordType::IXFR => todo!(),
-        RecordType::KEY => todo!(),
-        RecordType::MX => todo!(),
-        RecordType::NAPTR => todo!(),
-        RecordType::NS => todo!(),
-        RecordType::NSEC => todo!(),
-        RecordType::NSEC3 => todo!(),
-        RecordType::NSEC3PARAM => todo!(),
-        RecordType::NULL => todo!(),
-        RecordType::OPENPGPKEY => todo!(),
-        RecordType::OPT => todo!(),
-        RecordType::PTR => todo!(),
-        RecordType::RRSIG => todo!(),
-        RecordType::SIG => todo!(),
-        RecordType::SOA => todo!(),
-        RecordType::SRV => todo!(),
-        RecordType::SSHFP => todo!(),
-        RecordType::SVCB => todo!(),
-        RecordType::TLSA => todo!(),
-        RecordType::TSIG => todo!(),
-        RecordType::TXT => todo!(),
-        RecordType::Unknown(_) => todo!(),
-        RecordType::ZERO => todo!(),
-        _ => {},
-    };
-
-    Ok(())
-}
 ```
 
 Now you can start you server using
@@ -442,7 +273,7 @@ Create file called `index.html` in folder called views and copy the content belo
 The next step to insert code below in `main.rs`.
 
 ```rust
-use flyer::{server, view::view_data};
+use flyer::{server, view::ViewData};
 use serde::Serialize;
 
 #[derive(Serialize)]
@@ -456,7 +287,7 @@ fn main() {
         .view("views");
 
     server.router().get("/", async |_req, res| {
-        let mut data = view_data();
+        let mut data = ViewData::new();
 
         data.insert("user", &User{
             first_name: "Jeo",
@@ -511,7 +342,6 @@ use flyer::{
     request::Request,
     response::Response,
     server,
-    session::cookie::new_session_manager,
     utils::{env, load_env}
 };
 
@@ -523,7 +353,6 @@ fn main() {
     load_env(".env");
 
     let mut server = server(env("HOST").as_str(), env("PORT").parse().unwrap())
-        .session(new_session_manager(Duration::from_hours(2), "cookie_token", "test_123"))
         .view("views");
 
     server.router().group("/", |router| {
@@ -561,7 +390,7 @@ And also create file called `index.html` in folder called `views` and copy the c
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <base href="http://127.0.0.1:9999/">
   <title>Assets Test</title>
-  <link href="/style.css" rel="stylesheet">
+  <link href="{{ url(path="style.css") }}" rel="stylesheet">
 </head>
 <body>
   <h1>Hello World</h1>
@@ -574,7 +403,7 @@ The next step to insert code below in `main.rs`.
 ```rs
 use std::time::Duration;
 
-use flyer::{server, view::view_data};
+use flyer::{server, view::ViewData};
 
 fn main() {
     let mut server = server("127.0.0.1", 9999)
@@ -582,7 +411,7 @@ fn main() {
         .view("views");
 
     server.router().get("/", async |_req, res| {
-        return res.view("index.html", Some(view_data()));
+        return res.view("index.html", Some(ViewData::new()));
     });
 
     println!("Running Server: {}", server.address());
@@ -599,7 +428,7 @@ You should see background color of black and Hello World with white color if you
 ```rust
 use flyer::{
     request::Request,
-    response::Response,
+    response::{HTTP_UNAUTHORIZED, Response},
     router::next::Next,
     server
 };
@@ -616,9 +445,9 @@ pub struct JsonMessage {
     message: String
 }
 
-pub async fn auth<'a>(req: &'a mut Request, res: &'a mut Response, next: &mut Next) -> &'a mut Response {
+pub async fn auth<'a>(req: &'a mut Request, res: &'a mut Response, next: &'a mut Next) -> &'a mut Response {
     if req.header("authorization") != "ey.jwt.token" {
-        return res.status_code(401).json(&JsonMessage{
+        return res.status_code(HTTP_UNAUTHORIZED).json(&JsonMessage{
             message: "Unauthorized Access".to_owned()
         })
     }
@@ -626,7 +455,7 @@ pub async fn auth<'a>(req: &'a mut Request, res: &'a mut Response, next: &mut Ne
     return next.handle(res);
 }
 
-pub async fn verified<'a>(req: &'a mut Request, res: &'a mut Response, next: &mut Next) -> &'a mut Response {
+pub async fn verified<'a>(req: &'a mut Request, res: &'a mut Response, next: &'a mut Next) -> &'a mut Response {
     // Some logic to check user in database
     return next.handle(res);
 }
@@ -664,7 +493,6 @@ use flyer::{
     response::Response,
     router::next::Next,
     server,
-    session::cookie::new_session_manager
 };
 
 /// Controller
@@ -710,8 +538,7 @@ pub async fn guest<'a>(req: &'a mut Request, res: &'a mut Response, next: &'a mu
 }
 
 fn main() {
-    let mut server = server("127.0.0.1", 9999)
-        .session(new_session_manager(Duration::from_hours(2), "session_cookie_key_name", "encryption"));
+    let mut server = server("127.0.0.1", 9999);
 
     server.router().group("/", |router| {
         router.get("/", home_view).middleware(auth);
@@ -743,7 +570,7 @@ use flyer::{
 pub async fn home_view<'a>(req: &'a mut Request, res: &'a mut Response) -> &'a mut Response {
     req.cookies()
         .set("user_id", "1")
-        .set_expires(Duration::from_hours(2));
+        .set_expires(Duration::from_secs((60 * 60) * 2));
 
     return res.html("<h1>Cookie has been set visit route /cookie</h1>");
 }
@@ -752,12 +579,18 @@ pub async fn cookie<'a>(req: &'a mut Request, res: &'a mut Response) -> &'a mut 
     return res.html(format!("<h1>User ID cookie is {}</h1>", req.cookies().get("user_id")).as_str());
 }
 
+pub async fn remove_cookie<'a>(req: &'a mut Request, res: &'a mut Response) -> &'a mut Response {
+    let _ = req.cookies().remove("user_id");
+    return res.redirect("/");
+}
+
 fn main() {
-    let mut server = server("127.0.0.1", 9999);
+    let server = server("127.0.0.1", 9999);
 
     server.router().group("/", |router| {
         router.get("/", home_view);
         router.get("cookie", cookie);
+        router.delete("cookie/remove", remove_cookie);
     });
 
     print!("\r\n\r\nRunning server: {}\r\n\r\n", server.address());
@@ -812,13 +645,12 @@ use std::time::Duration;
 use flyer::{
     request::Request,
     response::Response,
-    server, 
-    session::cookie::new_session_manager,
-    view::view_data
+    server,
+    view::ViewData
 };
 
 pub async fn home<'a>(_req: &'a mut Request, res: &'a mut Response) -> &'a mut Response {
-    return res.view("index.html", Some(view_data()));
+    return res.view("index.html", Some(ViewData::new()));
 }
 
 pub async fn upload<'a>(req: &'a mut Request, res: &'a mut Response) -> &'a mut Response {
@@ -835,7 +667,6 @@ pub async fn upload<'a>(req: &'a mut Request, res: &'a mut Response) -> &'a mut 
 
 fn main() {
     let mut server = server("127.0.0.1", 9999)
-        .session(new_session_manager(Duration::from_hours(2), "session_cookie_key_name", "encryption"))
         .view("views")
         .set_request_max_size(1024 * 100); // Max Request size 100MB
 
@@ -853,7 +684,22 @@ fn main() {
 
 ### Form Validation
 
-Create file called `register.html` in folder called views and copy the content below in the file.
+use std::{collections::HashMap, time::Duration};
+
+use serde::{Deserialize, Serialize};
+
+use flyer::{
+    request::{Request, form::Form},
+    response::Response,
+    router::next::Next,
+    server,
+    validation::{Rules}
+};
+use tokio::time::sleep;
+
+/*
+
+TODO: Create file called `register.html` in folder called `views` and copy the content below in the file.
 
 ```html
 <!DOCTYPE html>
@@ -991,23 +837,9 @@ Create file called `register.html` in folder called views and copy the content b
 </html>
 ```
 
-The next step to insert code below in `main.rs`.
+*/
 
 ```rust
-use std::time::Duration;
-
-use serde::{Deserialize, Serialize};
-
-use flyer::{
-    request::{Request, form::Form},
-    response::Response,
-    router::next::Next,
-    server,
-    session::cookie::new_session_manager,
-    validation::{Rules, Validator, rules}
-};
-use tokio::time::sleep;
-
 #[derive(Serialize, Deserialize)]
 pub struct Token {
     pub token: String,
@@ -1023,46 +855,43 @@ pub async fn login<'a>(_req: &'a mut Request, res: &'a mut Response) -> &'a mut 
     return res.json(&Token {
         token: String::from("eye.jwt.token"),
         r#type: String::from("jwt"),
-        expires: Duration::from_hours(24).as_millis()
+        expires: Duration::from_secs((606 * 60) * 24).as_millis()
     });
 }
 
-pub async fn email_exists(form: &Form, field: String, _args: Vec<String>) -> Option<String> {
-    let users_table = vec!["jeo@doe.com", "jane@deo.com"];
+pub async fn user_exists(table: &str, email: &str) -> bool {
+    let mut db: HashMap<&str, Vec<&str>> = HashMap::new();
 
-    sleep(Duration::from_millis(250)).await; // Database call simulation 
+    db.insert("users", vec!["john@deo.com", "jane@deo.com"]);
 
-    for email in users_table {
-        if form.values.get(&field).unwrap().eq(email) {
-            return Some(format!("The {} already exists in database", field))
-        }
-    }
+    sleep(Duration::from_millis(250)).await;
 
-    return None
+    return db.get(table).unwrap_or(&Vec::new()).iter().find(|&u| u.eq(&email)).is_some();
+}
+
+pub async fn email_exists(form: &Form, field: String, args: Vec<String>) -> Option<String> {
+    return if user_exists(&args[0], form.values.get(&field).unwrap_or(&String::new())).await {
+        None
+    } else {
+        Some(String::from("The email does not exist"))
+    };
 }
 
 async fn login_form<'a>(req: &'a mut Request, res: &'a mut Response, next: &'a mut Next) -> &'a mut Response {
     let mut rules = Rules::new();
 
-    rules.field("email")
-        .add(rules::required, vec![])
-        .add(rules::string, vec![])
-        .add(email_exists, vec![]);
-    rules.field("password")
-        .add(rules::required, vec![])
-        .add(rules::string, vec![])
-        .add(rules::min, vec!["8"])
-        .add(rules::max, vec!["21"])
-        .add(rules::confirmed, vec![]);
+    rules.rule("email", vec!["required", "string", "email_exists:users"])
+        .rule("password", vec!["required", "string", "min:5", "max:21", "confirmed"]);
 
-    return Validator::handle(req, res, next, rules).await;
+    return rules.handle(req, res, next);
 }
 
 fn main() {
-    let mut server = server("127.0.0.1", 9999)
-        .session(new_session_manager(Duration::from_hours(2), "session_cookie_key_name", "encryption"))
+    let server = server("127.0.0.1", 9999)
         .view("views")
-        .assets("assets", 1024, Duration::from_hours(2).as_millis());
+        .assets("assets", 1024, Duration::from_secs((60 * 60) * 2).as_millis());
+
+    Rules::add("email_exists", email_exists);
 
     server.router().group("/", |router| {
         router.get("/", index);
@@ -1076,6 +905,8 @@ fn main() {
     server.listen();
 }
 ```
+
+For more validation rules visit [Rules Docs](https://github.com/lucas11776-golang/flyer/blob/main/VALIDATION.md)
 
 
 ### Websocket

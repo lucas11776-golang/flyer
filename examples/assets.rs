@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use flyer::{server, view::view_data};
+use flyer::{server, view::ViewData};
 
 /*
 
@@ -26,7 +26,7 @@ TODO: Create file called `index.html` in folder called `views` and copy the cont
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <base href="http://127.0.0.1:9999/">
   <title>Assets Test</title>
-  <link href="/style.css" rel="stylesheet">
+  <link href="{{ url(path="style.css") }}" rel="stylesheet">
 </head>
 <body>
   <h1>Hello World</h1>
@@ -42,7 +42,7 @@ fn main() {
         .view("views");
 
     server.router().get("/", async |_req, res| {
-        return res.view("index.html", Some(view_data()));
+        return res.view("index.html", Some(ViewData::new()));
     });
 
     println!("Running Server: {}", server.address());

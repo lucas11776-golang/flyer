@@ -1,3 +1,4 @@
+use std::fmt;
 use crate::{
     request::Request,
     response::Response,
@@ -11,6 +12,16 @@ pub(crate) struct Routes {
     pub(crate) not_found_callback: Option<Box<WebRoute>>,
 }
 
+impl fmt::Debug for Routes {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt.debug_struct("Routes")
+            .field("web", &self.web)
+            .field("ws", &self.ws)
+            .field("not_found_callback", &self.not_found_callback.as_ref().map(|_| "Fn(...)"))
+            .finish()
+    }
+}
+
 impl Routes {
     pub fn handle_web_request<'r>(&self, req: &'r mut Request, res: &'r mut Response) {
         for route in &self.web {
@@ -22,24 +33,16 @@ impl Routes {
             
             req.parameters = parameters;
 
-            if !self.handle_middlewares(req, res, &route.middlewares) {
-                return;
-            }
-
-            (route.handler)(req, res);
-
-            return;
+            return match self.handle_middlewares(req, res, &route.middlewares) {
+                true => { (route.handler)(req, res); },
+                false => {},
+            };
         }
 
-        if self.not_found_callback.is_some() {
-            self.not_found_callback.as_ref().unwrap()(req, res);
-
-            return;
-        }
-
-        res.status_code = 404;
-
-        return;
+        return match &self.not_found_callback {
+            Some(callback) => { callback(req, res); },
+            None => { res.status_code = 404; }
+        };
     }
 
     pub fn handle_ws_request<'r>(&'r self, req: &'r mut Request, res: &'r mut Response) -> Option<(&'r Route<WsRoute>, &'r mut Request, &'r mut Response)> {
@@ -52,11 +55,10 @@ impl Routes {
 
             req.parameters = parameters;
 
-            if !self.handle_middlewares(req, res, &route.middlewares) {
-                return None;
-            }
-
-            return Some((&route, req, res));
+            return match self.handle_middlewares(req, res, &route.middlewares) {
+                true => Some((&route, req, res)),
+                false => None,
+            };
         }
 
         return None;

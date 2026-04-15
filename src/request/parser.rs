@@ -8,24 +8,24 @@ use crate::{
     utils::url::parse_query_params
 };
 
-pub(crate) async fn parse_content_type(req: Request) -> Result<Request> {
+pub(crate) async fn parse_content_type(req: &mut Request) -> Result<()> {
     if req.method == "POST" || req.method == "PATCH" || req.method == "PUT" {
         return Ok(
             match req.content_type().as_str() {
                 "application/x-www-form-urlencoded" => parse_form_urlencoded( req).await.unwrap(),
                 "multipart/form-data" => parse_multipart_form(req).await.unwrap(),
-                _ => req
+                _ => {}
             }
         );
     }
 
-    return Ok(req);
+    return Ok(());
 }
 
 pub(crate) fn get_multipart_header_boundary(header: String) -> std::io::Result<String> {
     let content_type: Vec<&str> = header.split(";").collect();
     let content_type_piece = content_type.get(1).unwrap().to_string();
-    let boundary =   parse_query_params(content_type_piece.trim()).unwrap()
+    let boundary =   parse_query_params(content_type_piece.trim())
         .get("boundary")
         .unwrap()
         .to_string();
@@ -33,7 +33,7 @@ pub(crate) fn get_multipart_header_boundary(header: String) -> std::io::Result<S
     return Ok(boundary);
 }
 
-async fn parse_multipart_form(mut req: Request) -> std::io::Result<Request> {
+async fn parse_multipart_form(req: &mut Request) -> Result<()> {
     let boundary = get_multipart_header_boundary(req.header("content-type")).unwrap();
     let body = req.body.clone();
     let stream = ReaderStream::new(body.as_slice());
@@ -61,15 +61,15 @@ async fn parse_multipart_form(mut req: Request) -> std::io::Result<Request> {
         req.form.files.insert(name, File::new(filename.as_str(), content_type.as_str(), data));
     }
 
-    return Ok(req);
+    return Ok(());
 }
 
-async fn parse_form_urlencoded(mut req: Request) -> std::io::Result<Request> {
-    let values = parse_query_params(String::from_utf8(req.body.clone()).unwrap().as_str()).unwrap();
+async fn parse_form_urlencoded(req: &mut Request) -> std::io::Result<()> {
+    let values = parse_query_params(String::from_utf8(req.body.clone()).unwrap().as_str());
 
     for (k, v) in values {
         req.form.values.insert(k, v);
     }
 
-    return Ok(req);
+    return Ok(());
 }

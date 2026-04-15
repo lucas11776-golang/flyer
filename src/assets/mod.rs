@@ -1,101 +1,81 @@
-use std::{
-    collections::HashMap,
-    fs::File,
-    io::{Read, Result},
-};
+use std::{fs::File, io::Read};
 
 use mime_guess::from_path;
 
-use crate::{
-    request::Request,
-    response::Response,
-    utils::timestamp
-};
-pub(crate) struct Asset {
-    pub size: usize,
-    pub expires: u128,
-    pub data: Vec<u8>,
-    pub content_type: String,
-}
+use crate::{assets::cache::{Asset, LruCache}, request::Request, response::Response, utils::timestamp};
 
-pub(crate) type Cache = HashMap<String, Asset>;
+pub(crate) mod cache;
+
 pub(crate) struct Assets {
     path: String,
+    size: usize,
+    cache: LruCache,
     expires: u128,
-    max_size: usize,
-    cache: Cache,
 }
 
-// TODO: Refactor
 impl Assets {
     pub fn new(path: String, max_size_kilobytes_cache_size: usize, expires_in_seconds: u128) -> Self {
         return Self {
-            path: path.trim_end_matches("/").to_owned(),
-            max_size: max_size_kilobytes_cache_size * 1000,
-            expires: expires_in_seconds,
-            cache: Cache::new(),
+            path: path,
+            size: max_size_kilobytes_cache_size,
+            cache: LruCache::new(100),
+            expires: expires_in_seconds
         }
     }
 
-    pub fn handle<'a>(&mut self, req: &'a mut Request, resp: &'a mut Response) -> Result<()> {
-        let name = format!("{}/{}", self.path, req.path.trim_start_matches("/"));
-        let cached_asset = self.cache.get(&name);
-
-        if cached_asset.is_some() {
-            let asset = cached_asset.unwrap();
-
-            if  asset.expires > timestamp().unwrap() {
-                resp.body(&asset.data)
-                    .status_code(200)
-                    .header("Content-Type", &asset.content_type);
-
-                return Ok(());
-            }
+    pub fn handle<'a>(&mut self, req: &'a mut Request, res: &'a mut Response) {
+        if req.path.trim_matches('/').is_empty() {
+            return;
         }
 
-        let cached_asset = self.read_asset(name.clone()).unwrap();
-
-        if !cached_asset.is_some() {
-            return Ok(());
+        if let Some(asset) = self.get_asset(format!("{}/{}", self.path, req.path.trim_start_matches("/"))) {
+            res.body(&asset.data)
+                .header("Content-Type", &asset.content_type)
+                .status_code(200);
         }
-
-        let asset = cached_asset.unwrap();
-
-        resp.body(&asset.data)
-            .status_code(200)
-            .header("Content-Type", &asset.content_type);
-
-        if asset.size > self.max_size.clone() {
-            self.cache.remove(&name.clone());
-        }
-
-        return Ok(());
     }
 
-    fn read_asset(&mut self, name: String) -> Result<Option<&Asset>> {
-        let file = File::open(name.clone());
+    fn get_asset(&mut self, filename: String) -> Option<Asset> {
+        return match self.cache.get(&filename, self.expires) {
+            Some(asset) => {
+                Some(asset.clone())
+            },
+            None => {
+                match self.read_asset(&filename) {
+                    Some(asset) => {
+                        if self.size <= asset.size {
+                            self.cache.insert(String::from(filename), asset.clone());
+                        }
 
-        if !file.is_ok() {
-            return Ok(None);
+                        return Some(asset);
+                    },
+                    None => {
+                        None
+                    },
+                }
+            },
         }
-
-        let mut content = String::new();
-        let reading = file.unwrap().read_to_string(&mut content);
-
-        if !reading.is_ok() {
-            return Ok(None);
-        }
-
-        self.cache.insert(name.clone(), Asset {
-            size: reading.unwrap(),
-            expires: timestamp().unwrap() + (1000 * self.expires),
-            data: content.into(),
-            content_type: from_path(name.split("/").last().unwrap_or("")).first_or_octet_stream().to_string(),
-        });
-
-        let asset = self.cache.get(&name).unwrap();
-
-        return Ok(Some(asset))
     }
 
+    fn read_asset(&self, filename: &str) -> Option<Asset> {
+        return match File::open(filename) {
+            Ok(mut file) => {
+                let mut data= String::new();
+
+                return Some(Asset {
+                    size: file.read_to_string(&mut data).unwrap(),
+                    expires: timestamp().unwrap() + (1000 * self.expires),
+                    data: data.into_bytes(),
+                    content_type: self.get_content_type(filename),
+                });
+            },
+            Err(_) => {
+                None
+            },
+        };
+    }
+
+    fn get_content_type(&self, filename: &str) -> String {
+        return from_path(filename.split("/").last().unwrap_or("")).first_or_octet_stream().to_string();
+    }
 }

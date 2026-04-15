@@ -1,19 +1,15 @@
-pub mod functions;
-pub mod session_functions;
-
 use std::io::Result;
 
 use serde::{Serialize};
 use tera::{Context, Tera};
 
-use crate::{
-    request::Request,
-    response::Response,
-    view::functions::Functions
-};
+use crate::{request::Request, response::Response, view::functions::register};
 
-pub(crate) struct View {
-    pub(crate) render: Tera
+pub(crate) mod functions;
+
+pub(crate) struct ViewBag {
+    pub(crate) view: String,
+    pub(crate) data: Option<ViewData>,
 }
 
 pub struct ViewData {
@@ -21,37 +17,47 @@ pub struct ViewData {
 }
 
 impl ViewData {
+    pub fn new() -> Self {
+        return Self {
+            context: Context::new()
+        }
+    }
+
     pub fn insert<T: Serialize + ?Sized, S: Into<String>>(&mut self, key: S, val: &T) {
         self.context.insert(key, val);
     }
 }
 
+#[deprecated]
 pub fn view_data() -> ViewData {
     return ViewData{
         context: Context::new()
     };
 }
 
+pub(crate) struct View {
+    pub(crate) engine: Tera
+}
+
 impl View {
     pub fn new(path: &str) -> Self {
         return Self {
-            render: Tera::new(&format!("{}/**/*", path.trim_end_matches("/"))).unwrap()
+            engine: Tera::new(&format!("{}/**/*", path.trim_end_matches("/"))).unwrap()
         }
     }
 
     pub fn render<'a>(&mut self, req: &'a mut Request, res: &'a mut Response) -> Result<()> {
-        if res.view.is_none() {
-            return Ok(());
-        }
+        return Ok(match res.view.as_mut() {
+            Some(bag) => {
+                if let None = bag.data {
+                    bag.data = Some(ViewData::new());
+                }
 
-        let bag = res.view.as_mut().unwrap();
+                register(&mut self.engine, req);
 
-        if bag.data.is_none() {
-            bag.data = Some(view_data());
-        }
-
-        res.body = Functions::new(&mut self.render, req).render(bag).unwrap();
-
-        return Ok(());   
+                res.body = self.engine.render(&bag.view, &bag.data.as_mut().unwrap().context).unwrap().into();
+            },
+            None => (),
+        });
     }
 }

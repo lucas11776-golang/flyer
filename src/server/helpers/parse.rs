@@ -1,6 +1,8 @@
-use crate::{cookie::Cookie, response::Response};
 
-pub fn parse(response: &mut Response, cookies: Option<&mut Vec<Cookie>>) -> Vec<u8> {
+
+use crate::{cookies::Cookie, response::Response};
+
+pub fn http_1_parse(response: &mut Response, cookies: Option<&mut Vec<Cookie>>) -> Vec<u8> {
     let mut res = Vec::new();
 
     res.extend_from_slice(format!("HTTP/1.0 {} OK\r\n", response.status_code).as_bytes());

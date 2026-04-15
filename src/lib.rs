@@ -11,12 +11,13 @@ pub mod response;
 pub mod ws;
 pub mod server;
 pub mod utils;
-pub mod cookie;
+pub mod cookies;
 pub mod session;
 pub mod view;
 pub mod validation;
 pub mod assets;
 
+// Leak server memory
 static mut GLOBAL_SERVER: OnceCell<Box<Server>> = OnceCell::new();
 
 #[allow(static_mut_refs)]
