@@ -106,7 +106,8 @@ static mut RULES: LazyLock<HashMap<String, Box<Rule>>> = LazyLock::new(|| {
 
 pub struct Field<'a> {
     pub(crate) name: String,
-    pub(crate) rules: Vec<(&'a Box<Rule>, Vec<String>)>
+    pub(crate) rules: Vec<(&'a Box<Rule>, Vec<String>)>,
+    pub(crate) nullable: bool,
 }
 
 
@@ -122,7 +123,8 @@ impl <'f>Field<'f> {
     pub(crate) fn new(field: &str) -> Field<'f> {
         return Self {
             name: field.to_string(),
-            rules: Vec::new()
+            rules: Vec::new(),
+            nullable: false,
         }
     }
 
@@ -162,11 +164,17 @@ impl <'r>Rules<'r> {
     #[allow(static_mut_refs)]
     pub fn rule(&mut self, field: &str, rules: Vec<&str>) -> &mut Self {
         let mut v = Vec::new();
+        let mut is_nullable = false;
 
         for rule in rules {
             let mut split = VecDeque::from(rule.split(":").collect::<Vec<&str>>());
             let name = split.pop_front().unwrap();
             let args = split.pop_front().unwrap_or("").split(",").map(|v| String::from(v.trim())).collect::<Vec<String>>();
+
+            if name == "nullable" {
+                is_nullable = true;
+                continue;
+            }
 
             let rule_callback = unsafe {
                 match RULES.get(name) {
@@ -180,7 +188,8 @@ impl <'r>Rules<'r> {
 
         self.fields.push(Field {
             name: String::from(field),
-            rules: v
+            rules: v,
+            nullable: is_nullable,
         });
 
         return self;
@@ -237,6 +246,9 @@ impl <'a>Validator<'a> {
     }
 
     fn validate_field(form: &Form, field: &mut Field) -> Option<String> {
+        if field.nullable && crate::validation::rules::is_empty(form, &field.name) {
+            return None;
+        }
         for (rule, args) in &mut field.rules {
             if let Some(error) = rule(form, field.name.clone(), args.to_vec()) {
                 return Some(error)

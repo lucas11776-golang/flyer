@@ -17,7 +17,7 @@ fn get_value(form: &Form, field: &str) -> Option<String> {
     form.values.get(field).cloned()
 }
 
-fn is_empty(form: &Form, field: &str) -> bool {
+pub fn is_empty(form: &Form, field: &str) -> bool {
     if let Some(val) = form.values.get(field) {
         return val.is_empty();
     }
