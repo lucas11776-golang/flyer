@@ -169,7 +169,59 @@ async fn search_dns_record(domain_name: &str, response: &mut Message, query: &Qu
         RecordType::SOA => todo!(),
         RecordType::SRV => todo!(),
         RecordType::SSHFP => todo!(),
-        RecordType::SVCB => todo!(),
+        RecordType::SVCB => {
+
+            //             // // HTTPS
+//             // tracker.com. 3600 IN HTTPS 1 . (
+//             //     alpn="http/1.1"
+//             //     port="5354"
+//             //     ipv4hint=127.0.0.1
+//             // )
+
+//             // // HTTP
+//             // tracker.com. 3600 IN SVCB 1 . (
+//             //     alpn="http/1.1"
+//             //     port="5354"
+//             //     ipv4hint=127.0.0.1
+//             // )
+            
+//             // // HTTP
+//             // tracker.com. 3600 IN A 127.0.0.1
+
+//             // Only respond if querying tracker.com HTTPS/SVCB
+//             // let name = Name::from_ascii("tracker.com.").unwrap();
+
+//             // // TODO: fix
+//             // use hickory_proto::rr::{Name, Record, RData};
+//             // use hickory_proto::rr::rdata::svcb::{SVCB, SvcParamKey};
+//             // use hickory_proto::rr::rdata::svcb::SvcParamValue::*;
+//             // use std::net::Ipv4Addr;
+
+//             // // Build SVCB RDATA
+//             // let mut params = vec![
+//             //     (SvcParamKek ::Port, Port(5354)),
+//             //     (SvcParamKey::Ipv4Hint, Ipv4Hint(vec![Ipv4Addr::new(127, 0, 0, 1)])),
+//             //     (SvcParamKey::Alpn, Alpn(vec![b"http/1.1".to_vec()])),
+//             // ];
+
+//             // let svcb = SVCB::new(
+//             //     1,              // priority (ServiceMode)
+//             //     Name::root(),   // "." = same name
+//             //     params,
+//             // );
+
+//             // let record = Record::from_rdata(
+//             //     name,
+//             //     3600, // TTL
+//             //     RData::SVCB(svcb),
+//             // );
+
+//             // response.add_answer(record);
+
+
+
+            todo!()
+        },
         RecordType::TLSA => todo!(),
         RecordType::TSIG => todo!(),
         RecordType::TXT => todo!(),
