@@ -24,6 +24,6 @@ fn url() -> impl Fn(&HashMap<String, Value>) -> tera::Result<tera::Value>  {
             path = p.as_str().unwrap().trim_start_matches("/").trim_end_matches("/").to_owned();
         }
 
-        return Ok(to_value(format!("{}/{}", crate::utils::env("APP_URL").trim_end_matches("/"), path)).unwrap());
+        return Ok(to_value(crate::utils::url::url(&path)).unwrap());
     };
 }

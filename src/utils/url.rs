@@ -51,3 +51,7 @@ pub fn join_url(url: Vec<String>) -> String {
         .trim_matches('/')
         .to_string();
 }
+
+pub fn url(path: &str) -> String {
+    return format!("{}/{}", crate::utils::env("APP_URL").trim_end_matches("/"), path);
+}
