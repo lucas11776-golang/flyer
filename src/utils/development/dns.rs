@@ -1,11 +1,13 @@
 use std::io::Result;
+use std::net::Ipv4Addr;
 
 use async_std::task::block_on;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::join;
 use tokio::net::{TcpListener, UdpSocket};
 use hickory_proto::op::{Edns, Message, MessageType, Query, ResponseCode};
-use hickory_proto::rr::{Name, RData, Record, RecordType, rdata::SOA};
+use hickory_proto::rr::{Name, RData, Record, RecordType, rdata::SOA, rdata::A};
+use hickory_proto::rr::rdata::svcb::{SVCB, SvcParamKey, SvcParamValue, Alpn, IpHint};
 use hickory_proto::serialize::binary::{BinDecodable, BinEncodable};
 use url_domain_parse::utils::Domain;
 
@@ -31,7 +33,7 @@ async fn udp(domain_name: &str, host: &str, port: u16) {
         // TODO: add tokio::spawn
         let (size, peer_addr) = recv_result.unwrap();
         let query = Message::from_bytes(&buf[..size]).unwrap();
-        let response = handle_query(domain_name, query).await.unwrap();
+        let response = handle_query(host, port, domain_name, query).await.unwrap();
         let data = response.to_bytes().unwrap();
         let result = socket.send_to(&data, peer_addr).await;
 
@@ -49,6 +51,8 @@ async fn tcp(domain_name: &str, host: &str, port: u16) {
 
     while let Ok((mut stream, _)) = listener.accept().await {
         let domain = String::from(domain_name);
+        let address = String::from(host);
+        let port = port.clone();
 
         tokio::spawn(async move {
             let mut buf = [0u8; DNS_BUFFER_SIZE];
@@ -60,7 +64,7 @@ async fn tcp(domain_name: &str, host: &str, port: u16) {
 
             let size = result.unwrap();
             let query = Message::from_bytes(&buf[..size]).unwrap();
-            let response = handle_query(&domain, query).await.unwrap();
+            let response = handle_query(address.as_str(), port, &domain, query).await.unwrap();
             let data = response.to_bytes().unwrap();
             let result = stream.write(&data.to_bytes().unwrap()).await;
 
@@ -73,7 +77,12 @@ async fn tcp(domain_name: &str, host: &str, port: u16) {
     }
 }
 
-async fn handle_query(domain_name: &str, request: Message) -> Result<Message> {
+async fn handle_query(
+    address: &str,
+    port: u16,
+    domain_name: &str,
+    request: Message
+) -> Result<Message> {
     let mut response = Message::new();
 
     response.set_id(request.id());
@@ -100,7 +109,13 @@ async fn handle_query(domain_name: &str, request: Message) -> Result<Message> {
         response.add_query(query.clone());
         response.set_response_code(ResponseCode::NoError);
 
-        let search_result = search_dns_record(domain_name, &mut response, query).await;
+        let search_result = search_dns_record(
+            address,
+            port,
+            domain_name,
+            &mut response,
+            query
+        ).await;
 
         if search_result.is_err() {
             response.set_response_code(ResponseCode::BADNAME);
@@ -113,13 +128,19 @@ async fn handle_query(domain_name: &str, request: Message) -> Result<Message> {
 }
 
 // TODO: check if domain match all host will be resolved :(
-async fn search_dns_record(domain_name: &str, response: &mut Message, query: &Query) -> Result<()> {
+async fn search_dns_record(
+    address: &str,
+    port: u16,
+    domain_name: &str,
+    response: &mut Message,
+    query: &Query
+) -> Result<()> {
     match query.query_type() {
         RecordType::A => {
             response.add_answer(Record::from_rdata(
                 query.name().clone(),
                 60,
-                RData::A("127.0.0.1".parse().unwrap()),
+                RData::A(address.parse().unwrap()),
             ));
         }
         RecordType::AAAA => {
@@ -170,57 +191,22 @@ async fn search_dns_record(domain_name: &str, response: &mut Message, query: &Qu
         RecordType::SRV => todo!(),
         RecordType::SSHFP => todo!(),
         RecordType::SVCB => {
+            let params = vec![
+                (
+                    SvcParamKey::Alpn,
+                    SvcParamValue::Alpn(Alpn(vec!["http/1.1".to_string()])),
+                ),
+                (SvcParamKey::Port, SvcParamValue::Port(port)),
+                (
+                    SvcParamKey::Ipv4Hint,
+                    // SvcParamValue::Ipv4Hint(IpHint(vec![A::from(Ipv4Addr::new(127, 0, 0, 1))])),
+                    SvcParamValue::Ipv4Hint(IpHint(vec![A::from(address.parse::<Ipv4Addr>().unwrap())])),
+                ),
+            ];
 
-            //             // // HTTPS
-//             // tracker.com. 3600 IN HTTPS 1 . (
-//             //     alpn="http/1.1"
-//             //     port="5354"
-//             //     ipv4hint=127.0.0.1
-//             // )
+            let svcb = SVCB::new(1, Name::root(), params);
 
-//             // // HTTP
-//             // tracker.com. 3600 IN SVCB 1 . (
-//             //     alpn="http/1.1"
-//             //     port="5354"
-//             //     ipv4hint=127.0.0.1
-//             // )
-            
-//             // // HTTP
-//             // tracker.com. 3600 IN A 127.0.0.1
-
-//             // Only respond if querying tracker.com HTTPS/SVCB
-//             // let name = Name::from_ascii("tracker.com.").unwrap();
-
-//             // // TODO: fix
-//             // use hickory_proto::rr::{Name, Record, RData};
-//             // use hickory_proto::rr::rdata::svcb::{SVCB, SvcParamKey};
-//             // use hickory_proto::rr::rdata::svcb::SvcParamValue::*;
-//             // use std::net::Ipv4Addr;
-
-//             // // Build SVCB RDATA
-//             // let mut params = vec![
-//             //     (SvcParamKek ::Port, Port(5354)),
-//             //     (SvcParamKey::Ipv4Hint, Ipv4Hint(vec![Ipv4Addr::new(127, 0, 0, 1)])),
-//             //     (SvcParamKey::Alpn, Alpn(vec![b"http/1.1".to_vec()])),
-//             // ];
-
-//             // let svcb = SVCB::new(
-//             //     1,              // priority (ServiceMode)
-//             //     Name::root(),   // "." = same name
-//             //     params,
-//             // );
-
-//             // let record = Record::from_rdata(
-//             //     name,
-//             //     3600, // TTL
-//             //     RData::SVCB(svcb),
-//             // );
-
-//             // response.add_answer(record);
-
-
-
-            todo!()
+            response.add_answer(Record::from_rdata(query.name().clone(),3600, RData::SVCB(svcb)));
         },
         RecordType::TLSA => todo!(),
         RecordType::TSIG => todo!(),

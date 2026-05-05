@@ -54,8 +54,11 @@ impl <Handler: ?Sized>Route<Handler> {
     
     pub fn parameters_route_match(&self, req: &Request) -> (bool, Values) {
         let mut parameters = Values::new();
-
-        let host_clean = req.host.trim_start_matches("http://").trim_start_matches("https://");
+        // TODO: need to fix this...
+        let host_clean = req.host
+            .trim_start_matches("http://")
+            .trim_start_matches("https://")
+            .trim_start_matches("www");
         let Ok(url) = Url::parse(&format!("http://{}", host_clean)) else {
             return (false, Values::new());
         };
