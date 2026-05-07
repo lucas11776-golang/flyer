@@ -6,7 +6,7 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::join;
 use tokio::net::{TcpListener, UdpSocket};
 use hickory_proto::op::{Edns, Message, MessageType, Query, ResponseCode};
-use hickory_proto::rr::{Name, RData, Record, RecordType, rdata::SOA, rdata::A};
+use hickory_proto::rr::{Name, RData, Record, RecordType, rdata::SOA, rdata::A, rdata::HTTPS};
 use hickory_proto::rr::rdata::svcb::{SVCB, SvcParamKey, SvcParamValue, Alpn, IpHint};
 use hickory_proto::serialize::binary::{BinDecodable, BinEncodable};
 use url_domain_parse::utils::Domain;
@@ -17,6 +17,10 @@ pub fn run(domain_name: &str, host: &str, port: u16) {
     block_on(async {
         join!(udp(domain_name, host, port), tcp(domain_name, host, port));
     });
+}
+
+pub fn run_tls(_domain_name: &str, _host: &str, _port: u16, _key: &str, _cert: &str) {
+    // TODO: run as cert.
 }
 
 async fn udp(domain_name: &str, host: &str, port: u16) {
@@ -31,6 +35,7 @@ async fn udp(domain_name: &str, host: &str, port: u16) {
         }
 
         // TODO: add tokio::spawn
+        
         let (size, peer_addr) = recv_result.unwrap();
         let query = Message::from_bytes(&buf[..size]).unwrap();
         let response = handle_query(host, port, domain_name, query).await.unwrap();
@@ -172,7 +177,26 @@ async fn search_dns_record(
         RecordType::DNSKEY => todo!(),
         RecordType::DS => todo!(),
         RecordType::HINFO => todo!(),
-        RecordType::HTTPS => todo!(),
+        RecordType::HTTPS | RecordType::SVCB => {
+            let params = vec![
+                (
+                    SvcParamKey::Alpn,
+                    SvcParamValue::Alpn(Alpn(vec!["http/1.1".to_string()])),
+                ),
+                (SvcParamKey::Port, SvcParamValue::Port(port)),
+                (
+                    SvcParamKey::Ipv4Hint,
+                    SvcParamValue::Ipv4Hint(IpHint(vec![A::from(address.parse::<Ipv4Addr>().unwrap())])),
+                ),
+            ];
+
+            let svcb = SVCB::new(1, Name::root(), params);
+
+            match query.query_type() {
+                RecordType::HTTPS => response.add_answer(Record::from_rdata(query.name().clone(), 3600, RData::HTTPS(HTTPS(svcb)))),
+                _ => response.add_answer(Record::from_rdata(query.name().clone(), 3600, RData::SVCB(svcb)))
+            };
+        }
         RecordType::IXFR => todo!(),
         RecordType::KEY => todo!(),
         RecordType::MX => todo!(),
@@ -190,24 +214,6 @@ async fn search_dns_record(
         RecordType::SOA => todo!(),
         RecordType::SRV => todo!(),
         RecordType::SSHFP => todo!(),
-        RecordType::SVCB => {
-            let params = vec![
-                (
-                    SvcParamKey::Alpn,
-                    SvcParamValue::Alpn(Alpn(vec!["http/1.1".to_string()])),
-                ),
-                (SvcParamKey::Port, SvcParamValue::Port(port)),
-                (
-                    SvcParamKey::Ipv4Hint,
-                    // SvcParamValue::Ipv4Hint(IpHint(vec![A::from(Ipv4Addr::new(127, 0, 0, 1))])),
-                    SvcParamValue::Ipv4Hint(IpHint(vec![A::from(address.parse::<Ipv4Addr>().unwrap())])),
-                ),
-            ];
-
-            let svcb = SVCB::new(1, Name::root(), params);
-
-            response.add_answer(Record::from_rdata(query.name().clone(),3600, RData::SVCB(svcb)));
-        },
         RecordType::TLSA => todo!(),
         RecordType::TSIG => todo!(),
         RecordType::TXT => todo!(),
