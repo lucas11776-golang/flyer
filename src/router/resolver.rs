@@ -7,6 +7,7 @@ pub(crate) struct RouterResolver {
     pub(crate) not_found_callback: Option<Box<WebRoute>>,
 }
 
+// TODO: Need rewrite to better resolver...
 impl RouterResolver {
     pub fn resolve(server: &mut Server) {
         let resolved = Self::new(&mut server.routers);
@@ -36,6 +37,9 @@ impl RouterResolver {
             if let Some(group) = node.group {
                 group(node);
             }
+
+            self.web.append(&mut node.web);
+            self.ws.append(&mut node.ws);
 
             self.resolve_recursive(node);
         }
