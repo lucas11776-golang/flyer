@@ -2,7 +2,7 @@ use std::{fs::File, io::Read};
 
 use mime_guess::from_path;
 
-use crate::{assets::cache::{Asset, LruCache}, request::Request, response::Response, utils::timestamp};
+use crate::{assets::cache::{Asset, LruCache}, request::Request, response::{HTTP_OK, Response}, utils::timestamp};
 
 pub(crate) mod cache;
 
@@ -29,9 +29,10 @@ impl Assets {
         }
 
         if let Some(asset) = self.get_asset(format!("{}/{}", self.path, req.path.trim_start_matches("/"))) {
+            res.view = None; // Clear view if set to not found (404)
             res.body(&asset.data)
                 .header("Content-Type", &asset.content_type)
-                .status_code(200);
+                .status_code(HTTP_OK);
         }
     }
 
