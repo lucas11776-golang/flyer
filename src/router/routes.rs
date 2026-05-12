@@ -1,7 +1,7 @@
 use std::fmt;
 use crate::{
     request::Request,
-    response::Response,
+    response::{HTTP_NOT_FOUND, Response},
     router::{Route, WebRoute, WsRoute, middleware::call, next::Next}
 };
 
@@ -39,10 +39,11 @@ impl Routes {
             };
         }
 
-        return match &self.not_found_callback {
-            Some(callback) => { callback(req, res); },
-            None => { res.status_code = 404; }
-        };
+        res.status_code = HTTP_NOT_FOUND;
+
+        if let Some(callback) = &self.not_found_callback {
+            callback(req, res);
+        }
     }
 
     pub fn handle_ws_request<'r>(&'r self, req: &'r mut Request, res: &'r mut Response) -> Option<(&'r Route<WsRoute>, &'r mut Request, &'r mut Response)> {
