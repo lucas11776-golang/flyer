@@ -9,6 +9,10 @@ use crate::{
 };
 
 pub(crate) async fn parse_content_type(req: &mut Request) -> Result<()> {
+    if let Some(method) =  req.form.values.get("__METHOD__") {
+        req.method = method.to_uppercase();
+    }
+
     if req.method == "POST" || req.method == "PATCH" || req.method == "PUT" {
         return Ok(
             match req.content_type().as_str() {
