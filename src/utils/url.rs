@@ -1,5 +1,3 @@
-use urlencoding::decode;
-
 use crate::utils::{Values, merge};
 
 pub fn clean_url(uri: String) -> String {
@@ -20,21 +18,10 @@ pub fn uri_to_segments(uri: String) -> Vec<String> {
 }
 
 pub fn parse_query_params(query: &str) -> Values {
-    let mut out = Values::new();
-
-    for kv in query.split('&') {
-        if kv.is_empty() {
-            continue;
-        }
-
-        let mut it = kv.splitn(2, '=');
-        let k = it.next().unwrap_or("");
-        let v = it.next().unwrap_or("");
-
-        out.insert(decode(k).unwrap().to_string(), decode(v).unwrap().to_string());
-    }
-
-    return out;
+    return match serde_urlencoded::from_str::<Values>(query) {
+        Ok(values) => values,
+        Err(_) => Values::new(),
+    };
 } 
 
 pub fn join_paths(one: String, two: String) -> Vec<String> {

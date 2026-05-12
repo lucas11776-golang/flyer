@@ -1,6 +1,6 @@
 [package]
 name = "flyer"
-version = "2.1.9"
+version = "2.1.10"
 authors = ["Themba Lucas Ngubeni <thembangubeni04@email.com>"]
 license = "MIT"
 description = "HTTP framework for rust"
@@ -54,3 +54,4 @@ futures-util = "0.3.32"
 chrono = "0.4.44"
 ulid = "1.2.1"
 ipnetwork = "0.21.1"
+serde_urlencoded = "0.7.1"
