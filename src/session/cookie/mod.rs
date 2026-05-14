@@ -39,19 +39,23 @@ impl SessionCookieManager {
 pub(crate) struct SessionCookie {
     pub(crate) values: Values,
     pub(crate) errors: Values,
+    pub(crate) errors_old: Values,
     pub(crate) old: Values,
-    pub(crate) new_old: Values,
-    pub(crate) new_errors: Values,
+    pub(crate) old_new: Values,
+    pub(crate) flashes: Values,
+    pub(crate) flashes_new: Values,
 }
 
 impl SessionCookie {
-    pub(crate) fn new(values: Values, errors: Values, old: Values) -> Self {
+    pub(crate) fn new(values: Values, errors: Values, old: Values, flashes: Values) -> Self {
         return Self {
             values: values,
             errors: errors,
+            errors_old: Values::new(),
             old: old,
-            new_old: Values::new(),
-            new_errors: Values::new(),
+            old_new: Values::new(),
+            flashes: flashes,
+            flashes_new: Values::new(),
         }
     }
 }
@@ -70,6 +74,7 @@ pub(crate) struct CookieStorage {
     pub values: Values,
     pub errors: Values,
     pub old: Values,
+    pub flashes: Values,
 }
 
 // TODO: refactor
@@ -92,6 +97,7 @@ impl SessionManager for SessionCookieManager {
                 values: session.values.clone(),
                 errors: res.errors.clone(),
                 old: res.old.clone(),
+                flashes: res.flashes.clone(),
             });
 
             let payload = encrypt(self.encryption_key.as_str(), data.unwrap().as_str()).unwrap();
@@ -134,7 +140,7 @@ impl Session for SessionCookie {
     }
 
     fn set_error(&mut self, key: &str, value: &str) {
-        self.new_errors.insert(key.to_owned(), value.to_owned());
+        self.errors_old.insert(key.to_owned(), value.to_owned());
     }
 
     fn set_errors(&mut self, errors: Values) {
@@ -153,7 +159,7 @@ impl Session for SessionCookie {
 
     fn set_old(&mut self, values: Values) {
         for (key, value) in values {
-            self.new_old.insert(key, value);
+            self.old_new.insert(key, value);
         }
     }
 
@@ -166,14 +172,14 @@ impl Session for SessionCookie {
     }
     
     fn set_flash(&mut self, key: &str, value: &str) {
-        todo!()
+        self.flashes_new.insert(String::from(key), String::from(value));
     }
     
     fn flash(&mut self, key: &str) -> String {
-        todo!()
+        return self.flashes.get(key).map(|v| String::from(v)).unwrap_or(String::new());
     }
     
     fn flashes(&mut self) -> Values {
-        todo!()
+        return self.flashes.clone();
     }
 }

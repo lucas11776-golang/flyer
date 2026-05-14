@@ -1,11 +1,7 @@
 use std::{collections::HashMap, time::Duration};
 
 use flyer::{
-    request::{Request, form::Form},
-    response::Response,
-    router::next::Next,
-    server,
-    validation::{Rules}
+    request::{Request, form::Form}, response::Response, router::next::Next, server, session::cookie::SessionCookieManager, validation::Rules
 };
 use tokio::time::sleep;
 
@@ -48,7 +44,8 @@ async fn login_form<'a>(req: &'a mut Request, res: &'a mut Response, next: &'a m
 fn main() {
     let server = server("127.0.0.1", 9999)
         .view("views")
-        .assets("assets", 1024, Duration::from_secs((60 * 60) * 2).as_millis());
+        .assets("assets", 1024, Duration::from_secs((60 * 60) * 2).as_millis())
+        .session(SessionCookieManager::new(Duration::from_secs(60 * 60 * 12), "session-key", "123"));
 
     Rules::add("email_exists", rule_email_exists);
 
