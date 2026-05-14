@@ -23,6 +23,12 @@ impl ViewData {
         }
     }
 
+    pub fn with<T: Serialize + ?Sized, S: Into<String>>(key: S, val: &T) -> ViewData {
+        let mut data = Self::new();
+        data.insert(key, val);
+        return data;
+    }
+
     pub fn insert<T: Serialize + ?Sized, S: Into<String>>(&mut self, key: S, val: &T) {
         self.context.insert(key, val);
     }

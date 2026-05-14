@@ -10,6 +10,42 @@ use crate::{
     utils::{Headers, Values}
 };
 
+// TODO: Implement in Request.query
+#[derive(Default)]
+pub struct Query {
+    pub(crate) values: Values
+}
+
+impl Query {
+    #[allow(unused)]
+    pub(crate) fn new() -> Self {
+        return Self::default();
+    }
+
+    #[allow(unused)]
+    pub fn parse_or_default<T>(self, key: &str, default: T) -> T {
+        // return match self.values.get(key) {
+        //     Some(v) => v.parse().unwrap_or(default),
+        //     None => default,
+        // }
+        todo!()
+    }
+
+    pub fn get(self, key: &str) -> String {
+        return self.values
+            .get(key)
+            .map(|v| String::from(v))
+            .unwrap_or(String::new());
+    }
+
+    pub fn get_or_default(self, key: &str, default: String) -> String {
+        return self.values
+            .get(key)
+            .map(|v| String::from(v))
+            .unwrap_or(default);
+    }
+}
+
 pub struct Request {
     pub(crate) cookies: Box<Cookies>,
     pub(crate) session: Option<Box<dyn Session>>,
