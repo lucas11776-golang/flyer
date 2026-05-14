@@ -88,6 +88,7 @@ pub(crate) fn serialize(storage: &FileStorage) -> String {
         hash.insert(String::from("values"), serde_json::to_string(&storage.values).unwrap());
         hash.insert(String::from("errors"), serde_json::to_string(&storage.errors).unwrap());
         hash.insert(String::from("old"), serde_json::to_string(&storage.old).unwrap());
+        hash.insert(String::from("flashes"), serde_json::to_string(&storage.flashes).unwrap());
 
         hash
     };
@@ -117,5 +118,6 @@ pub(crate) fn deserialize(raw: &str) -> FileStorage {
         serde_json::from_str::<Values>(&storage.get("values").unwrap_or(&String::from("{}"))).unwrap_or(Values::new()),
         serde_json::from_str::<Values>(&storage.get("errors").unwrap_or(&String::from("{}"))).unwrap_or(Values::new()),
         serde_json::from_str::<Values>(&storage.get("old").unwrap_or(&String::from("{}"))).unwrap_or(Values::new()),
+        serde_json::from_str::<Values>(&storage.get("flashes").unwrap_or(&String::from("{}"))).unwrap_or(Values::new()),
     );
 }

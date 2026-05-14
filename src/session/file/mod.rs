@@ -26,14 +26,16 @@ pub(crate) struct FileStorage {
     pub values: Values,
     pub errors: Values,
     pub old: Values,
+    pub flashes: Values,
 }
 
 impl FileStorage {
-    pub fn new(values: Values, errors: Values, old: Values) -> Self {
+    pub fn new(values: Values, errors: Values, old: Values, flashes: Values) -> Self {
         return Self {
             values: values,
             errors: errors,
-            old: old
+            old: old,
+            flashes: flashes,
         };
     }
 }
@@ -67,11 +69,13 @@ impl SessionManager for FileSessionManager {
 
         req.session = Some(Box::new(SessionFile {
             session_id: session_id,
-            values: storage.values,
+            session: storage.values,
             errors: storage.errors,
             old: storage.old,
-            new_old: Values::new(),
-            new_errors: Values::new(),
+            flashes: storage.flashes,
+            old_new: Values::new(),
+            errors_new: Values::new(),
+            flashes_new: Values::new(),
         }));
 
         return Ok(())
@@ -79,20 +83,24 @@ impl SessionManager for FileSessionManager {
 
     fn teardown<'a>(&'a mut self, req: &'a mut Request, res: &'a mut Response) -> Result<()> {
         unsafe {
-            let ptr = req.session.as_mut().unwrap() as *mut Box<dyn Session + 'static> as usize;
-            let session = &mut **(ptr as *mut Box<SessionFile>);
+            let ptr_session = req.session.as_mut().unwrap() as *mut Box<dyn Session + 'static> as usize;
+            let session = &mut **(ptr_session as *mut Box<SessionFile>);
 
-            let saved = block_on(save_session(
+            let storage = FileStorage::new(
+                session.session.clone(),
+                res.errors.clone(), 
+                res.old.clone(),
+                res.flashes.clone()
+            );
+            
+            let result = block_on(save_session(
                 &self.path,
                 session.session_id.clone(),
-                &FileStorage::new(session.values.clone(), res.errors.clone(), res.old.clone())
+                &storage
             ));
 
-            if let Ok(_) = saved {
-                req.cookies
-                    .set("session-id", &session.session_id)
-                    .set_http_only(true)
-                    .set_domain(&req.host);
+            if let Ok(_) = result {
+                req.cookies.set("session-id", &session.session_id);
             }
             
             return Ok(())
@@ -102,20 +110,22 @@ impl SessionManager for FileSessionManager {
 
 pub struct SessionFile {
     pub(crate) session_id: String,
-    pub(crate) values: Values,
+    pub(crate) session: Values,
     pub(crate) errors: Values,
+    pub(crate) errors_new: Values,
     pub(crate) old: Values,
-    pub(crate) new_old: Values,
-    pub(crate) new_errors: Values,
+    pub(crate) old_new: Values,
+    pub(crate) flashes: Values,
+    pub(crate) flashes_new: Values,
 }
 
 impl Session for SessionFile {
     fn values(&mut self) -> Values {
-        return self.values.clone();
+        return self.session.clone();
     }
 
     fn set(&mut self, key: &str, value: &str) {
-        self.values.insert(key.to_owned(), value.to_owned());
+        self.session.insert(key.to_owned(), value.to_owned());
     }
 
     fn set_values(&mut self, values: Values) {
@@ -125,11 +135,14 @@ impl Session for SessionFile {
     }
 
     fn get(&mut self, key: &str) -> String {
-        return self.values.get(key).map(|v| String::from(v)).unwrap_or(String::new());
+        return self.session
+            .get(key)
+            .map(|v| String::from(v))
+            .unwrap_or(String::new());
     }
 
     fn remove(&mut self, key: &str) {
-        self.values.remove(key);
+        self.session.remove(key);
     }
 
     fn errors(&mut self) -> Values {
@@ -137,7 +150,7 @@ impl Session for SessionFile {
     }
 
     fn set_error(&mut self, key: &str, value: &str) {
-        self.new_errors.insert(key.to_owned(), value.to_owned());
+        self.errors_new.insert(key.to_owned(), value.to_owned());
     }
 
     fn set_errors(&mut self, errors: Values) {
@@ -147,7 +160,10 @@ impl Session for SessionFile {
     }
 
     fn get_error(&mut self, key: &str) -> String {
-        return self.errors.get(key).map(|e| String::from(e)).unwrap_or(String::new());
+        return self.errors
+            .get(key)
+            .map(|e| String::from(e))
+            .unwrap_or(String::new());
     }
 
     fn remove_error(&mut self, key: &str) {
@@ -156,7 +172,7 @@ impl Session for SessionFile {
 
     fn set_old(&mut self, values: Values) {
         for (key, value) in values {
-            self.new_old.insert(key, value);
+            self.old_new.insert(key, value);
         }
     }
 
@@ -166,5 +182,19 @@ impl Session for SessionFile {
 
     fn old(&mut self, key: &str) -> String {
         return self.old.get(key).or(Some(&String::new())).unwrap().to_string();
+    }
+    
+    fn set_flash(&mut self, key: &str, value: &str) {
+        self.flashes_new.insert(String::from(key), String::from(value));
+    }
+    
+    fn flash(&mut self, key: &str) -> String {
+        return self.flashes
+            .get(key).map(|v| String::from(v))
+            .unwrap_or(String::new());
+    }
+    
+    fn flashes(&mut self) -> Values {
+        return self.flashes.clone();
     }
 }

@@ -164,4 +164,16 @@ impl Session for SessionCookie {
     fn old(&mut self, key: &str) -> String {
         return self.old.get(key).or(Some(&String::new())).unwrap().to_string();
     }
+    
+    fn set_flash(&mut self, key: &str, value: &str) {
+        todo!()
+    }
+    
+    fn flash(&mut self, key: &str) -> String {
+        todo!()
+    }
+    
+    fn flashes(&mut self) -> Values {
+        todo!()
+    }
 }

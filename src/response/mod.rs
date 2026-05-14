@@ -40,6 +40,7 @@ pub struct Response {
     pub(crate) view: Option<ViewBag>,
     pub(crate) errors: Values,
     pub(crate) old: Values,
+    pub(crate) flashes: Values,
 }
 
 impl Response {
@@ -53,6 +54,7 @@ impl Response {
             view: None,
             errors: Values::new(),
             old: Values::new(),
+            flashes: Values::new(),
         };
     }
 
@@ -147,6 +149,12 @@ impl Response {
         for (k, v) in old {
             self.old.insert(k, v);
         }
+
+        return self;
+    }
+
+    pub fn with_flash(&mut self, key: &str, value: &str) -> &mut Response {
+        self.flashes.insert(String::from(key), String::from(value));
 
         return self;
     }

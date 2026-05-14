@@ -10,6 +10,8 @@ pub(crate) fn register<'r>(render: &'r mut Tera, s: &mut Box<dyn Session + 'stat
     render.register_function("error_has", error_has(s.errors()));
     render.register_function("error", error(s.errors()));
     render.register_function("old", old(s.old_values()));
+    render.register_function("flash", flash(s.flashes()));
+    render.register_function("has_flash", has_flash(s.flashes()));
 }
 
 fn session(values: Values) -> impl Fn(&HashMap<String, Value>) -> tera::Result<tera::Value>  {
@@ -65,6 +67,24 @@ fn old(values: Values) -> impl Fn(&HashMap<String, Value>) -> tera::Result<tera:
         return Ok(match values.get(args.get("name").unwrap().as_str().unwrap()) {
             Some(error) => to_value(error).unwrap(),
             None => to_value(String::new()).unwrap(),
+        });
+    };
+}
+
+fn flash(values: Values) -> impl Fn(&HashMap<String, Value>) -> tera::Result<tera::Value>  {
+    return move |args: &HashMap<String, Value>| -> tera::Result<tera::Value> {
+        return Ok(match values.get(args.get("name").unwrap().as_str().unwrap()) {
+            Some(error) => to_value(error).unwrap(),
+            None => to_value(String::new()).unwrap(),
+        });
+    };
+}
+
+fn has_flash(values: Values) -> impl Fn(&HashMap<String, Value>) -> tera::Result<tera::Value>  {
+    return move |args: &HashMap<String, Value>| -> tera::Result<tera::Value> {
+        return Ok(match values.get(args.get("name").unwrap().as_str().unwrap()) {
+            Some(_) => to_value(true).unwrap(),
+            None => to_value(false).unwrap(),
         });
     };
 }

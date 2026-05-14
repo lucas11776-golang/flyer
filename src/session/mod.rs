@@ -21,6 +21,9 @@ pub trait Session: Send + Sync {
     fn set_old(&mut self, old: Values);
     fn old_values(&mut self) -> Values;
     fn old(&mut self, key: &str) -> String;
+    fn set_flash(&mut self, key: &str, value: &str);
+    fn flash(&mut self, key: &str) -> String;
+    fn flashes(&mut self) -> Values;
 }
 
 pub trait SessionManager: Send + Sync {
