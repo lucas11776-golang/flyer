@@ -1,7 +1,5 @@
 use std::{collections::HashMap, time::Duration};
 
-use serde::{Deserialize, Serialize};
-
 use flyer::{
     request::{Request, form::Form},
     response::Response,
@@ -11,20 +9,13 @@ use flyer::{
 };
 use tokio::time::sleep;
 
-#[derive(Serialize, Deserialize)]
-pub struct Token {
-    pub token: String,
-    pub r#type: String,
-    pub expires: u128
-}
-
 pub async fn index<'a>(_req: &'a mut Request, res: &'a mut Response) -> &'a mut Response {
     return res.view("register.html", None);
 }
 
 pub async fn register<'a>(_req: &'a mut Request, res: &'a mut Response) -> &'a mut Response {
     return res.with_flash("logged_in", "You have logged in successfully")
-        .view("register.html", None);
+        .back();
 }
 
 pub async fn user_exists(table: &str, email: &str) -> bool {

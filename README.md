@@ -717,9 +717,20 @@ fn main() {
 
 ### Form Validation
 
-
-
 TODO: Create file called `register.html` in folder called `views` and copy the content below in the file.
+
+This example will show you how to use form validation helper function in view.
+
+- `{{ error_has(name="key") }}` -> bool
+- `{{ error(name="key") }}`     -> String
+- `{{ flash_has(name="key") }}` -> bool
+- `{{ flash(name="key") }}`     -> String
+- `{{ old(name="key") }}`       -> String
+
+#### Extra
+
+- `{{ session_has(name="key") }}` -> bool
+- `{{ session(name="key") }}`     -> String
 
 ```html
 <!DOCTYPE html>
@@ -727,7 +738,7 @@ TODO: Create file called `register.html` in folder called `views` and copy the c
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <base href="http://127.0.0.1:9999/">
+    <base href="{{ url() }}">
     <title>Register</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
@@ -802,7 +813,6 @@ TODO: Create file called `register.html` in folder called `views` and copy the c
             color: #dc2626;
         }
     </style>
-    <base href="http://localhost:9999/">
 </head>
 <body class="d-flex justify-content-center align-items-center vh-100">
     <div class="container d-flex justify-content-center">
@@ -810,7 +820,10 @@ TODO: Create file called `register.html` in folder called `views` and copy the c
             <div class="col-md-6 d-flex flex-column p-5 login-form">
                 <h1>Register</h1>
                 <p class="text-muted">See your growth and get consulting support!</p>
-                <form action="/register" method="post">
+                {% if flash_has(name="logged_in") %}
+                <div class="alert alert-success">{{ flash(name="logged_in") }}</div>
+                {% endif %}
+                <form action="{{ url(path="register") }}" method="post">
                     <div class="mb-3">
                         <label for="email" class="form-label">Email*</label>
                         <input type="email"
@@ -828,10 +841,10 @@ TODO: Create file called `register.html` in folder called `views` and copy the c
                         <div class="invalid-feedback">{{ error(name="password") }}</div>
                     </div>
                     <div class="mb-3">
-                        <label for="password_confirmatiom" class="form-label">Password Confirmation*</label>
+                        <label for="password_confirmation" class="form-label">Password Confirmation*</label>
                         <input type="password"
                                class="form-control {{ error_has(name="password_confirmatiom", class="is-invalid") }}"
-                               name="password_confirmatiom"
+                               name="password_confirmation"
                                id="password_confirmatiom">
                         <div class="invalid-feedback">{{ error(name="password_confirmatiom") }}</div>
                     </div>

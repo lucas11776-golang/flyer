@@ -140,6 +140,7 @@ impl Server {
         let ptr = &self as *const &mut Self as usize;
 
         handler.setup(ptr, req, res).await.unwrap();
+        
         res.referer = req.header("referer");
         self.routes.handle_web_request(req, res);
 
