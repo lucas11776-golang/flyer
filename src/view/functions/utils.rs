@@ -2,9 +2,7 @@ use std::collections::HashMap;
 
 use tera::{Tera, Value, to_value};
 
-use crate::request::Request;
-
-pub(crate) fn register<'r>(engine: &'r mut Tera, _req: &'r mut Request) {
+pub(crate) fn register<'r>(engine: &'r mut Tera) {
     engine.register_function("env", env());
     engine.register_function("url", url());
 }

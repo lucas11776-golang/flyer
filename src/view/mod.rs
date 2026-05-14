@@ -1,9 +1,8 @@
-use std::io::Result;
-
+use anyhow::Result;
 use serde::{Serialize};
 use tera::{Context, Tera};
 
-use crate::{request::Request, response::Response, view::functions::register};
+use crate::{GLOBAL_SERVER, request::Request, response::Response, view::functions::{register, register_utils_functions}};
 
 pub(crate) mod functions;
 
@@ -12,6 +11,7 @@ pub(crate) struct ViewBag {
     pub(crate) data: Option<ViewData>,
 }
 
+#[derive(Default)]
 pub struct ViewData {
     pub(crate) context: Context, 
 }
@@ -53,17 +53,37 @@ impl View {
     }
 
     pub fn render<'a>(&mut self, req: &'a mut Request, res: &'a mut Response) -> Result<()> {
-        return Ok(match res.view.as_mut() {
-            Some(bag) => {
-                if let None = bag.data {
-                    bag.data = Some(ViewData::new());
-                }
-
-                register(&mut self.engine, req);
-
-                res.body = self.engine.render(&bag.view, &bag.data.as_mut().unwrap().context).unwrap().into();
-            },
-            None => (),
-        });
+        if let Some(bag) = res.view.as_mut() {
+            register(&mut self.engine, req);
+            
+            res.body = self.render_view_bag(bag).unwrap().into();
+        }
+        return Ok(());
     }
+
+    fn render_view_bag(&mut self, bag: &mut ViewBag) -> Result<String> {
+        return self.engine
+            .render(&bag.view, &bag.data.as_mut().unwrap_or(&mut ViewData::default()).context)
+            .map_err(|err| anyhow::Error::from(err));
+    }
+
+    fn render_view(&mut self, template: &str, data: Option<ViewData>) -> Result<String> {
+        register_utils_functions(&mut self.engine);
+
+        return self.engine
+            .render(template, &data.unwrap_or(ViewData::default()).context)
+            .map_err(|err| anyhow::Error::from(err));
+    }
+}
+
+#[allow(static_mut_refs)]
+pub fn render_view(path: &str, data: Option<ViewData>) -> Result<String> {
+    unsafe {
+        return GLOBAL_SERVER.get_mut()
+            .unwrap()
+            .view
+            .as_mut()
+            .unwrap()
+            .render_view(path, data)
+    };
 }
