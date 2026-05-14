@@ -299,7 +299,6 @@ pub struct User<'a> {
     email: &'a str
 }
 
-
 fn main() {
     let server = server("127.0.0.1", 9999)
         .view("views");
@@ -325,7 +324,7 @@ fn main() {
             };
 
             // This helper function is useful when sending email`s etc.
-            let html = render_view("render.html", Some(ViewData::with("user", &user))).unwrap();
+            let html = view_render("render.html", Some(ViewData::with("user", &user))).unwrap();
 
             return res.html(&html);
         });

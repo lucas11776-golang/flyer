@@ -55,7 +55,7 @@ impl View {
     pub fn render<'a>(&mut self, req: &'a mut Request, res: &'a mut Response) -> Result<()> {
         if let Some(bag) = res.view.as_mut() {
             register(&mut self.engine, req);
-            
+
             res.body = self.render_view_bag(bag).unwrap().into();
         }
         return Ok(());
@@ -77,7 +77,7 @@ impl View {
 }
 
 #[allow(static_mut_refs)]
-pub fn render_view(path: &str, data: Option<ViewData>) -> Result<String> {
+pub fn view_render(path: &str, data: Option<ViewData>) -> Result<String> {
     unsafe {
         return GLOBAL_SERVER.get_mut()
             .unwrap()

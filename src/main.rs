@@ -1,4 +1,4 @@
-use flyer::{server, view::{ViewData, render_view}};
+use flyer::{server, view::{ViewData, view_render}};
 use serde::Serialize;
 
 #[derive(Serialize)]
@@ -33,7 +33,7 @@ fn main() {
             };
 
             // This helper function is useful when sending email`s etc.
-            let html = render_view("render.html", Some(ViewData::with("user", &user))).unwrap();
+            let html = view_render("render.html", Some(ViewData::with("user", &user))).unwrap();
 
             return res.html(&html);
         });
