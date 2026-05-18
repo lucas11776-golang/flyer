@@ -10,42 +10,6 @@ use crate::{
     utils::{Headers, Values}
 };
 
-// TODO: Implement in Request.query
-#[derive(Default)]
-pub struct Query {
-    pub(crate) values: Values
-}
-
-impl Query {
-    #[allow(unused)]
-    pub(crate) fn new() -> Self {
-        return Self::default();
-    }
-
-    #[allow(unused)]
-    pub fn parse_or_default<T>(self, key: &str, default: T) -> T {
-        // return match self.values.get(key) {
-        //     Some(v) => v.parse().unwrap_or(default),
-        //     None => default,
-        // }
-        todo!()
-    }
-
-    pub fn get(self, key: &str) -> String {
-        return self.values
-            .get(key)
-            .map(|v| String::from(v))
-            .unwrap_or(String::new());
-    }
-
-    pub fn get_or_default(self, key: &str, default: String) -> String {
-        return self.values
-            .get(key)
-            .map(|v| String::from(v))
-            .unwrap_or(default);
-    }
-}
-
 pub struct Request {
     pub(crate) cookies: Box<Cookies>,
     pub(crate) session: Option<Box<dyn Session>>,
@@ -103,12 +67,40 @@ impl Request {
         return self.parameters.get(key).get_or_insert(&"".to_string()).to_string()
     }
 
+    pub fn parameter_default<T>(&self, key: &str, default: T) -> T
+    where
+        T: std::str::FromStr
+    {
+        return self.parameters.get(key).and_then(|v| v.parse::<T>().ok()).unwrap_or(default);
+    }
+
+    pub fn parameter_parse<T>(&self, key: &str) -> Option<T>
+    where
+        T: std::str::FromStr
+    {
+        return self.parameters.get(key).and_then(|v| v.parse::<T>().ok());
+    }
+
     pub fn query(&self, key: &str) -> String {
-        return self.query.get(key).get_or_insert(&"".to_string()).to_string()
+        return self.query.get(key).unwrap_or(&String::new()).to_string();
+    }
+
+    pub fn query_default<T>(&self, key: &str, default: T) -> T
+    where
+        T: std::str::FromStr
+    {
+        return self.query.get(key).and_then(|v| v.parse::<T>().ok()).unwrap_or(default);
+    }
+
+    pub fn query_parse<T>(&self, key: &str) -> Option<T>
+    where
+        T: std::str::FromStr
+    {
+        return self.query.get(key).and_then(|v| v.parse::<T>().ok());
     }
 
     pub fn value(&self, key: &str) -> String {
-        return self.form.values.get(key).get_or_insert(&"".to_owned()).to_string();
+        return self.form.values.get(key).unwrap_or(&String::new()).to_string();
     }
 
     pub fn file(&self, key: &str) -> Option<&File> {
