@@ -6,14 +6,8 @@ use rustls::ServerConfig;
 use tokio::{join, runtime::Builder};
 
 use crate::{
-    assets::Assets,
-    request::Request,
-    response::Response,
-    router::{Router, WsRoute, resolver::RouterResolver, route::Route, routes::Routes},
-    server::{helpers::{Handler, RequestHandler},
-    transport::{tcp, udp}},
-    session::{SessionManager, file::FileSessionManager},
-    view::View
+    assets::Assets, mail::SMTP, request::Request, response::Response, router::{Router, WsRoute, resolver::RouterResolver, route::Route, routes::Routes}, server::{helpers::{Handler, RequestHandler},
+    transport::{tcp, udp}}, session::{SessionManager, file::FileSessionManager}, view::View
 };
 
 pub(crate) mod transport;
@@ -91,7 +85,6 @@ impl Server {
         return self;
     }
 
-
     pub fn set_request_max_size(&mut self, kilobytes: usize) -> &mut Self {
         self.request_max_size = kilobytes * 1000;
 
@@ -100,6 +93,12 @@ impl Server {
 
     pub fn set_max_parallelism(&mut self, cores: usize) -> &mut Self {
         self.parallelism_max_size = cores;
+
+        return self;
+    }
+
+    pub fn mailer(&mut self, host: String, port: u16, user: String, password: String, tls: bool) -> &mut Self {
+        SMTP::add(host, port, user, password, tls).unwrap();
 
         return self;
     }
@@ -122,7 +121,7 @@ impl Server {
 
     async fn start_server(&mut self) {
         RouterResolver::resolve(self);
-        // Using memory address to avoid compiler checks we server will not be mut
+        // Using memory address to avoid compiler checks we will not mut the server it`s read-only
         // Getting server value - (*(server_ptr as *const &mut Server))
         let ptr = &self as *const &mut Self as usize;
 

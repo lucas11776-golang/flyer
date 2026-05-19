@@ -16,8 +16,8 @@ pub mod session;
 pub mod view;
 pub mod validation;
 pub mod assets;
+pub mod mail;
 
-// Leak server memory
 pub(crate) static mut GLOBAL_SERVER: OnceCell<Box<Server>> = OnceCell::new();
 
 #[allow(static_mut_refs)]
