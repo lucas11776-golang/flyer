@@ -1,5 +1,5 @@
-use flyer::{mail::Mail, server};
-
+use flyer::{mail::{Mail, Mailbox}, server};
+use uuid::Uuid;
 
 /*
 
@@ -24,14 +24,21 @@ fn main() {
         .mailer(String::from("127.0.0.1"), 5555, String::new(), String::new(), false);
     
     server.router().get("/reset-password", async |_req, res| {
-
+        // Send to single email
         Mail::new()
             .from(String::from("no-reply@test.com"), Some(String::from("no-reply")))
-            .send(vec![String::from("jeo@doe.com")])
+            .html(format!("<h1>Password Reset token: {}", Uuid::new_v4()))
+            .send(String::from("jeo@doe.com"), Some(String::from("Jeo Deo")))
             .await
             .unwrap();
 
-
+        // Send to main email
+        Mail::new()
+            .from(String::from("no-reply@test.com"), Some(String::from("no-reply")))
+            .html(format!("<h1>Password Reset token: {}", Uuid::new_v4()))
+            .send_to_many(vec![Mailbox::new(String::from("jane@doe.com"), Some(String::from("Jane Deo")))])
+            .await
+            .unwrap();
 
         return res.html("<h1>Reset Password Sent!!!</h1>")
     });

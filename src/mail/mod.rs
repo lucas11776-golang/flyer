@@ -1,10 +1,14 @@
+use std::time::SystemTime;
+
 use anyhow::Result;
 use lettre::message::MessageBuilder;
-use lettre::message::{Mailbox, header::ContentType};
+use lettre::message::{Mailbox as LettreMailBox, header::ContentType};
 use lettre::transport::smtp::authentication::Credentials;
 use lettre::transport::smtp::client::Tls;
 use lettre::{Message, SmtpTransport, Transport};
 use once_cell::sync::OnceCell;
+
+use crate::view::{ViewData, view_render};
 
 pub(crate) static mut GLOBAL_MAILER: OnceCell<Box<SMTP>> = OnceCell::new();
 
@@ -38,11 +42,26 @@ impl SMTP {
     }
 }
 
+pub struct Mailbox {
+    email: String,
+    name: Option<String>
+}
+
+impl Mailbox {
+    pub fn new(email: String, name: Option<String>) -> Self {
+        return Self {
+            email: email,
+            name: name
+        };
+    }
+}
+
 pub struct Mail {
     builder: MessageBuilder,
     body: Option<String>,
 }
 
+// TODO: Need to implement (attachment, attachments)
 impl Mail {
     pub fn new() -> Self {
         return Self {
@@ -54,7 +73,7 @@ impl Mail {
     pub fn from(&mut self, email: String, name: Option<String>) -> &mut Self {
         self.builder = self.builder
             .clone()
-            .from(Mailbox::new(name, email.parse().unwrap()));
+            .from(LettreMailBox::new(name, email.parse().unwrap()));
 
         return self;
     }
@@ -63,13 +82,68 @@ impl Mail {
         self.builder = self
             .builder
             .clone()
-            .reply_to(Mailbox::new(name, email.parse().unwrap()));
+            .reply_to(LettreMailBox::new(name, email.parse().unwrap()));
+
+        return self;
+    }
+
+    pub fn sender(&mut self, email: String, name: Option<String>) -> &mut Self {
+        self.builder = self
+            .builder
+            .clone()
+            .sender(LettreMailBox::new(name, email.parse().unwrap()));
+
+        return self;
+    }
+
+    pub fn date(&mut self) -> &mut Self {
+        self.builder = self
+            .builder
+            .clone()
+            .date_now();
+
+        return self;
+    }
+
+    pub fn date_now(&mut self, time: SystemTime) -> &mut Self {
+        self.builder = self
+            .builder
+            .clone()
+            .date(time);
+
+        return self;
+    }
+
+    pub fn cc(&mut self, email: String, name: Option<String>) -> &mut Self {
+        self.builder = self
+            .builder
+            .clone()
+            .cc(LettreMailBox::new(name, email.parse().unwrap()));
+
+        return self;
+    }
+
+    pub fn bcc(&mut self, email: String, name: Option<String>) -> &mut Self {
+        self.builder = self
+            .builder
+            .clone()
+            .bcc(LettreMailBox::new(name, email.parse().unwrap()));
 
         return self;
     }
 
     pub fn subject(&mut self, subject: String) -> &mut Self {
         self.builder = self.builder.clone().subject(subject);
+
+        return self;
+    }
+
+    pub fn text(&mut self, text: String) -> &mut Self {
+        self.builder = self.builder
+            .clone()
+            .header(ContentType::TEXT_PLAIN);
+
+        self.body = Some(text);
 
         return self;
     }
@@ -84,18 +158,22 @@ impl Mail {
         return self;
     }
 
+    pub fn view(&mut self, view: String, data: Option<ViewData>) -> &mut Self {
+        return self.html(view_render(&view, data).unwrap());
+    }
+
     #[allow(static_mut_refs)]
-    pub async fn send(&mut self, to: Vec<String>) -> Result<()> {
+    pub async fn send_to_many(&mut self, to: Vec<Mailbox>) -> Result<()> {
         unsafe {
             let transport = &GLOBAL_MAILER
                     .get_mut()
                     .unwrap()
                     .transport;
 
-            for email in to {
+            for mailbox in to {
                 let message =  self.builder
                     .clone()
-                    .to(Mailbox::new(None, email.parse().unwrap()))
+                    .to(LettreMailBox::new(mailbox.name, mailbox.email.parse().unwrap()))
                     .body(self.body.clone().unwrap_or(String::new()))
                     .unwrap();
 
@@ -104,5 +182,9 @@ impl Mail {
 
             return Ok(());
         }
+    }
+
+    pub async fn send(&mut self, email: String, name: Option<String>) -> Result<()> {
+        return self.send_to_many(vec![Mailbox::new(email, name)]).await;
     }
 }
