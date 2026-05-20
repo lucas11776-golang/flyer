@@ -53,9 +53,7 @@ impl File {
             .map(|ext| format!("{}", ext))
             .unwrap_or_default();
 
-        let name = format!("{}.{}", uuid::Uuid::new_v4().to_string(), extension);
-
-        return self.save_as(folder, &name).await;
+        return self.save_as(folder, &format!("{}.{}", uuid::Uuid::new_v4().to_string().replace("-", ""), extension)).await;
     }
 }
 
