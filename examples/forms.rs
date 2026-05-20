@@ -57,8 +57,11 @@ pub async fn upload<'a>(req: &'a mut Request, res: &'a mut Response) -> &'a mut 
             .back();
     }
 
-    req.file("file").unwrap().save("file").await.unwrap();
-    req.file("file").unwrap().save_as("storage", "file_backup").await.unwrap();
+    let save = req.file("file").unwrap().save("file").await.unwrap();
+    let backup = req.file("file").unwrap().save_as("storage", "file_backup").await.unwrap();
+
+    println!("SAVE PATH {}", save);
+    println!("BACKUP PATH {}", backup);
 
     return res.redirect("/");
 }

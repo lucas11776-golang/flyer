@@ -17,6 +17,7 @@ pub mod view;
 pub mod validation;
 pub mod assets;
 pub mod mail;
+pub mod storage;
 
 pub(crate) static mut GLOBAL_SERVER: OnceCell<Box<Server>> = OnceCell::new();
 

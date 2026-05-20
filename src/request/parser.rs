@@ -58,7 +58,7 @@ async fn parse_multipart_form(req: &mut Request) -> Result<()> {
             continue;
         }
 
-        req.form.files.insert(name, File::new(filename.as_str(), content_type.as_str(), data));
+        req.form.files.insert(name, File::create(filename.as_str(), content_type.as_str(), data));
     }
 
     return Ok(());

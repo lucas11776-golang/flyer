@@ -1,0 +1,54 @@
+use crate::storage::Storage;
+use async_std::task::block_on;
+use tokio::io::AsyncWriteExt;
+use std::path::PathBuf;
+
+const STORAGE_DIRECTORY: &'static str = "storage";
+
+pub struct LocalStorage {
+    directory: String
+}
+
+impl LocalStorage {
+    pub fn new(directory: Option<&str>) -> Self {
+        return Self {
+            directory: directory.map(|v| String::from(v)).unwrap_or(String::from(STORAGE_DIRECTORY))
+        }
+    }
+}
+
+impl Storage for LocalStorage {
+    fn save_as(&self, folder: &str, name: &str, file: &crate::request::form::File) -> anyhow::Result<String> {
+        let folder_path = PathBuf::from(&self.directory).join(folder);
+        
+        block_on(tokio::fs::create_dir_all(&folder_path))?;
+
+        let file_path = folder_path.join(name);
+        let mut file_handle = block_on(tokio::fs::File::create(&file_path))?;
+
+        block_on(file_handle.write_all(&file.content))?;
+
+        return Ok(file_path.to_string_lossy().into_owned());
+    }
+
+    fn save(&self, folder: &str, name: &str) -> anyhow::Result<String> {
+        let folder_path = PathBuf::from(&self.directory).join(folder);
+        block_on(tokio::fs::create_dir_all(&folder_path))?;
+
+        let file_path = folder_path.join(name);
+
+        block_on(tokio::fs::File::create(&file_path))?;
+
+        return Ok(file_path.to_string_lossy().into_owned());
+    }
+
+    fn delete(&self, filename: &str) -> anyhow::Result<()> {
+        block_on(tokio::fs::remove_file(filename))?;
+
+        return Ok(())
+    }
+
+    fn exits(&self, filename: &str) -> anyhow::Result<bool> {
+        return Ok(block_on(tokio::fs::try_exists(filename))?)
+    }
+}

@@ -715,6 +715,8 @@ fn main() {
 }
 ```
 
+This will save file in folder called storage.
+
 
 ### Form Validation
 

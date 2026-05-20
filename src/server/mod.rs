@@ -7,7 +7,7 @@ use tokio::{join, runtime::Builder};
 
 use crate::{
     assets::Assets, mail::SMTP, request::Request, response::Response, router::{Router, WsRoute, resolver::RouterResolver, route::Route, routes::Routes}, server::{helpers::{Handler, RequestHandler},
-    transport::{tcp, udp}}, session::{SessionManager, file::FileSessionManager}, view::View
+    transport::{tcp, udp}}, session::{SessionManager, file::FileSessionManager}, storage::{self, Storage}, view::View
 };
 
 pub(crate) mod transport;
@@ -81,6 +81,17 @@ impl Server {
 
     pub fn view(&mut self, path: &str) -> &mut Self {
         self.view = Some(View::new(path));
+
+        return self;
+    }
+
+    // TODO: will need to change form request form it to work
+    #[allow(unused)]
+    pub(crate) fn storage<S>(&mut self, name: &str, storage: S) -> &mut Self
+    where
+        S: Storage + 'static
+     {
+        storage::add(name, Box::new(storage));
 
         return self;
     }
