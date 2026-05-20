@@ -3,10 +3,22 @@ use std::time::Duration;
 use anyhow::{Ok, Result};
 use cookie::{
     Cookie as CookieJar,
-    time::{Duration as CookieDuration, OffsetDateTime}
+    time::{Duration as CookieDuration, OffsetDateTime},
+    SameSite as CookieSomeSite
 };
 
 use crate::utils::Values;
+
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum SameSite {
+    /// The "Strict" `SameSite` attribute.
+    Strict,
+    /// The "Lax" `SameSite` attribute.
+    Lax,
+    /// The "None" `SameSite` attribute.
+    None
+}
 
 #[derive(Debug)]
 pub struct Cookie {
@@ -18,6 +30,7 @@ pub struct Cookie {
     path: Option<String>,
     secure: Option<bool>,
     http_only: Option<bool>,
+    same_site: Option<SameSite>
 }
 
 #[derive(Debug)]
@@ -37,6 +50,7 @@ impl Cookie {
             path: None,
             secure: None,
             http_only: None,
+            same_site: None
         }
     }
 
@@ -88,6 +102,12 @@ impl Cookie {
         return self;
     }
 
+    pub fn set_same_site(&mut self, value: SameSite) -> &mut Self {
+        self.same_site = Some(value);
+
+        return self;
+    }
+
     pub(crate) fn parse(&mut self) -> String {
         let mut cookie = CookieJar::new(self.name.to_string(), self.value.to_string());
 
@@ -113,6 +133,14 @@ impl Cookie {
 
         if let Some(http_only) = self.http_only {
             cookie.set_http_only(http_only);
+        }
+
+        if let Some(same_site) = self.same_site {
+            match same_site {
+                SameSite::Strict => cookie.set_same_site(CookieSomeSite::Strict),
+                SameSite::Lax => cookie.set_same_site(CookieSomeSite::Lax),
+                SameSite::None => cookie.set_same_site(CookieSomeSite::None),
+            }
         }
 
         return cookie.to_string();

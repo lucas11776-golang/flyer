@@ -3,6 +3,7 @@ use std::{env, time::Duration};
 use anyhow::Result;
 use async_std::task::block_on;
 use serde::{Deserialize, Serialize};
+use url_domain_parse::Url;
 
 use crate::{
     request::Request,
@@ -100,7 +101,14 @@ impl SessionManager for FileSessionManager {
             ));
 
             if let Ok(_) = result {
-                req.cookies.set("session-id", &session.session_id);
+                let cookie = req.cookies
+                    .set("session-id", &session.session_id)
+                    .set_same_site(crate::cookies::SameSite::Lax)
+                    .set_path("/");
+            
+                if let Ok(url) = Url::parse(&format!("http://{}", req.host)) {
+                    cookie.set_domain(&url.base_host().unwrap_or(url.host().unwrap_or(String::new())));
+                }
             }
             
             return Ok(())

@@ -1,9 +1,10 @@
 use std::time::Duration;
 
 use anyhow::Result;
-use cookie::Cookie;
+use cookie::{Cookie, SameSite};
 use serde::{Deserialize, Serialize};
 use cookie::time::{Duration as DurationCookie, OffsetDateTime};
+use url_domain_parse::Url;
 
 use crate::session::cookie::utils::parse_encrypted_raw_cookie;
 use crate::session::{Session, SessionManager};
@@ -103,7 +104,13 @@ impl SessionManager for SessionCookieManager {
             let payload = encrypt(self.encryption_key.as_str(), data.unwrap().as_str()).unwrap();
             let mut cookie = Cookie::new(self.cookie_name.clone(), payload);
 
-            cookie.set_expires(OffsetDateTime::now_utc() + DurationCookie::seconds(self.expires.as_secs().try_into().unwrap()));
+            cookie.set_expires(OffsetDateTime::now_utc() + DurationCookie::seconds(self.expires.as_secs().try_into().unwrap()))
+            cookie.set_same_site(SameSite::Lax);
+            cookie.set_path("/");
+
+            if let Ok(url) = Url::parse(&format!("http://{}", req.host)) {
+                cookie.set_domain(&url.base_host().unwrap_or(url.host().unwrap_or(String::new())));
+            }
 
             res.header("Set-Cookie", &cookie.to_string());
 
