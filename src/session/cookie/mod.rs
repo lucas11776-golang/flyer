@@ -104,12 +104,12 @@ impl SessionManager for SessionCookieManager {
             let payload = encrypt(self.encryption_key.as_str(), data.unwrap().as_str()).unwrap();
             let mut cookie = Cookie::new(self.cookie_name.clone(), payload);
 
-            cookie.set_expires(OffsetDateTime::now_utc() + DurationCookie::seconds(self.expires.as_secs().try_into().unwrap()))
+            cookie.set_expires(OffsetDateTime::now_utc() + DurationCookie::seconds(self.expires.as_secs().try_into().unwrap()));
             cookie.set_same_site(SameSite::Lax);
             cookie.set_path("/");
 
             if let Ok(url) = Url::parse(&format!("http://{}", req.host)) {
-                cookie.set_domain(&url.base_host().unwrap_or(url.host().unwrap_or(String::new())));
+                cookie.set_domain(url.base_host().unwrap_or(url.host().unwrap_or(String::new())));
             }
 
             res.header("Set-Cookie", &cookie.to_string());
