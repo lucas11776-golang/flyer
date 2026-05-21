@@ -680,6 +680,8 @@ use flyer::{
     request::Request,
     response::Response,
     server,
+    session::cookie::SessionCookieManager,
+    storage::{self, DEFAULT_STORAGE, local::LocalStorage},
     view::ViewData
 };
 
@@ -687,20 +689,41 @@ pub async fn home<'a>(_req: &'a mut Request, res: &'a mut Response) -> &'a mut R
     return res.view("index.html", Some(ViewData::new()));
 }
 
+#[allow(unused)]
 pub async fn upload<'a>(req: &'a mut Request, res: &'a mut Response) -> &'a mut Response {
     if req.file("file").is_none() {
         return res.with_error("file", "The file is required.")
             .back();
     }
 
-    req.file("file").unwrap().save("file").await.unwrap();
-    req.file("file").unwrap().save_as("storage", "file_backup").await.unwrap();
+    // Save from `File` 
+    let req_save_0 = req.file("file").unwrap().save("file").await.unwrap();
+    let req_backup_0 = req.file("file").unwrap().save_as("backup", "backup").await.unwrap();
+
+    println!("FROM REQUEST SAVE PATH {}", req_save_0);
+    println!("FROM REQUEST SAVE_AS {}", req_backup_0);
+
+    if let Ok(exists) = storage::exists(DEFAULT_STORAGE, &req_save_0) && exists {
+        println!("File exists: {}", req_save_0);
+    }
+
+    if let Ok(_) = storage::delete(DEFAULT_STORAGE, &req_backup_0) {
+        println!("File deleted {}", req_save_0);
+    }
+
+    // Storage helper functions
+    let req_save_1 = storage::save(DEFAULT_STORAGE, "file", req.file("file").unwrap()).unwrap();
+    let req_backup_1 = storage::save_as(DEFAULT_STORAGE, "backup", "backup_1", req.file("file").unwrap()).unwrap();
+    let exists = storage::exists(DEFAULT_STORAGE, &req_save_1).unwrap();
+    storage::delete(DEFAULT_STORAGE, &req_save_1).unwrap();
 
     return res.redirect("/");
 }
 
 fn main() {
-    let mut server = server("127.0.0.1", 9999)
+    let server = server("127.0.0.1", 9999)
+        .session(SessionCookieManager::new(Duration::from_secs((60 * 60) * 2), "session_cookie_key_name", "encryption"))
+        .storage(DEFAULT_STORAGE, LocalStorage::new(Some("storage")))
         .view("views")
         .set_request_max_size(1024 * 100); // Max Request size 100MB
 

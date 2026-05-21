@@ -85,9 +85,8 @@ impl Server {
         return self;
     }
 
-    // TODO: will need to change form request form it to work
     #[allow(unused)]
-    pub(crate) fn storage<S>(&mut self, name: &str, storage: S) -> &mut Self
+    pub fn storage<S>(&mut self, name: &str, storage: S) -> &mut Self
     where
         S: Storage + 'static
      {

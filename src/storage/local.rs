@@ -1,6 +1,7 @@
 use crate::storage::Storage;
 use async_std::task::block_on;
 use tokio::io::AsyncWriteExt;
+use uuid::Uuid;
 use std::path::PathBuf;
 
 const STORAGE_DIRECTORY: &'static str = "storage";
@@ -14,6 +15,13 @@ impl LocalStorage {
         return Self {
             directory: directory.map(|v| String::from(v)).unwrap_or(String::from(STORAGE_DIRECTORY))
         }
+    }
+
+    fn extension(&self, name: String) -> String {
+        return name.split(".")
+            .last()
+            .map(|v| format!(".{}", v))
+            .unwrap_or(String::new());
     }
 }
 
@@ -31,15 +39,12 @@ impl Storage for LocalStorage {
         return Ok(file_path.to_string_lossy().into_owned());
     }
 
-    fn save(&self, folder: &str, name: &str) -> anyhow::Result<String> {
-        let folder_path = PathBuf::from(&self.directory).join(folder);
-        block_on(tokio::fs::create_dir_all(&folder_path))?;
-
-        let file_path = folder_path.join(name);
-
-        block_on(tokio::fs::File::create(&file_path))?;
-
-        return Ok(file_path.to_string_lossy().into_owned());
+    fn save(&self, folder: &str, file: &crate::request::form::File) -> anyhow::Result<String> {
+        return self.save_as(
+            folder,
+            &format!("{}{}", String::from(Uuid::new_v4()).replace("-", ""), self.extension(file.name.clone())), 
+            file
+        );
     }
 
     fn delete(&self, filename: &str) -> anyhow::Result<()> {
