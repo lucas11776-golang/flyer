@@ -1,8 +1,9 @@
-use crate::storage::Storage;
 use async_std::task::block_on;
 use tokio::io::AsyncWriteExt;
 use uuid::Uuid;
 use std::path::PathBuf;
+
+use crate::storage::Storage;
 
 const STORAGE_DIRECTORY: &'static str = "storage";
 

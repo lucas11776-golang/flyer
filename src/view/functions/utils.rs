@@ -9,7 +9,7 @@ pub(crate) fn register<'r>(engine: &'r mut Tera) {
 
 fn env() -> impl Fn(&HashMap<String, Value>) -> tera::Result<tera::Value>  {
     return move |args: &HashMap<String, Value>| -> tera::Result<tera::Value> {
-        return Ok(to_value(crate::utils::env(&args.get("name").unwrap().to_string())).unwrap());
+        return Ok(to_value(crate::utils::env(args.get("name").unwrap().as_str().unwrap())).unwrap());
     };
 }
 
