@@ -65,7 +65,12 @@ impl Storage for LocalStorage {
             .map(|v| String::from(v))
             .unwrap_or(String::from(path));
 
-        return Ok(File::new(&filename, std::fs::read(path).unwrap()));
+        let file = std::fs::read(path);
 
+        if let Err(err) = file {
+            return Err(err.into());
+        }
+
+        return Ok(File::new(&filename, file.unwrap()));
     }
 }
