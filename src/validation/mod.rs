@@ -249,8 +249,14 @@ impl <'a>Validator<'a> {
         if field.nullable && crate::validation::rules::is_empty(form, &field.name) {
             return None;
         }
+        
         for (rule, args) in &mut field.rules {
+            // TODO: temp fix if rule is Some and error is empty we will skip validation
             if let Some(error) = rule(form, field.name.clone(), args.to_vec()) {
+                if error.is_empty() {
+                    return None // TODO: Added new logic if Rule returns empty String error skip all validation
+                }
+
                 return Some(error)
             }
         }

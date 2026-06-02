@@ -65,7 +65,7 @@ impl Form {
     pub fn new(values: Values, files: Files) -> Self {
         return Self {
             values: values,
-            files: files
+            files: files,
         }
     }
 }

@@ -8,6 +8,7 @@ use uuid::Uuid;
 use ulid::Ulid;
 use serde_json::Value as JsonValue;
 
+// TODO: Added new logic if Rule returns empty String error skip all validation
 fn pretty(value: String) -> String {
     let temp: Vec<&str> = value.split('_').collect();
     temp.join(" ")
@@ -756,12 +757,14 @@ pub async fn required_with(form: &Form, field: String, args: Vec<String>) -> Opt
 }
 
 pub async fn required_without(form: &Form, field: String, args: Vec<String>) -> Option<String> {
-    for arg in &args {
-        if is_empty(form, arg) {
-            return required(form, field, Vec::new()).await;
+    if let Some(err) = required(form, field.clone(), args.clone()).await {
+        for arg in args {
+            if let Some(_) = required(form, String::from(arg.to_string()), Default::default()).await {
+                return Some(err);
+            }
         }
     }
-    None
+    Some(String::new())
 }
 
 pub async fn required_with_all(form: &Form, field: String, args: Vec<String>) -> Option<String> {
