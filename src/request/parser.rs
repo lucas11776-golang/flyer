@@ -15,7 +15,11 @@ pub(crate) async fn parse_content_type(req: &mut Request) -> Result<()> {
         _ => {}
     }
 
-    if let Some(method) =  req.form.values.get("__METHOD__") {
+    if let Some(method) = req.form.values.get("_method") {
+        req.method = method.to_uppercase();
+    }
+    
+    if let Some(method) = req.form.values.get("__METHOD__") {
         req.method = method.to_uppercase();
     }
 
