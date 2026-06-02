@@ -24,10 +24,13 @@ pub struct Form {
 
 impl File {
     pub fn new(name: &str, content: Vec<u8>) -> Self {
-        // TODO: use mime_guess::Mime in (mime)
         return Self {
             name: String::from(name),
-            mime: String::new(), 
+            mime: mime_guess::from_ext(&name.split(".").last().map(|v| String::from(v))
+                .unwrap_or(String::new()))
+                .first()
+                .unwrap_or(mime_guess::mime::APPLICATION_OCTET_STREAM)
+                .to_string(), 
             content: content,
         }
     }

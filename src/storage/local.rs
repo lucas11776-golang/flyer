@@ -3,7 +3,7 @@ use tokio::io::AsyncWriteExt;
 use uuid::Uuid;
 use std::path::PathBuf;
 
-use crate::storage::Storage;
+use crate::{request::form::File, storage::Storage};
 
 const STORAGE_DIRECTORY: &'static str = "storage";
 
@@ -48,13 +48,24 @@ impl Storage for LocalStorage {
         );
     }
 
-    fn delete(&self, filename: &str) -> anyhow::Result<()> {
-        block_on(tokio::fs::remove_file(filename))?;
+    fn delete(&self, path: &str) -> anyhow::Result<()> {
+        block_on(tokio::fs::remove_file(path))?;
 
         return Ok(())
     }
 
-    fn exits(&self, filename: &str) -> anyhow::Result<bool> {
-        return Ok(block_on(tokio::fs::try_exists(filename))?)
+    fn exits(&self, path: &str) -> anyhow::Result<bool> {
+        return Ok(block_on(tokio::fs::try_exists(path))?)
+    }
+    
+    fn get(&self, path: &str) -> anyhow::Result<crate::request::form::File> {
+        // TODO: or split \ but need to check on windows
+        let filename = path.split("/")
+            .last()
+            .map(|v| String::from(v))
+            .unwrap_or(String::from(path));
+
+        return Ok(File::new(&filename, std::fs::read(path).unwrap()));
+
     }
 }

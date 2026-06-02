@@ -22,6 +22,7 @@ pub trait Storage {
     fn save(&self, folder: &str, name: &File) -> Result<String>;
     fn delete(&self, filename: &str) -> Result<()>;
     fn exits(&self, filename: &str) -> Result<bool>;
+    fn get(&self, filename: &str) -> Result<File>;
 }
 
 #[allow(static_mut_refs)]
@@ -50,19 +51,29 @@ pub fn save(storage: &str, folder: &str, file: &File) -> Result<String> {
 }
 
 #[allow(static_mut_refs)]
-pub fn delete(storage: &str, filename: &str) -> Result<()> {
+pub fn delete(storage: &str, path: &str) -> Result<()> {
     unsafe {
         return GLOBAL_STORAGE.get(storage)
             .unwrap()
-            .delete(filename);
+            .delete(path);
     }
 }
 
 #[allow(static_mut_refs)]
-pub fn exists(storage: &str, filename: &str) -> Result<bool> {
+pub fn exists(storage: &str, path: &str) -> Result<bool> {
     unsafe {
         return GLOBAL_STORAGE.get(storage)
             .unwrap()
-            .exits(filename);
+            .exits(path);
+    }
+}
+
+
+#[allow(static_mut_refs)]
+pub fn get(storage: &str, path: &str) -> Result<File> {
+    unsafe {
+        return GLOBAL_STORAGE.get(storage)
+            .unwrap()
+            .get(path);
     }
 }

@@ -715,6 +715,7 @@ pub async fn upload<'a>(req: &'a mut Request, res: &'a mut Response) -> &'a mut 
     let req_save_1 = storage::save(DEFAULT_STORAGE, "file", req.file("file").unwrap()).unwrap();
     let req_backup_1 = storage::save_as(DEFAULT_STORAGE, "backup", "backup_1", req.file("file").unwrap()).unwrap();
     let exists = storage::exists(DEFAULT_STORAGE, &req_save_1).unwrap();
+    let file = storage::get(DEFAULT_STORAGE, &req_save_1).unwrap();
     storage::delete(DEFAULT_STORAGE, &req_save_1).unwrap();
 
     return res.redirect("/");
