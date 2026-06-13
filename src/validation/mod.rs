@@ -6,7 +6,7 @@ use async_std::task::block_on;
 
 use crate::{
     request::{Request, form::{Files, Form}},
-    response::Response,
+    response::{HTTP_UNPROCESSABLE_CONTENT, Response},
     router::next::Next, utils::Values,
     validation::rules::*
 };
@@ -127,18 +127,6 @@ impl <'f>Field<'f> {
             nullable: false,
         }
     }
-
-    // pub fn add<R>(&mut self, callback: R, args: Vec<&str>) -> &mut Field<'f>
-    // where
-    //     R: for<'a> AsyncFn(&'f Form, String, Vec<String>) -> Option<String> + Send + Sync + 'static
-    // {
-    //     // self.rules.push((
-    //     //     Box::new(move |form, field, args| block_on(callback(form, field, args))),
-    //     //     args.iter().map(|v| v.to_string()).collect()
-    //     // ));
-
-    //     return self;
-    // }
 }
 
 pub struct Rules<'r> {
@@ -235,7 +223,15 @@ impl <'a>Validator<'a> {
         let mut validator = Self::new(&req.form, rules);
 
         if !validator.validate().await {
-            return res.with_old(req.form.values.clone()).with_errors(validator.errors).back();
+            if req.is_json() {
+                return res.status_code(HTTP_UNPROCESSABLE_CONTENT)
+                    .header("Content-Type", "application/json")
+                    .json(&validator.errors);
+            } else {
+                return res.with_old(req.form.values.clone())
+                    .with_errors(validator.errors)
+                    .back();
+            }
         }
 
         return next.handle(res);

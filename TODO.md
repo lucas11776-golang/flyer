@@ -1,5 +1,6 @@
 # TODO LIST
 
+- Need to add nested validation this will allow easy validation form json.
 - Need to implement flash.
 - Fix router match to not use `https://`
 

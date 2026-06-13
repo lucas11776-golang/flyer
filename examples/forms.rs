@@ -2,12 +2,15 @@ use std::time::Duration;
 
 use flyer::{
     request::Request,
-    response::Response,
+    response::{HTTP_OK, Response},
+    router::next::Next,
     server,
     session::cookie::SessionCookieManager,
     storage::{self, DEFAULT_STORAGE, local::LocalStorage},
+    validation::Rules,
     view::ViewData
 };
+use serde_json::json;
 
 /*
 
@@ -84,6 +87,20 @@ pub async fn upload<'a>(req: &'a mut Request, res: &'a mut Response) -> &'a mut 
     return res.redirect("/");
 }
 
+pub async fn json_form<'a>(req: &'a mut Request, res: &'a mut Response, next: &'a mut Next) -> &'a mut Response {
+    let mut rules = Rules::new();
+
+    rules.rule("first_name", vec!["required", "string", "min:3", "max:50"]);
+    rules.rule("last_name", vec!["required", "string", "min:3", "max:50"]);
+    rules.rule("email", vec!["required", "email"]);
+
+    return rules.handle(req, res, next);
+}
+
+pub async fn json<'a>(req: &'a mut Request, res: &'a mut Response) -> &'a mut Response {
+    return res.status_code(HTTP_OK).json(&json!({"message": "Entity created"}));
+}
+
 fn main() {
     let server = server("127.0.0.1", 9999)
         .session(SessionCookieManager::new(Duration::from_secs((60 * 60) * 2), "session_cookie_key_name", "encryption"))
@@ -94,6 +111,7 @@ fn main() {
     server.router().group("/", |router| {
         router.get("/", home);
         router.post("upload", upload);
+        router.post("json", json).middleware(json_form);
     });
 
     print!("\r\n\r\nRunning server: {}\r\n\r\n", server.address());

@@ -24,6 +24,7 @@ pub const HTTP_NOT_FOUND:              u16 = 404;
 pub const HTTP_METHOD_NOT_ALLOWED:     u16 = 405;
 pub const HTTP_CONFLICT:               u16 = 409;
 pub const HTTP_GONE:                   u16 = 410;
+pub const HTTP_UNPROCESSABLE_CONTENT:  u16 = 422;
 pub const HTTP_TOO_MANY_REQUESTS:      u16 = 429;
 pub const HTTP_INTERNAL_SERVER_ERROR:  u16 = 500;
 pub const HTTP_NOT_IMPLEMENTED:        u16 = 501;
