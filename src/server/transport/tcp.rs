@@ -11,6 +11,7 @@ use crate::{request::Request, server::transport::handler::http2};
 use crate::{response::Response, server::transport::handler::http2::H2_PREFACE};
 use crate::{server::{Server, transport::{Protocol, handler::http1}}, utils::server::get_tls_acceptor, warn};
 
+// TODO: refactor...
 pub async fn listen(ptr: usize) {
     let socket = TcpListener::bind(Server::instance(ptr).address()).await.unwrap();
     let tls= Server::instance(ptr).server_config.clone().map(|config| get_tls_acceptor(config.clone()).unwrap());
@@ -109,7 +110,7 @@ where
         Server::instance(ptr).on_web_request(&mut req, &mut res).await.unwrap();
         handler.write(&mut req, &mut res).await.unwrap();
 
-        drop(rw);
+        // drop(rw);
 
         return Ok(());
     }

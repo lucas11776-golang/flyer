@@ -87,16 +87,36 @@ async fn parse_form_urlencoded(req: &mut Request) -> std::io::Result<()> {
 
 // TODO: Need refactor to simplify
 pub fn parse_json_form(req: &mut Request) -> Result<()> {
-    let json: JsonValues = from_str(&String::from_utf8_lossy(&req.body).to_string()).unwrap();
+    let parsed: serde_json::error::Result<Value> = from_str(&String::from_utf8_lossy(&req.body).to_string());
 
-    for (k, v) in json {
-        let mut names: Names = Names::default();
+    if let Err(err) = parsed {
+        return Err(err.into());
+    }
 
-        names.push(String::from(k));
+    match parsed.unwrap() {
+        Value::Array(values) => {
+            for (k, v) in values.iter().enumerate() {
+                let mut names: Names = Names::default();
 
-        for (k_insert, v_insert) in parse_json_form_value(names, &v) {
-            req.form.values.insert(String::from(k_insert), v_insert);
-        }
+                names.push(k.to_string());
+
+                for (k_insert, v_insert) in parse_json_form_value(names, &v) {
+                    req.form.values.insert(String::from(k_insert), v_insert);
+                }
+            }
+        },
+        Value::Object(json) => {
+            for (k, v) in json {
+                let mut names: Names = Names::default();
+
+                names.push(String::from(k));
+
+                for (k_insert, v_insert) in parse_json_form_value(names, &v) {
+                    req.form.values.insert(String::from(k_insert), v_insert);
+                }
+            }
+        },
+        _ => { /* No Supported By JSON */ }
     }
 
     return Ok(())

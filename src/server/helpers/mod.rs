@@ -49,6 +49,8 @@ impl Handler for RequestHandler {
     async fn setup<'a>(&self, ptr: usize, req: &'a mut Request, res: &'a mut Response) -> Result<()> {
         if req.method == "POST" || req.method == "PATCH" || req.method == "PUT" {
             parse_content_type(req).await.unwrap();
+        } else {
+            req.form.values = req.query.clone();
         }
 
         if let Ok(cookies) = cookie_parse(req.header("cookie")) {

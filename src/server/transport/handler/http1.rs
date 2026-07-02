@@ -147,7 +147,7 @@ where
 
     pub async fn write(&mut self, req: &mut Request, res: &mut Response) -> Result<()> {
         self.rw.write_all(&http_1_parse(res, Some(&mut req.cookies.new_cookie))).await.unwrap();
-        self.rw.flush().await.unwrap();
+        // self.rw.flush().await.unwrap();
         Ok(())
     }
 }
