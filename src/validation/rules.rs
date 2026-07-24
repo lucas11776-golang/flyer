@@ -33,7 +33,7 @@ fn is_present(form: &Form, field: &str) -> bool {
 }
 
 // Booleans
-pub async fn accepted(form: &Form, field: String, _args: Vec<String>) -> Option<String> {
+pub async fn accepted<'r>(form: &'r Form, field: String, _args: Vec<String>) -> Option<String> {
     if let Some(val) = get_value(form, &field) {
         let accepted_vals = vec!["yes", "on", "1", "true"];
         if accepted_vals.contains(&val.to_lowercase().as_str()) || val == "1" {

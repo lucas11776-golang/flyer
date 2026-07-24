@@ -10,3 +10,4 @@ host.key
 .env
 /storage
 /file
+/sessions

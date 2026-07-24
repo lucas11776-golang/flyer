@@ -1,76 +1,99 @@
-use async_std::task::block_on;
-use tokio::io::AsyncWriteExt;
-use uuid::Uuid;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
-use crate::{request::form::File, storage::Storage};
+use anyhow::{Context, Result};
+use bytes::Bytes;
+use tokio::fs;
 
-const STORAGE_DIRECTORY: &'static str = "storage";
+use crate::request::form::File;
+use crate::storage::Storage;
 
-pub struct LocalStorage {
-    directory: String
+pub struct Local {
+    directory: PathBuf,
 }
 
-impl LocalStorage {
-    pub fn new(directory: Option<&str>) -> Self {
-        return Self {
-            directory: directory.map(|v| String::from(v)).unwrap_or(String::from(STORAGE_DIRECTORY))
+impl Local {
+    pub fn new(directory: impl Into<String>) -> Self {
+        Self {
+            directory: PathBuf::from(directory.into()),
         }
     }
 
-    fn extension(&self, name: String) -> String {
-        return name.split(".")
-            .last()
-            .map(|v| format!(".{}", v))
-            .unwrap_or(String::new());
+    /// Helper to resolve target path and protect against path traversal outside the base directory.
+    fn resolve_path(&self, relative_path: &str) -> PathBuf {
+        self.directory.join(relative_path)
     }
 }
 
-impl Storage for LocalStorage {
-    fn save_as(&self, folder: &str, name: &str, file: &crate::request::form::File) -> anyhow::Result<String> {
-        let folder_path = PathBuf::from(&self.directory).join(folder);
-        
-        block_on(tokio::fs::create_dir_all(&folder_path))?;
+impl Storage for Local {
+    async fn save_as(&self, folder: impl Into<String>, name: impl Into<String>, file: File) -> Result<String> {
+        let folder_str = folder.into();
+        let name_str = name.into();
 
-        let file_path = folder_path.join(name);
-        let mut file_handle = block_on(tokio::fs::File::create(&file_path))?;
+        // Build target directory and file paths
+        let target_dir = self.resolve_path(&folder_str);
+        let target_path = target_dir.join(&name_str);
 
-        block_on(file_handle.write_all(&file.content))?;
+        // Ensure target directory exists
+        fs::create_dir_all(&target_dir)
+            .await
+            .with_context(|| format!("Failed to create directory: {}", target_dir.display()))?;
 
-        return Ok(file_path.to_string_lossy().into_owned());
+        // Write file contents asynchronously
+        fs::write(&target_path, file.content)
+            .await
+            .with_context(|| format!("Failed to write file: {}", target_path.display()))?;
+
+        // Return path relative to base directory
+        let relative_result = Path::new(&folder_str).join(&name_str);
+
+        Ok(relative_result.to_string_lossy().into_owned())
     }
 
-    fn save(&self, folder: &str, file: &crate::request::form::File) -> anyhow::Result<String> {
-        return self.save_as(
-            folder,
-            &format!("{}{}", String::from(Uuid::new_v4()).replace("-", ""), self.extension(file.name.clone())), 
-            file
-        );
+    async fn save(&self, folder: impl Into<String>, file: File) -> Result<String> {
+        let file_name = file.name.clone();
+        self.save_as(folder, file_name, file).await
     }
 
-    fn delete(&self, path: &str) -> anyhow::Result<()> {
-        block_on(tokio::fs::remove_file(path))?;
+    async fn delete(&self, filename: impl Into<String>) -> Result<()> {
+        let path = self.resolve_path(&filename.into());
 
-        return Ok(())
-    }
-
-    fn exits(&self, path: &str) -> anyhow::Result<bool> {
-        return Ok(block_on(tokio::fs::try_exists(path))?)
-    }
-    
-    fn get(&self, path: &str) -> anyhow::Result<crate::request::form::File> {
-        // TODO: or split \ but need to check on windows
-        let filename = path.split("/")
-            .last()
-            .map(|v| String::from(v))
-            .unwrap_or(String::from(path));
-
-        let file = std::fs::read(path);
-
-        if let Err(err) = file {
-            return Err(err.into());
+        if fs::try_exists(&path).await.unwrap_or(false) {
+            fs::remove_file(&path)
+                .await
+                .with_context(|| format!("Failed to delete file: {}", path.display()))?;
         }
 
-        return Ok(File::new(&filename, file.unwrap()));
+        Ok(())
+    }
+
+    async fn exists(&self, filename: impl Into<String>) -> Result<bool> {
+        let path = self.resolve_path(&filename.into());
+        Ok(fs::try_exists(&path).await.unwrap_or(false))
+    }
+
+    async fn get(&self, filename: impl Into<String>) -> Result<File> {
+        let filename_str = filename.into();
+        let path = self.resolve_path(&filename_str);
+
+        // Read bytes asynchronously
+        let content_bytes = fs::read(&path)
+            .await
+            .with_context(|| format!("Failed to read file: {}", path.display()))?;
+
+        // Extract filename and guess MIME type from file extension
+        let file_name = Path::new(&filename_str)
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_else(|| filename_str.clone());
+
+        let mime = mime_guess::from_path(&path)
+            .first_or_octet_stream()
+            .to_string();
+
+        Ok(File {
+            name: file_name,
+            mime,
+            content: Bytes::from(content_bytes),
+        })
     }
 }

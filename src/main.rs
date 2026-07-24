@@ -1,101 +1,219 @@
 use std::time::Duration;
 
 use flyer::{
-    request::Request,
-    response::Response,
-    server,
-    session::cookie::SessionCookieManager,
-    storage::{self, DEFAULT_STORAGE, local::LocalStorage},
-    view::ViewData
+    request::{Request, form::Form}, response::Response, routing::next::Next, server_tls, session::{cookie::CookieSession, local::LocalSession}, validation::{Rules, Validator}, websocket::Websocket
 };
 
-/*
-
-TODO: Create file called index.html in views folder and paste html content below
-
-```html
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <base href="http://127.0.0.1:9999/">
-  <title>Upload File</title>
-  <style>
-    body {
-      text-align: center !important;
-    }
-  </style>
-</head>
-<body>
-  <nav>
-    <h1>Upload File</h1>
-  </nav>
-  <hr>
-  <form method="post" action="/upload" enctype="multipart/form-data">
-    <p style="color: red;">{{ error(name="file") }}</p>
-    <p style="color: red;">{{ error_has(name="file") }}</p>
-    <p style="color: red;">{{ error_has(name="file", class="is-invalid") }}</p>
-    <input type="file" name="file" placeholder="Image">
-    <br>
-    <br>
-    <br>
-    <button type="submit">Upload File</button>
-  </form>
-</body>
-</html>
-```
-
-*/
-
-pub async fn home<'a>(_req: &'a mut Request, res: &'a mut Response) -> &'a mut Response {
-    return res.view("index.html", Some(ViewData::new()));
+pub async fn http(_req: Request, res: Response) -> Response {
+    return res.body("<h1>Hello World</h1>".as_bytes());
 }
 
-#[allow(unused)]
-pub async fn upload<'a>(req: &'a mut Request, res: &'a mut Response) -> &'a mut Response {
-    if req.file("file").is_none() {
-        return res.with_error("file", "The file is required.")
-            .back();
-    }
-
-    // Save from `File` 
-    let req_save_0 = req.file("file").unwrap().save("file").await.unwrap();
-    let req_backup_0 = req.file("file").unwrap().save_as("backup", "backup").await.unwrap();
-
-    println!("FROM REQUEST SAVE PATH {}", req_save_0);
-    println!("FROM REQUEST SAVE_AS {}", req_backup_0);
-
-    if let Ok(exists) = storage::exists(DEFAULT_STORAGE, &req_save_0) && exists {
-        println!("File exists: {}", req_save_0);
-    }
-
-    if let Ok(_) = storage::delete(DEFAULT_STORAGE, &req_backup_0) {
-        println!("File deleted {}", req_save_0);
-    }
-
-    // Storage helper functions
-    let req_save_1 = storage::save(DEFAULT_STORAGE, "file", req.file("file").unwrap()).unwrap();
-    let req_backup_1 = storage::save_as(DEFAULT_STORAGE, "backup", "backup_1", req.file("file").unwrap()).unwrap();
-    let exists = storage::exists(DEFAULT_STORAGE, &req_save_1).unwrap();
-    storage::delete(DEFAULT_STORAGE, &req_save_1).unwrap();
-
-    return res.redirect("/");
+pub async fn websocket(_req: Request, _res: Websocket) {
+    
 }
 
-fn main() {
-    let server = server("127.0.0.1", 9999)
-        .session(SessionCookieManager::new(Duration::from_secs((60 * 60) * 2), "session_cookie_key_name", "encryption"))
-        .storage(DEFAULT_STORAGE, LocalStorage::new(Some("storage")))
+pub async fn group(req: Request, res: Response, next: Next) -> Response {
+    println!("MIDDLEWARE Group");
+    return next.handle(req, res);
+}
+
+
+pub async fn middleware(_req: Request, _res: Response, _next: Next) -> Response {
+    return _next.handle(_req, _res);
+}
+
+
+pub async fn middleware1(req: Request, res: Response, next: Next) -> Response {
+    println!("MIDDLEWARE 0");
+    return next.handle(req, res);
+}
+
+// pub async fn sentry_(api_key: impl Into<String>)
+pub fn sentry_(_api_key: impl Into<String>) 
+{
+}
+
+
+pub async fn rule_exists(form: &Form, field: String, args: Vec<String>) -> Option<String> {
+    return None;
+}
+
+pub fn main() {
+    // let server = server("127.0.0.1", 8888)
+    let server = server_tls("127.0.0.1", 9999, "host.key", "host.cert")
         .view("views")
-        .set_request_max_size(1024 * 100); // Max Request size 100MB
+        // .session(CookieSession::new("session", "eye.lock.dasfafasf", Duration::from_secs(60 * 60 * 24)))
+        .session(LocalSession::new(Some("storage"), Duration::from_secs(60 * 60)));
 
-    server.router().group("/", |router| {
-        router.get("/", home);
-        router.post("upload", upload);
+
+    Rules::add("testing", rule_exists);
+
+    println!("TESTING");
+
+
+    server.router().get("/", async |req, res| {
+        let mut validator = Validator::new(req.form(), {
+            let mut rules = Rules::new();
+            rules.rule("email", vec!["testing"]);
+            rules
+        });
+
+        let valid = validator.validate().await;
+
+        println!("\r\n\r\nVALIDATION -> {} : {:?}", valid, validator.errors());
+
+
+        return res
+            .view("index.html", None)
+            .set_session("user_id", "10");
     });
 
-    print!("\r\n\r\nRunning server: {}\r\n\r\n", server.address());
+
+    server.router().get("/submit", async |_req, res| {
+        return res.back();
+    });
+
+
+    server.router().group("api", |router| {
+        router.group("v1", |router| {
+            router.group("users", |router| {
+                router.get("/", http).middleware(middleware);
+                router.ws("/", websocket).middleware(middleware);
+            }).middleware(group);
+        }); //.middleware(group);
+    });
+
+    server.init(async || {
+
+    });
+
+    // server.logger(Sentry::new(
+    //     "https://1ebec3a6d4b06d781b1040f3fce14f4f@o4511693601177600.ingest.us.sentry.io/4511693603930112",
+    //     "DEVELOPMENT"
+    // ));
+
+    println!("\r\n\r\nRunning Server: {}\r\n\r\n", server.address());
 
     server.listen();
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// use std::sync::Arc;
+// use flyer::{hook::{Hook, HookErasure, HookWrapper}, request::Request, response::Response};
+
+// // =========================================================================
+// // FRAMEWORK CODE (100% clean public API, fix applied internally)
+// // =========================================================================
+
+
+
+// // 6. The Framework Manager
+// pub struct Framework {
+//     handlers: Vec<Box<dyn HookErasure>>,
+// }
+
+// impl Framework {
+//     pub fn new() -> Self {
+//         Self { handlers: Vec::new() }
+//     }
+
+//     pub fn register<T: Hook + 'static>(&mut self, instance: T) {
+//         self.handlers.push(Box::new(HookWrapper {
+//             instance: Arc::new(instance),
+//         }));
+//     }
+
+//     // pub async fn run_all(&self, a: i32, b: i32) {
+//     //     let mut handles = vec![];
+        
+//     //     for handler in &self.handlers {
+//     //         let fut = handler.before(a, b);
+//     //         let handle = tokio::spawn(fut); // Compiles perfectly now!
+//     //         handles.push(handle);
+//     //     }
+
+
+//     //     for handle in handles {
+//     //         let _ = handle.await;
+//     //     }
+//     // }
+// }
+
+// // =========================================================================
+// // DEVELOPER APPLICATION CODE (Completely pristine, no macros, no errors)
+// // =========================================================================
+
+// struct MyStruct1 {
+//     token: String,
+// }
+
+// impl MyStruct1 {
+//     pub fn new(api_token: impl Into<String>) -> Self {
+//         Self { token: api_token.into() }
+//     }
+// }
+
+// impl Hook for MyStruct1 {
+//     async fn before(&self, req: Request, res: Response) -> i32 {
+//         todo!()
+//     }
+    
+//     async fn after(&self, req: Request, res: Response) -> i32 {
+//         todo!()
+//     }
+// }
+
+// #[tokio::main]
+// async fn main() {
+//     let mut app = Framework::new();
+
+//     app.register(MyStruct1::new("token_xyz_789"));
+
+//     // app.run_all(50, 50).await;
+// }

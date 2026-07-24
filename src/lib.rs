@@ -1,30 +1,33 @@
 use once_cell::sync::OnceCell;
 
 use crate::{
-    server::{Server},
+    server::Server,
     utils::server::{TlsPathConfig, get_tls_config, server_config}
 };
 
-pub mod router;
+pub mod cookies;
+pub mod error;
+pub mod hooks;
+pub mod loggers;
+pub mod mail;
 pub mod request;
 pub mod response;
-pub mod ws;
+pub mod routing;
 pub mod server;
-pub mod utils;
-pub mod cookies;
 pub mod session;
-pub mod view;
-pub mod validation;
-pub mod assets;
-pub mod mail;
 pub mod storage;
+pub mod types;
+pub mod utils;
+pub mod validation;
+pub mod view;
+pub mod websocket;
 
 pub(crate) static mut GLOBAL_SERVER: OnceCell<Box<Server>> = OnceCell::new();
 
 #[allow(static_mut_refs)]
-pub fn server<'a>(host: &str, port: u16) -> &'a mut Server {
+pub fn server<'s>(host: impl Into<String>, port: u32) -> &'s mut Server {
     return unsafe {
-        let server = Server::new(host, port, None);
+        let server = Server::new(host.into(), port, None);
 
         GLOBAL_SERVER
             .set(Box::new(server))
@@ -32,17 +35,14 @@ pub fn server<'a>(host: &str, port: u16) -> &'a mut Server {
             .unwrap();
 
         GLOBAL_SERVER.get_mut().unwrap().as_mut()
-    };
+    }
 }
 
 #[allow(static_mut_refs)]
-pub fn server_tls<'a>(host: &str, port: u16, key_path: &str, cert_path: &str) -> &'a mut Server {
+pub fn server_tls<'s>(host: impl Into<String>, port: u32, key_path: impl Into<String>, cert_path: impl Into<String>) -> &'s mut Server {
     return unsafe {
-        let server = Server::new(
-            host,
-            port,
-            Some(server_config(get_tls_config(&TlsPathConfig::new(key_path, cert_path)).unwrap()).unwrap())
-        );
+        let server_config = Some(server_config(get_tls_config(&TlsPathConfig::new(&key_path.into(), &cert_path.into())).unwrap()).unwrap());
+        let server = Server::new(host.into(), port, server_config);
 
         GLOBAL_SERVER
             .set(Box::new(server))
@@ -50,53 +50,5 @@ pub fn server_tls<'a>(host: &str, port: u16, key_path: &str, cert_path: &str) ->
             .unwrap();
 
         GLOBAL_SERVER.get_mut().unwrap().as_mut()
-    };
-}
-
-#[macro_export]
-macro_rules! info {
-    ($msg:expr $(; $($k:expr => $v:expr),* )? ) => {{
-        let logger = crate::utils::logger::logger();
-        slog::info!(logger, $msg; "level" => "info" $(, $($k => $v),* )? );
-    }};
-    ($msg:expr, $($arg:tt)+) => {{
-        let logger = crate::utils::logger::logger();
-        slog::info!(logger, $msg, $($arg)+);
-    }};
-}
-
-#[macro_export]
-macro_rules! warn {
-    ($msg:expr $(; $($k:expr => $v:expr),* )? ) => {{
-        let logger = crate::utils::logger::logger();
-        slog::warn!(logger, $msg; "level" => "warn" $(, $($k => format!("{}", $v)),* )? );
-    }};
-    ($msg:expr, $($arg:tt)+) => {{
-        let logger = crate::utils::logger::logger();
-        slog::warn!(logger, $msg, $($arg)+);
-    }};
-}
-
-#[macro_export]
-macro_rules! success {
-    ($msg:expr $(; $($k:expr => $v:expr),* )? ) => {{
-        let logger = crate::utils::logger::logger();
-        slog::info!(logger, $msg; "level" => "success" $(, $($k => $v),* )? );
-    }};
-    ($msg:expr, $($arg:tt)+) => {{
-        let logger = crate::utils::logger::logger();
-        slog::info!(logger, $msg, $($arg)+);
-    }};
-}
-
-#[macro_export]
-macro_rules! danger {
-    ($msg:expr $(; $($k:expr => $v:expr),* )? ) => {{
-        let logger = crate::utils::logger::logger();
-        slog::error!(logger, $msg; "level" => "danger" $(, $($k => $v),* )? );
-    }};
-    ($msg:expr, $($arg:tt)+) => {{
-        let logger = crate::utils::logger::logger();
-        slog::error!(logger, $msg, $($arg)+);
-    }};
+    }
 }
