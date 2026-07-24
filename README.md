@@ -99,23 +99,23 @@ Insert code below in `main.rs`.
 ```rs
 use flyer::{server, request::Request, response::Response};
 
-pub async fn index<'a>(_req: &'a mut Request, res: &'a mut Response) -> &'a mut Response {
+pub async fn index(_req: Request, res: Response) -> Response {
     return res.html("<h1>Users List</h1>");
 }
 
-pub async fn store<'a>(_req: &'a mut Request, res: &'a mut Response) -> &'a mut Response {
+pub async fn store(_req: Request, res: Response) -> Response {
     return res.redirect("users/1");
 }
 
-pub async fn view<'a>(req: &'a mut Request, res: &'a mut Response) -> &'a mut Response {
+pub async fn view(req: Request, res: Response) -> Response {
     return res.html(format!("<h1>User {}</h1>", req.parameter("user")).as_str());
 }
 
-pub async fn update<'a>(req: &'a mut Request, res: &'a mut Response) -> &'a mut Response {
+pub async fn update(req: Request, res: Response) -> Response {
     return res.redirect(format!("users/{}", req.parameter("user")).as_str());
 }
 
-pub async fn destroy<'a>(_req: &'a mut Request, res: &'a mut Response) -> &'a mut Response {
+pub async fn destroy(_req: Request, res: Response) -> Response {
     return res.redirect("users")
 }
 
@@ -185,7 +185,7 @@ use flyer::utils::development::dns;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
-struct ApiInfo<'a> {
+struct ApiInfo {
     info: &'a str,
     version: i32
 }
@@ -294,7 +294,7 @@ use flyer::{server, view::{ViewData, render_view}};
 use serde::Serialize;
 
 #[derive(Serialize)]
-pub struct User<'a> {
+pub struct User {
     first_name: &'a str,
     last_name: &'a str,
     email: &'a str
@@ -379,7 +379,7 @@ use flyer::{
     utils::{env, load_env}
 };
 
-pub async fn index<'a>(_req: &'a mut Request, res: &'a mut Response) -> &'a mut Response {
+pub async fn index(_req: Request, res: Response) -> Response {
     return res.view("env.html", None);
 }
 
@@ -479,19 +479,19 @@ pub struct JsonMessage {
     message: String
 }
 
-pub async fn auth<'a>(req: &'a mut Request, res: &'a mut Response, next: &'a mut Next) -> &'a mut Response {
+pub async fn auth(req: Request, res: Response, next: Next) -> Response {
     if req.header("authorization") != "ey.jwt.token" {
         return res.status_code(HTTP_UNAUTHORIZED).json(&JsonMessage{
             message: "Unauthorized Access".to_owned()
         })
     }
     
-    return next.handle(res);
+    return next.handle(req, res);
 }
 
-pub async fn verified<'a>(req: &'a mut Request, res: &'a mut Response, next: &'a mut Next) -> &'a mut Response {
+pub async fn verified(req: Request, res: Response, next: Next) -> Response {
     // Some logic to check user in database
-    return next.handle(res);
+    return next.handle(req, res);
 }
 
 fn main() {
@@ -530,32 +530,32 @@ use flyer::{
 };
 
 /// Controller
-pub async fn home_view<'a>(req: &'a mut Request, res: &'a mut Response) -> &'a mut Response {
+pub async fn home_view(req: Request, res: Response) -> Response {
     return res.html(format!("<h1>Welcome to protected home page user {}</h1>", req.session().get("user_id")).as_str());
 }
 
-pub async fn login<'a>(req: &'a mut Request, res: &'a mut Response) -> &'a mut Response {
+pub async fn login(req: Request, res: Response) -> Response {
     req.session().set("user_id", format!("{}", 1).as_str());
 
     return res.redirect("login");
 }
 
-pub async fn register<'a>(_req: &'a mut Request, res: &'a mut Response) -> &'a mut Response {
+pub async fn register(_req: Request, res: Response) -> Response {
     return res.html("<h1>Please visit the login page to login</h1>");
 }
 
-pub async fn logout<'a>(req: &'a mut Request, res: &'a mut Response) -> &'a mut Response {
+pub async fn logout(req: Request, res: Response) -> Response {
     req.session().remove("user_id");
 
     return res.redirect("register");
 }
 
-pub async fn page_not_found<'a>(_req: &'a mut Request, res: &'a mut Response) -> &'a mut Response {
+pub async fn page_not_found(_req: Request, res: Response) -> Response {
     return res.html("<h1>404 Page Not Found</h1>");
 }
 
 /// Middleware
-pub async fn auth<'a>(req: &'a mut Request, res: &'a mut Response, next: &'a mut Next) -> &'a mut Response {
+pub async fn auth(req: Request, res: Response, next: Next) -> Response {
     if req.session().get("user_id") == "" {
         return res.redirect("register");
     }
@@ -563,7 +563,7 @@ pub async fn auth<'a>(req: &'a mut Request, res: &'a mut Response, next: &'a mut
     return next.handle(res);
 }
 
-pub async fn guest<'a>(req: &'a mut Request, res: &'a mut Response, next: &'a mut Next) -> &'a mut Response {
+pub async fn guest(req: Request, res: Response, next: Next) -> Response {
     if req.session().get("user_id") != "" {
         return res.redirect("/");
     }
@@ -601,7 +601,7 @@ use flyer::{
     server,
 };
 
-pub async fn home_view<'a>(req: &'a mut Request, res: &'a mut Response) -> &'a mut Response {
+pub async fn home_view(req: Request, res: Response) -> Response {
     req.cookies()
         .set("user_id", "1")
         .set_expires(Duration::from_secs((60 * 60) * 2));
@@ -609,11 +609,11 @@ pub async fn home_view<'a>(req: &'a mut Request, res: &'a mut Response) -> &'a m
     return res.html("<h1>Cookie has been set visit route /cookie</h1>");
 }
 
-pub async fn cookie<'a>(req: &'a mut Request, res: &'a mut Response) -> &'a mut Response {
+pub async fn cookie(req: Request, res: Response) -> Response {
     return res.html(format!("<h1>User ID cookie is {}</h1>", req.cookies().get("user_id")).as_str());
 }
 
-pub async fn remove_cookie<'a>(req: &'a mut Request, res: &'a mut Response) -> &'a mut Response {
+pub async fn remove_cookie(req: Request, res: Response) -> Response {
     let _ = req.cookies().remove("user_id");
     return res.redirect("/");
 }
@@ -688,12 +688,12 @@ use flyer::{
 };
 use serde_json::json;
 
-pub async fn home<'a>(_req: &'a mut Request, res: &'a mut Response) -> &'a mut Response {
+pub async fn home(_req: Request, res: Response) -> Response {
     return res.view("index.html", Some(ViewData::new()));
 }
 
 #[allow(unused)]
-pub async fn upload<'a>(req: &'a mut Request, res: &'a mut Response) -> &'a mut Response {
+pub async fn upload(req: Request, res: Response) -> Response {
     if req.file("file").is_none() {
         return res.with_error("file", "The file is required.")
             .back();
@@ -724,7 +724,7 @@ pub async fn upload<'a>(req: &'a mut Request, res: &'a mut Response) -> &'a mut 
     return res.redirect("/");
 }
 
-pub async fn json_form<'a>(req: &'a mut Request, res: &'a mut Response, next: &'a mut Next) -> &'a mut Response {
+pub async fn json_form(req: Request, res: Response, next: Next) -> Response {
     let mut rules = Rules::new();
 
     rules.rule("first_name", vec!["required", "string", "min:3", "max:50"]);
@@ -734,7 +734,7 @@ pub async fn json_form<'a>(req: &'a mut Request, res: &'a mut Response, next: &'
     return rules.handle(req, res, next);
 }
 
-pub async fn json<'a>(req: &'a mut Request, res: &'a mut Response) -> &'a mut Response {
+pub async fn json(req: Request, res: Response) -> Response {
     return res.status_code(HTTP_OK).json(&json!({"message": "Entity created"}));
 }
 
@@ -936,11 +936,11 @@ pub struct Token {
     pub expires: u128
 }
 
-pub async fn index<'a>(_req: &'a mut Request, res: &'a mut Response) -> &'a mut Response {
+pub async fn index(_req: Request, res: Response) -> Response {
     return res.view("register.html", None);
 }
 
-pub async fn login<'a>(_req: &'a mut Request, res: &'a mut Response) -> &'a mut Response {
+pub async fn login(_req: Request, res: Response) -> Response {
     return res.json(&Token {
         token: String::from("eye.jwt.token"),
         r#type: String::from("jwt"),
@@ -966,7 +966,7 @@ pub async fn email_exists(form: &Form, field: String, args: Vec<String>) -> Opti
     };
 }
 
-async fn login_form<'a>(req: &'a mut Request, res: &'a mut Response, next: &'a mut Next) -> &'a mut Response {
+async fn login_form(req: Request, res: Response, next: Next) -> Response {
     let mut rules = Rules::new();
 
     rules.rule("email", vec!["required", "string", "email_exists:users"])
@@ -1009,11 +1009,11 @@ use flyer::{request::Request, response::Response};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
-pub struct Message<'a> {
+pub struct Message {
     message: &'a str
 }
 
-pub async fn auth<'a>(req: &'a mut Request, res: &'a mut Response, next: &'a mut Next) -> &'a mut Response {
+pub async fn auth(req: Request, res: Response, next: Next) -> Response {
     if req.header("authorization") != "jwt.token" {
         let writer = res.ws.as_mut().unwrap();
 
