@@ -1,44 +1,22 @@
-use crate::utils::{Values, merge};
+use crate::utils::{Values, env::env};
 
-pub fn clean_url(uri: String) -> String {
-    if uri == "/" {
-        return "".to_string();
-    }
-
-    return uri.trim_start_matches("/")
-        .trim_end_matches("/")
-        .to_string();
+pub fn url(path: &str) -> String {
+    return format!("{}/{}", env("APP_URL").trim_end_matches("/"), path);
 }
 
-pub fn uri_to_segments(uri: String) -> Vec<String> {
-    return uri.split('/')
-        .filter(|s| !s.is_empty())
+pub fn clean(path: impl Into<String>) -> Vec<String> {
+    return path
+        .into()
+        .trim_matches('/')
+        .split("/")
         .map(|s| String::from(s))
-        .collect()
+        .filter(|v| v.ne(""))
+        .collect::<Vec<String>>();
 }
 
-pub fn parse_query_params(query: &str) -> Values {
-    return match serde_urlencoded::from_str::<Values>(query) {
+pub fn parse_query(query: impl Into<String>) -> Values {
+    return match serde_urlencoded::from_str::<Values>(&query.into()) {
         Ok(values) => values,
         Err(_) => Values::new(),
     };
 } 
-
-pub fn join_paths(one: String, two: String) -> Vec<String> {
-    return merge(vec![vec![one], vec![two]]).iter()
-        .map(|x| clean_url(x.to_owned()))
-        .filter(|x| x != "")
-        .collect();
-}
-
-pub fn join_url(url: Vec<String>) -> String {
-    return url.iter()
-        .map(|u| String::from(u.trim_matches('/'))).collect::<Vec<_>>()
-        .join("/")
-        .trim_matches('/')
-        .to_string();
-}
-
-pub fn url(path: &str) -> String {
-    return format!("{}/{}", crate::utils::env("APP_URL").trim_end_matches("/"), path);
-}

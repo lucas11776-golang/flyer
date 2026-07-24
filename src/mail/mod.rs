@@ -1,6 +1,7 @@
 use std::time::SystemTime;
 
 use anyhow::Result;
+use bytes::Bytes;
 use lettre::message::MessageBuilder;
 use lettre::message::{Mailbox as LettreMailBox, header::ContentType};
 use lettre::transport::smtp::authentication::Credentials;
@@ -8,7 +9,7 @@ use lettre::transport::smtp::client::Tls;
 use lettre::{Message, SmtpTransport, Transport};
 use once_cell::sync::OnceCell;
 
-use crate::view::{ViewData, view_render};
+use crate::view::{ViewData, View};
 
 pub(crate) static mut GLOBAL_MAILER: OnceCell<Box<SMTP>> = OnceCell::new();
 
@@ -58,7 +59,7 @@ impl Mailbox {
 
 pub struct Mail {
     builder: MessageBuilder,
-    body: Option<String>,
+    body: Option<Bytes>,
 }
 
 // TODO: Need to implement (attachment, attachments)
@@ -138,7 +139,7 @@ impl Mail {
         return self;
     }
 
-    pub fn text(&mut self, text: String) -> &mut Self {
+    pub fn text(&mut self, text: Bytes) -> &mut Self {
         self.builder = self.builder
             .clone()
             .header(ContentType::TEXT_PLAIN);
@@ -148,7 +149,7 @@ impl Mail {
         return self;
     }
 
-    pub fn html(&mut self, html: String) -> &mut Self {
+    pub fn html(&mut self, html: Bytes) -> &mut Self {
         self.builder = self.builder
             .clone()
             .header(ContentType::TEXT_HTML);
@@ -158,8 +159,11 @@ impl Mail {
         return self;
     }
 
-    pub fn view(&mut self, view: String, data: Option<ViewData>) -> &mut Self {
-        return self.html(view_render(&view, data).unwrap());
+    pub fn view(&mut self, path: impl Into<String>, template: impl Into<String>, data: Option<ViewData>) -> &mut Self {
+        let view = View::render(path, template, data)
+            .unwrap();
+
+        return self.html(view);
     }
 
     #[allow(static_mut_refs)]
@@ -169,12 +173,13 @@ impl Mail {
                     .get_mut()
                     .unwrap()
                     .transport;
+            let body: Vec<u8> = Vec::from(self.body.clone().unwrap_or(Bytes::new()));
 
             for mailbox in to {
                 let message =  self.builder
                     .clone()
                     .to(LettreMailBox::new(mailbox.name, mailbox.email.parse().unwrap()))
-                    .body(self.body.clone().unwrap_or(String::new()))
+                    .body(body.clone())
                     .unwrap();
 
                 transport.send(&message).unwrap();

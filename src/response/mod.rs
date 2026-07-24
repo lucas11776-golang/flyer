@@ -1,162 +1,265 @@
+use bytes::Bytes;
 use serde::Serialize;
 
-use crate::{utils::{Headers, Values},
+use crate::{
+    cookies::{cookie::Cookie, Cookies},
+    request::Request,
+    routing::next::Next,
+    session::Session,
+    utils::{http::Headers, Values},
     view::{ViewBag, ViewData},
-    ws::Writer
 };
 
-pub const HTTP_CONTINUE:               u16 = 100;
-pub const HTTP_SWITCHING_PROTOCOLS:    u16 = 101;
-pub const HTTP_OK:                     u16 = 200;
-pub const HTTP_CREATED:                u16 = 201;
-pub const HTTP_ACCEPTED:               u16 = 202;
-pub const HTTP_NO_CONTENT:             u16 = 204;
-pub const HTTP_MOVED_PERMANENTLY:      u16 = 301;
-pub const HTTP_FOUND:                  u16 = 302;
-pub const HTTP_SEE_OTHER:              u16 = 303;
-pub const HTTP_NOT_MODIFIED:           u16 = 304;
-pub const HTTP_TEMPORARY_REDIRECT:     u16 = 307;
-pub const HTTP_PERMANENT_REDIRECT:     u16 = 308;
-pub const HTTP_BAD_REQUEST:            u16 = 400;
-pub const HTTP_UNAUTHORIZED:           u16 = 401;
-pub const HTTP_FORBIDDEN:              u16 = 403;
-pub const HTTP_NOT_FOUND:              u16 = 404;
-pub const HTTP_METHOD_NOT_ALLOWED:     u16 = 405;
-pub const HTTP_CONFLICT:               u16 = 409;
-pub const HTTP_GONE:                   u16 = 410;
-pub const HTTP_UNPROCESSABLE_CONTENT:  u16 = 422;
-pub const HTTP_TOO_MANY_REQUESTS:      u16 = 429;
-pub const HTTP_INTERNAL_SERVER_ERROR:  u16 = 500;
-pub const HTTP_NOT_IMPLEMENTED:        u16 = 501;
-pub const HTTP_BAD_GATEWAY:            u16 = 502;
-pub const HTTP_SERVICE_UNAVAILABLE:    u16 = 503;
-pub const HTTP_GATEWAY_TIMEOUT:        u16 = 504;
+pub type StatusCode = u16;
 
+// Standard HTTP Status Codes
+pub const HTTP_CONTINUE: StatusCode = 100;
+pub const HTTP_SWITCHING_PROTOCOLS: StatusCode = 101;
+pub const HTTP_PROCESSING: StatusCode = 102;
+pub const HTTP_EARLY_HINTS: StatusCode = 103;
+pub const HTTP_OK: StatusCode = 200;
+pub const HTTP_CREATED: StatusCode = 201;
+pub const HTTP_ACCEPTED: StatusCode = 202;
+pub const HTTP_NON_AUTHORITATIVE_INFORMATION: StatusCode = 203;
+pub const HTTP_NO_CONTENT: StatusCode = 204;
+pub const HTTP_RESET_CONTENT: StatusCode = 205;
+pub const HTTP_PARTIAL_CONTENT: StatusCode = 206;
+pub const HTTP_MULTI_STATUS: StatusCode = 207;
+pub const HTTP_ALREADY_REPORTED: StatusCode = 208;
+pub const HTTP_IM_USED: StatusCode = 226;
+pub const HTTP_MULTIPLE_CHOICES: StatusCode = 300;
+pub const HTTP_MOVED_PERMANENTLY: StatusCode = 301;
+pub const HTTP_FOUND: StatusCode = 302;
+pub const HTTP_SEE_OTHER: StatusCode = 303;
+pub const HTTP_NOT_MODIFIED: StatusCode = 304;
+pub const HTTP_USE_PROXY: StatusCode = 305;
+pub const HTTP_TEMPORARY_REDIRECT: StatusCode = 307;
+pub const HTTP_PERMANENT_REDIRECT: StatusCode = 308;
+pub const HTTP_BAD_REQUEST: StatusCode = 400;
+pub const HTTP_UNAUTHORIZED: StatusCode = 401;
+pub const HTTP_PAYMENT_REQUIRED: StatusCode = 402;
+pub const HTTP_FORBIDDEN: StatusCode = 403;
+pub const HTTP_NOT_FOUND: StatusCode = 404;
+pub const HTTP_METHOD_NOT_ALLOWED: StatusCode = 405;
+pub const HTTP_NOT_ACCEPTABLE: StatusCode = 406;
+pub const HTTP_PROXY_AUTHENTICATION_REQUIRED: StatusCode = 407;
+pub const HTTP_REQUEST_TIMEOUT: StatusCode = 408;
+pub const HTTP_CONFLICT: StatusCode = 409;
+pub const HTTP_GONE: StatusCode = 410;
+pub const HTTP_LENGTH_REQUIRED: StatusCode = 411;
+pub const HTTP_PRECONDITION_FAILED: StatusCode = 412;
+pub const HTTP_CONTENT_TOO_LARGE: StatusCode = 413;
+pub const HTTP_URI_TOO_LONG: StatusCode = 414;
+pub const HTTP_UNSUPPORTED_MEDIA_TYPE: StatusCode = 415;
+pub const HTTP_RANGE_NOT_SATISFIABLE: StatusCode = 416;
+pub const HTTP_EXPECTATION_FAILED: StatusCode = 417;
+pub const HTTP_IM_A_TEAPOT: StatusCode = 418;
+pub const HTTP_MISDIRECTED_REQUEST: StatusCode = 421;
+pub const HTTP_UNPROCESSABLE_CONTENT: StatusCode = 422;
+pub const HTTP_LOCKED: StatusCode = 423;
+pub const HTTP_FAILED_DEPENDENCY: StatusCode = 424;
+pub const HTTP_TOO_EARLY: StatusCode = 425;
+pub const HTTP_UPGRADE_REQUIRED: StatusCode = 426;
+pub const HTTP_PRECONDITION_REQUIRED: StatusCode = 428;
+pub const HTTP_TOO_MANY_REQUESTS: StatusCode = 429;
+pub const HTTP_REQUEST_HEADER_FIELDS_TOO_LARGE: StatusCode = 431;
+pub const HTTP_UNAVAILABLE_FOR_LEGAL_REASONS: StatusCode = 451;
+pub const HTTP_INTERNAL_SERVER_ERROR: StatusCode = 500;
+pub const HTTP_NOT_IMPLEMENTED: StatusCode = 501;
+pub const HTTP_BAD_GATEWAY: StatusCode = 502;
+pub const HTTP_SERVICE_UNAVAILABLE: StatusCode = 503;
+pub const HTTP_GATEWAY_TIMEOUT: StatusCode = 504;
+pub const HTTP_HTTP_VERSION_NOT_SUPPORTED: StatusCode = 505;
+pub const HTTP_VARIANT_ALSO_NEGOTIATES: StatusCode = 506;
+pub const HTTP_INSUFFICIENT_STORAGE: StatusCode = 507;
+pub const HTTP_LOOP_DETECTED: StatusCode = 508;
+pub const HTTP_NOT_EXTENDED: StatusCode = 510;
+pub const HTTP_NETWORK_AUTHENTICATION_REQUIRED: StatusCode = 511;
+
+#[derive(Clone)]
 pub struct Response {
-    pub ws: Option<Box<dyn Writer + Send + Sync + 'static>>,
-    pub(crate) status_code: u16,
+    pub(crate) next: Option<Next>,
+    pub(crate) status_code: StatusCode,
     pub(crate) headers: Headers,
     pub(crate) referer: String,
-    pub(crate) body: Vec<u8>,
+    pub(crate) content: Bytes,
+    pub(crate) cookies: Cookies,
+    pub(crate) session: Session,
     pub(crate) view: Option<ViewBag>,
-    pub(crate) errors: Values,
-    pub(crate) old: Values,
-    pub(crate) flashes: Values,
+    is_next: bool,
+}
+
+impl Default for Response {
+    fn default() -> Self {
+        Self {
+            next: None,
+            status_code: HTTP_OK,
+            headers: Headers::new(),
+            referer: String::from("/"),
+            content: Bytes::new(),
+            cookies: Default::default(),
+            session: Default::default(),
+            view: None,
+            is_next: false,
+        }
+    }
 }
 
 impl Response {
-    pub fn new() -> Self {
-        return Self {
-            ws: None,
-            status_code: HTTP_OK,
-            headers: Headers::new(),
-            referer: String::new(),
-            body: vec![],
-            view: None,
-            errors: Values::new(),
-            old: Values::new(),
-            flashes: Values::new(),
-        };
+    #[inline]
+    pub(crate) fn new() -> Self {
+        Self::default()
     }
 
-    pub fn status_code(&mut self, code: u16) -> &mut Response {
-        self.status_code = code;
-        
-        return self;
+    #[inline]
+    pub fn request(&mut self) -> Request {
+        self.next
+            .as_mut()
+            .expect("Middleware chain error: Next is None")
+            .request()
     }
 
-    pub fn header(&mut self, key: &str, value: &str) -> &mut Response {
-        self.headers.insert(key.to_owned(), value.to_owned());
-
-        return self;
+    #[inline]
+    pub fn status_code(mut self, status_code: StatusCode) -> Self {
+        self.status_code = status_code;
+        self
     }
 
-    pub fn headers(&mut self, headers: Headers) -> &mut Response {
-        self.headers.extend(headers);
-
-        return self;
+    pub fn header(&self, key: &str) -> String {
+        self.headers
+            .get(key)
+            .cloned()
+            .unwrap_or_default()
     }
 
-    pub fn body(&mut self, body: &[u8]) -> &mut Response {
-        self.body = body.to_vec();
-
-        return self;
+    #[inline]
+    pub fn set_header(mut self, k: impl Into<String>, v: impl Into<String>) -> Self {
+        self.headers.insert(k.into(), v.into());
+        self
     }
 
-    pub fn json<J>(&mut self, object: &J) -> &mut Response
-    where 
-        J: ?Sized + Serialize
+    pub fn set_headers(mut self, headers: Headers) -> Self {
+        for (k, v) in headers {
+            self.headers.insert(k, v);
+        }
+        self
+    }
+
+    #[inline]
+    pub fn cookies(&mut self) -> &mut Cookies {
+        &mut self.cookies
+    }
+
+    #[inline]
+    pub fn set_cookie(&mut self, k: impl Into<String>, v: impl Into<String>) -> &mut Cookie {
+        self.cookies.set(k, v)
+    }
+
+    #[inline]
+    pub fn set_session(mut self, k: impl Into<String>, v: impl Into<String>) -> Self {
+        self.session.set(k, v);
+        self
+    }
+
+    #[inline]
+    pub fn set_flash(mut self, k: impl Into<String>, v: impl Into<String>) -> Self {
+        self.session.set_flash(k, v);
+        self
+    }
+
+    #[inline]
+    pub fn body(mut self, body: impl Into<Bytes>) -> Self {
+        self.content = body.into();
+        self
+    }
+
+    /// Serializes directly to a byte vector with no intermediate string allocation.
+    pub fn json<J>(self, object: &J) -> Self
+    where
+        J: ?Sized + Serialize,
     {
-        return self.header("Content-Type", "application/json")
-            .body(serde_json::to_string(object).unwrap().as_bytes());
+        match serde_json::to_vec(object) {
+            Ok(bytes) => self
+                .set_header("Content-Type", "application/json")
+                .body(bytes),
+            Err(_) => self.status_code(HTTP_INTERNAL_SERVER_ERROR),
+        }
     }
 
-    pub fn html(&mut self, html: &str) -> &mut Response {
-        return self.header("Content-Type", "text/html")
-            .body(html.as_bytes());
+    #[inline]
+    pub fn html(self, html: impl Into<String>) -> Self {
+        let html_str = html.into();
+        self.set_header("Content-Type", "text/html; charset=utf-8")
+            .body(html_str)
     }
 
-    pub fn view(&mut self, view: &str, data: Option<ViewData>) -> &mut Response {
-        self.view = Some(ViewBag {
-            view: String::from(view),
-            data: data
-        });
-
-        return self;
+    #[inline]
+    pub fn view(mut self, view: &str, data: Option<ViewData>) -> Self {
+        self.view = Some(ViewBag::new(view, data));
+        self
     }
 
-    pub fn redirect(&mut self, path: &str) -> &mut Response {
-        return self.html(&self.redirect_document(path)).status_code(HTTP_TEMPORARY_REDIRECT);
+    #[inline]
+    pub fn redirect(self, to: impl Into<String>) -> Self {
+        self.redirect_with_status_code(to, HTTP_TEMPORARY_REDIRECT)
     }
 
-    pub fn redirect_permanent(&mut self, path: &str) -> &mut Response {
-        return self.html(&self.redirect_document(path)).status_code(HTTP_PERMANENT_REDIRECT);
+    #[inline]
+    pub fn redirect_permanent(self, to: impl Into<String>) -> Self {
+        self.redirect_with_status_code(to, HTTP_PERMANENT_REDIRECT)
     }
 
-    fn redirect_document(&self, to: &str) -> String {
-        return format!(r#"
-        <!DOCTYPE html>
-        <meta http-equiv="Refresh" content="0, url='{}'">
-        <head>
-            <body>
-            </body>
-        </html>
-        "#, to);
+    fn redirect_with_status_code(self, to: impl Into<String>, status_code: StatusCode) -> Self {
+        let target = to.into();
+        let html = format!(
+            "<!DOCTYPE html><html><head><meta http-equiv=\"Refresh\" content=\"0; url='{target}'\"></head><body></body></html>"
+        );
+
+        self.set_header("Location", &target)
+            .html(html)
+            .status_code(status_code)
     }
 
-    pub fn back(&mut self) -> &mut Self {
+    pub fn back(self) -> Self {
         if self.referer.is_empty() {
-            return self.redirect("/");
+            self.redirect("/")
+        } else {
+            let referer = self.referer.clone();
+            self.redirect(referer)
         }
-        
-        return self.redirect(&self.referer.clone());
     }
 
-    pub fn with_error(&mut self, name: &str, error: &str) -> &mut Response {
-        self.errors.insert(name.to_string(), error.to_string());
-
-        return self;
+    pub fn with_error(mut self, name: impl Into<String>, error: impl Into<String>) -> Self {
+        self.session.errors.insert(name.into(), error.into());
+        self
     }
 
-    pub fn with_errors(&mut self, errors: Values) -> &mut Response {
+    pub fn with_errors(mut self, errors: Values) -> Self {
         for (name, error) in errors {
-            self.with_error(name.as_str(), error.as_str());
+            self.session.errors.insert(name, error);
         }
-
-        return self;
+        self
     }
 
-    pub(crate) fn with_old(&mut self, old: Values) -> &mut Response {
+    pub fn with_flash(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
+        self.session.flash.insert(key.into(), value.into());
+        self
+    }
+
+    pub(crate) fn with_old(mut self, old: Values) -> Self {
         for (k, v) in old {
-            self.old.insert(k, v);
+            self.session.old.insert(k, v);
         }
-
-        return self;
+        self
     }
 
-    pub fn with_flash(&mut self, key: &str, value: &str) -> &mut Response {
-        self.flashes.insert(String::from(key), String::from(value));
+    #[inline]
+    pub(crate) fn next(&mut self, is: bool) {
+        self.is_next = is;
+    }
 
-        return self;
+    #[inline]
+    pub(crate) fn is_next(&self) -> bool {
+        self.is_next
     }
 }

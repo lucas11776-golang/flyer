@@ -1,15 +1,8 @@
-use std::{
-    io::Result as IoResult,
-    sync::Arc
-};
+use std::sync::Arc;
 
 use rustls::{
     ServerConfig,
-    pki_types::{
-        pem::PemObject,
-        CertificateDer,
-        PrivateKeyDer
-    }
+    pki_types::{pem::PemObject,CertificateDer, PrivateKeyDer}
 };
 use tokio_rustls::TlsAcceptor;
 
@@ -41,12 +34,13 @@ impl TlsConfig {
     }
 }
 
-pub(crate) fn get_tls_config(tls: &TlsPathConfig) -> IoResult<TlsConfig> {
+pub(crate) fn get_tls_config(tls: &TlsPathConfig) -> std::io::Result<TlsConfig> {
     rustls::crypto::ring::default_provider()
         .install_default()
         .unwrap();
 
-    let key = PrivateKeyDer::from_pem_file(tls.key_path.clone()).unwrap();
+    let key = PrivateKeyDer::from_pem_file(tls.key_path.clone())
+        .unwrap();
     let cert = CertificateDer::pem_file_iter(tls.cert_path.clone())
         .unwrap()
         .collect::<Result<Vec<_>, _>>()
@@ -55,7 +49,7 @@ pub(crate) fn get_tls_config(tls: &TlsPathConfig) -> IoResult<TlsConfig> {
     return Ok(TlsConfig::new(key, cert))
 }
 
-pub(crate) fn server_config(config: TlsConfig) -> IoResult<ServerConfig> {
+pub(crate) fn server_config(config: TlsConfig) -> std::io::Result<ServerConfig> {
     return Ok(
         rustls::ServerConfig::builder()
         .with_no_client_auth()

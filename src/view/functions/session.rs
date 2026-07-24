@@ -4,12 +4,12 @@ use tera::{Tera, Value, to_value};
 
 use crate::{session::Session, utils::Values};
 
-pub(crate) fn register<'r>(render: &'r mut Tera, s: &mut Box<dyn Session + 'static>) {
-    render.register_function("session", session(s.values()));
-    render.register_function("session_has", session_has(s.values()));
+pub(crate) fn register<'r>(render: &'r mut Tera, s: &Session) {
+    render.register_function("session", session(s.session()));
+    render.register_function("session_has", session_has(s.session()));
     render.register_function("error_has", error_has(s.errors()));
     render.register_function("error", error(s.errors()));
-    render.register_function("old", old(s.old_values()));
+    render.register_function("old", old(s.olds()));
     render.register_function("flash", flash(s.flashes()));
     render.register_function("flash_has", flash_has(s.flashes()));
 }

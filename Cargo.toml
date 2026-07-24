@@ -1,6 +1,6 @@
 [package]
 name = "flyer"
-version = "2.8.0"
+version = "3.0.0"
 authors = ["Themba Lucas Ngubeni <thembangubeni04@email.com>"]
 license = "MIT"
 description = "HTTP framework for rust"
@@ -39,7 +39,7 @@ h2 = "0.4.14"
 http = "1.4.1"
 url-domain-parse = "0.1.4"
 uuid = { version = "1.23.2", features = ["v4"] }
-cookie = "0.18.1"
+cookie = { version = "0.18.1", features = ["percent-encode"] }
 tera = "1.20.1"
 aes-gcm = "0.10.3"
 multer = "3.1.0"
@@ -56,3 +56,9 @@ ulid = "1.2.1"
 ipnetwork = "0.21.1"
 serde_urlencoded = "0.7.1"
 lettre = "0.11.22"
+sentry = { version = "0.48.4", features = ["reqwest", "native-tls"] }
+async-trait = "0.1.89"
+rand = "0.10.2"
+aws-config = "1.10.0"
+aws-sdk-s3 = "1.139.0"
+

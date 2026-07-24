@@ -1,175 +1,85 @@
-use std::time::Duration;
-
-use anyhow::{Ok, Result};
-use cookie::{
-    Cookie as CookieJar,
-    time::{Duration as CookieDuration, OffsetDateTime},
-    SameSite as CookieSomeSite
+use crate::{
+    cookies::cookie::Cookie,
+    hooks::Hook,
+    request::Request,
+    response::Response,
+    routing::next::Next,
+    utils::{Values, http::Headers}
 };
 
-use crate::utils::Values;
+pub mod cookie;
 
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, Copy, PartialEq, Eq, Hash)]
 pub enum SameSite {
-    /// The "Strict" `SameSite` attribute.
     Strict,
-    /// The "Lax" `SameSite` attribute.
     Lax,
-    /// The "None" `SameSite` attribute.
-    None
+    None,
 }
 
-#[derive(Debug)]
-pub struct Cookie {
-    name: String,
-    value: String,
-    expires: Option<Duration>,
-    max_age: Option<Duration>,
-    domain: Option<String>,
-    path: Option<String>,
-    secure: Option<bool>,
-    http_only: Option<bool>,
-    same_site: Option<SameSite>
-}
-
-#[derive(Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct Cookies {
-    pub(crate) cookies: Values,
-    pub(crate) new_cookie: Vec<Cookie>,
+    inner: Values,
+    outer: Vec<Cookie>,
 }
 
-impl Cookie {
-    pub fn new(name: &str, value: &str) -> Self {
-        return Self {
-            name: name.to_string(),
-            value: value.to_string(),
-            expires: None,
-            max_age: None,
-            domain: None,
-            path: None,
-            secure: None,
-            http_only: None,
-            same_site: None
-        }
+impl Cookies {
+    pub fn new() -> Self {
+        return Self::default();
     }
+}
 
-    pub fn set_name(&mut self, value: &str) -> &mut Self {
-        self.name = value.to_string();
+impl Hook for Cookies {
+    async fn before(&self, mut req: Request, res: Response, next: Next) -> Response {
+        req.cookies.inner = self.parse(&req.header("cookie").into_boxed_str());
 
-        return self;
+        return next.handle(req, res);
     }
+    
+    async fn after(&self, req: Request, res: Response, next: Next) -> Response {
+        let mut headers = Headers::new();
 
-    pub fn set_value(&mut self, value: &str) -> &mut Self {
-        self.value = value.to_string();
-
-        return self;
-    }
-
-    pub fn set_expires(&mut self, duration: Duration) -> &mut Self {
-        self.expires = Some(duration);
-
-        return self;
-    }
-
-    pub fn set_max_age(&mut self, duration: Duration) -> &mut Self {
-        self.max_age = Some(duration);
-
-        return self;
-    }
-
-    pub fn set_path(&mut self, value: &str) -> &mut Self {
-        self.path = Some(value.to_string());
-
-        return self;
-    }
-
-    pub fn set_domain(&mut self, value: &str) -> &mut Self {
-        self.domain = Some(value.to_string());
-
-        return self;
-    }
-
-    pub fn set_secure(&mut self, value: bool) -> &mut Self {
-        self.secure = Some(value);
-
-        return self;
-    }
-
-    pub fn set_http_only(&mut self, value: bool) -> &mut Self {
-        self.http_only = Some(value);
-
-        return self;
-    }
-
-    pub fn set_same_site(&mut self, value: SameSite) -> &mut Self {
-        self.same_site = Some(value);
-
-        return self;
-    }
-
-    pub(crate) fn parse(&mut self) -> String {
-        let mut cookie = CookieJar::new(self.name.to_string(), self.value.to_string());
-
-        if let Some(expires) = self.expires {
-            cookie.set_expires(OffsetDateTime::now_utc() + CookieDuration::seconds(expires.as_secs() as i64));
+        for cookie in &res.cookies.outer {
+            headers.insert(cookie.name.clone(), cookie.parse());
         }
 
-        if let Some(max_age) = self.max_age {
-            cookie.set_max_age(CookieDuration::new(max_age.as_secs() as i64, 0));
-        }
-
-        if let Some(path) = &self.path {
-            cookie.set_path(path);
-        }
-
-        if let Some(domain) = &self.domain {
-            cookie.set_domain(domain);
-        }
-
-        if let Some(secure) = self.secure {
-            cookie.set_secure(secure);
-        }
-
-        if let Some(http_only) = self.http_only {
-            cookie.set_http_only(http_only);
-        }
-
-        if let Some(same_site) = self.same_site {
-            match same_site {
-                SameSite::Strict => cookie.set_same_site(CookieSomeSite::Strict),
-                SameSite::Lax => cookie.set_same_site(CookieSomeSite::Lax),
-                SameSite::None => cookie.set_same_site(CookieSomeSite::None),
-            }
-        }
-
-        return cookie.to_string();
+        return next.handle(req, res.set_headers(headers));
     }
 }
 
 impl Cookies {
-    pub fn new(cookies: Values) -> Self {
-        return Self {
-            cookies: cookies,
-            new_cookie: vec![],
-        }
+    pub fn cookies(&self) -> Values {
+        return self
+            .inner
+            .clone();
     }
 
-    pub fn get(&mut self, name: &str) -> String {
-        return self.cookies.get(name).map(|v| String::from(v)).unwrap_or(String::new());
+    pub fn get(&self, k: &str) -> Option<&str> {
+        return self
+            .inner
+            .get(k)
+            .map(|s| s.as_str())
     }
 
-    pub fn set(&mut self, name: &str, value: &str) -> &mut Cookie {
-        let idx = self.new_cookie.len();
+    pub fn set(&mut self, k: impl Into<String>, v: impl Into<String>) -> &mut Cookie {
+        self
+            .outer
+            .push(Cookie::new(k, v));
 
-        self.new_cookie.push(Cookie::new(name, value));
+        return self
+            .outer
+            .last_mut()
+            .unwrap();
+    } 
 
-        return &mut self.new_cookie[idx];
-    }
+    pub(crate) fn parse(&self, raw: &str) -> Values {
+        let mut cookies = Values::new();
 
-    pub fn remove(&mut self, name: &str) -> Result<()> {
-        self.cookies.remove(name);
+        ::cookie::Cookie::split_parse(raw)
+            .filter_map(Result::ok)
+            .for_each(|cookie| {
+                cookies.insert(cookie.name().into(), cookie.value().into());
+            });
 
-        return Ok(())
+        return cookies;
     }
 }
