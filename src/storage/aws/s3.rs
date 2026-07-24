@@ -9,16 +9,78 @@ use uuid::Uuid;
 use crate::request::form::File;
 use crate::storage::Storage;
 
+
+#[derive(Debug, Clone)]
+pub struct S3Config {
+    pub access_key: String,
+    pub secret_key: String,
+    pub region: String,
+    pub bucket: String,
+    pub endpoint_url: Option<String>,
+    pub session_token: Option<String>,
+}
+
+impl S3Config {
+    pub fn new(
+        access_key: impl Into<String>,
+        secret_key: impl Into<String>,
+        region: impl Into<String>,
+        bucket: impl Into<String>,
+    ) -> Self {
+        Self {
+            access_key: access_key.into(),
+            secret_key: secret_key.into(),
+            region: region.into(),
+            bucket: bucket.into(),
+            endpoint_url: None,
+            session_token: None,
+        }
+    }
+
+    pub fn with_endpoint(mut self, endpoint: impl Into<String>) -> Self {
+        self.endpoint_url = Some(endpoint.into());
+        self
+    }
+
+    pub fn with_session_token(mut self, token: impl Into<String>) -> Self {
+        self.session_token = Some(token.into());
+        self
+    }
+}
+
 pub struct S3 {
     client: Client,
     bucket: String,
 }
 
+use aws_credential_types::Credentials;
+use aws_sdk_s3::config::Region;
+use aws_sdk_s3::{Config};
+
 impl S3 {
-    pub fn new(client: Client, bucket: impl Into<String>) -> Self {
+    pub fn new(config: S3Config) -> Self {
+        let credentials = Credentials::new(
+            config.access_key,
+            config.secret_key,
+            config.session_token,
+            None, // Provider expiration
+            "manual",
+        );
+
+        let mut builder = Config::builder()
+            .behavior_version_latest()
+            .region(Region::new(config.region))
+            .credentials_provider(credentials);
+
+        if let Some(endpoint) = config.endpoint_url {
+            builder = builder.endpoint_url(endpoint);
+        }
+
+        let client = Client::from_conf(builder.build());
+
         Self {
             client,
-            bucket: bucket.into(),
+            bucket: config.bucket,
         }
     }
 
@@ -27,13 +89,12 @@ impl S3 {
         let name = name.trim_start_matches('/');
 
         if folder.is_empty() {
-            name.to_string()
-        } else {
-            format!("{folder}/{name}")
+            return name.to_string();
         }
+        
+        format!("{folder}/{name}")
     }
 }
-
 
 pub fn generate_random_filename(original_name: &str) -> String {
     let extension = Path::new(original_name)

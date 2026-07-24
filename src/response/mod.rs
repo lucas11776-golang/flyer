@@ -1,13 +1,10 @@
+use std::sync::Arc;
+
 use bytes::Bytes;
 use serde::Serialize;
 
 use crate::{
-    cookies::{cookie::Cookie, Cookies},
-    request::Request,
-    routing::next::Next,
-    session::Session,
-    utils::{http::Headers, Values},
-    view::{ViewBag, ViewData},
+    cookies::{Cookies, cookie::Cookie}, request::Request, routing::next::Next, session::Session, utils::{Values, http::Headers}, view::{ViewBag, ViewData}, websocket::Websocket,
 };
 
 pub type StatusCode = u16;
@@ -86,6 +83,7 @@ pub struct Response {
     pub(crate) cookies: Cookies,
     pub(crate) session: Session,
     pub(crate) view: Option<ViewBag>,
+    pub(crate) websocket: Option<Arc<Websocket>>,
     is_next: bool,
 }
 
@@ -99,6 +97,7 @@ impl Default for Response {
             content: Bytes::new(),
             cookies: Default::default(),
             session: Default::default(),
+            websocket: None,
             view: None,
             is_next: false,
         }

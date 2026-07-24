@@ -12,7 +12,7 @@ pub mod local;
 
 pub mod aws;
 
-static GLOBAL_STORAGE: LazyLock<RwLock<HashMap<String, Arc<dyn DynStorage>>>> =
+static GLOBAL_STORAGE: LazyLock<RwLock<HashMap<String, Arc<dyn StorageErasure>>>> =
     LazyLock::new(|| RwLock::new(HashMap::new()));
 
 #[allow(async_fn_in_trait)]
@@ -24,7 +24,7 @@ pub trait Storage: Send + Sync {
     async fn get(&self, filename: impl Into<String>) -> Result<File>;
 }
 
-trait DynStorage: Send + Sync {
+trait StorageErasure: Send + Sync {
     fn save_as<'a>(&'a self, folder: String, name: String, file: File) -> BoxFuture<'a, Result<String>>;
     fn save<'a>(&'a self, folder: String, file: File) -> BoxFuture<'a, Result<String>>;
     fn delete<'a>(&'a self, filename: String) -> BoxFuture<'a, Result<()>>;
@@ -32,7 +32,7 @@ trait DynStorage: Send + Sync {
     fn get<'a>(&'a self, filename: String) -> BoxFuture<'a, Result<File>>;
 }
 
-impl<T: Storage + 'static> DynStorage for T {
+impl<T: Storage + 'static> StorageErasure for T {
     fn save_as<'a>(&'a self, folder: String, name: String, file: File) -> BoxFuture<'a, Result<String>> {
         Box::pin(SendFuture(Storage::save_as(self, folder, name, file)))
     }
@@ -61,7 +61,7 @@ pub fn add(name: impl Into<String>, storage: impl Storage + 'static) {
         .insert(name.into(), Arc::new(storage));
 }
 
-fn get_storage(name: &str) -> Result<Arc<dyn DynStorage>> {
+fn get_storage(name: &str) -> Result<Arc<dyn StorageErasure>> {
     GLOBAL_STORAGE
         .read()
         .expect("Storage registry lock poisoned")

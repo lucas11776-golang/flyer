@@ -18,6 +18,8 @@ use crate::utils::mem::Instance;
 use crate::utils::url::parse_query;
 use crate::utils::Values;
 
+pub(crate) const H2_PREFACE: &[u8] = b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n";
+
 pub struct Http2 {
     server: Instance<Server>,
     addr: SocketAddr,
