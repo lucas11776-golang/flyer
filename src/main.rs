@@ -1,7 +1,13 @@
 use std::time::Duration;
 
 use flyer::{
-    request::{Request, form::Form}, response::Response, routing::next::Next, server_tls, session::{cookie::CookieSession, local::LocalSession}, validation::{Rules, Validator}, websocket::Websocket
+    request::{Request, form::Form},
+    response::Response,
+    routing::next::Next,
+    server_tls,
+    session::{cookie::CookieSession, local::LocalSession},
+    validation::{Rules, Validator},
+    websocket::Websocket
 };
 
 pub async fn http(_req: Request, res: Response) -> Response {
