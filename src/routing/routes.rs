@@ -42,8 +42,22 @@ impl Routes {
         return (req, res);
     }
 
-    pub async fn _handle_websocket<H>(&self, req: Request, res: Response, _routes: Vec<H>) -> Result<(Request, Response)> {
-        return Ok((req, res));
+    // pub async fn _handle_websocket<H>(&self, req: Request, res: Response, _routes: Vec<H>) -> Result<(Request, Response)> {
+    //     return Ok((req, res));
+    // }
+
+
+
+    pub async fn handle_websocket(&self, req: Request, res: Response) -> (Request, Option<&Box<Route<WebsocketHandler>>>) {
+        let (req, mut res, route) = self.handler(req.clone(), res, &self.websocket).await;
+
+        if let None = route {
+            res.status_code = HTTP_NOT_FOUND;
+            
+            return (req, None);
+        }
+        
+        return (req, route);
     }
 
     pub async fn handle_error(&self, error: PanicErrorInfo, mut req: Request, mut res: Response) -> (Request, Response) {

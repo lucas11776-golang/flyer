@@ -32,7 +32,7 @@ impl TcpHandler for Http1 {
 
     async fn handle<RW>(&mut self, mut rw: BufReader<RW>) -> Result<()>
     where
-        RW: AsyncRead + AsyncWrite + Unpin + Send + Sync,
+        RW: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     {
         let req = match self.deserialize(&mut rw).await {
             Ok(req) => req,

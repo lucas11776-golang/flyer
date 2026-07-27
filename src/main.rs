@@ -14,8 +14,17 @@ pub async fn http(_req: Request, res: Response) -> Response {
     return res.body("<h1>Hello World</h1>".as_bytes());
 }
 
-pub async fn websocket(_req: Request, _res: Websocket) {
-    
+pub async fn websocket(_req: Request, ws: Websocket) -> Websocket {
+    ws.on(async |event, writer| {
+        match event {
+            flyer::websocket::Event::Ready() => todo!(),
+            flyer::websocket::Event::Text(bytes) => todo!(),
+            flyer::websocket::Event::Binary(bytes) => todo!(),
+            flyer::websocket::Event::Ping(bytes) => todo!(),
+            flyer::websocket::Event::Pong(bytes) => todo!(),
+            flyer::websocket::Event::Close(reason) => todo!(),
+        }
+    })
 }
 
 pub async fn group(req: Request, res: Response, next: Next) -> Response {
@@ -75,7 +84,7 @@ pub fn main() {
     });
 
 
-    server.router().ws("", async |req, mut ws| {
+    server.router().ws("/", async |req, mut ws| -> Websocket {
         ws.on(async |event, writer| {
             match event {
                 flyer::websocket::Event::Ready() => todo!(),
@@ -85,7 +94,7 @@ pub fn main() {
                 flyer::websocket::Event::Pong(items) => todo!(),
                 flyer::websocket::Event::Close(reason) => todo!(),
             }
-        });
+        })
     });
 
 

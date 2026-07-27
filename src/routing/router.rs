@@ -112,7 +112,7 @@ impl Router {
     pub fn ws<C, Fut>(&mut self, path: &str, callback: C) -> &mut Route<WebsocketHandler>
     where
         C: Fn(Request, Websocket) -> Fut + Send + Sync + 'static,
-        Fut: Future<Output = ()> + Send + 'static,
+        Fut: Future<Output = Websocket> + Send + 'static,
     {
         self.websocket.push(Box::new(Route {
             server: self.server.clone(),

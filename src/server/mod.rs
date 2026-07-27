@@ -17,13 +17,16 @@ use crate::hooks::form::MultipartForm;
 use crate::hooks::{Hook, HookErasure, HookWrapper};
 use crate::request::Request;
 use crate::response::Response;
+use crate::routing::WebsocketHandler;
 use crate::routing::next::Next;
+use crate::routing::route::Route;
 use crate::routing::{resolver::Resolver, router::Router, routes::Routes};
 use crate::server::protocol::{tcp::Tcp, udp::Udp, ServerHandler};
 use crate::session::local::LocalSession;
 use crate::storage::{self, Storage};
 use crate::utils::mem::Instance;
 use crate::view::View;
+use crate::websocket::Websocket;
 
 pub(crate) mod protocol;
 
@@ -246,8 +249,17 @@ impl Server {
         }).await;
     }
 
-    pub(crate) async fn on_websocket(&self, _req: Request, _res: Response) -> Result<()> {
-        return Ok(());
+    pub(crate) async fn on_websocket(&self, req: Request, res: Response) -> (Request, Option<&Box<Route<WebsocketHandler>>>) {
+
+
+        self
+            .routes
+            .handle_websocket(req, res)
+            .await
+
+        // return Ok(());
+
+        // todo!()
     }
 
     pub(crate) async fn on_logger(&mut self, info: PanicErrorInfo, req: Request, res: Response) {
