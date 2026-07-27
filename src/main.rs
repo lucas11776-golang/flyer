@@ -76,16 +76,16 @@ pub fn main() {
 
 
     server.router().ws("", async |req, mut ws| {
-        // ws.on(async |event, mut writer| {
-        //     match event {
-        //         flyer::websocket::Event::Ready() => todo!(),
-        //         flyer::websocket::Event::Text(items) => todo!(),
-        //         flyer::websocket::Event::Binary(items) => todo!(),
-        //         flyer::websocket::Event::Ping(items) => todo!(),
-        //         flyer::websocket::Event::Pong(items) => todo!(),
-        //         flyer::websocket::Event::Close(reason) => todo!(),
-        //     }
-        // });
+        ws.on(async |event, writer| {
+            match event {
+                flyer::websocket::Event::Ready() => todo!(),
+                flyer::websocket::Event::Text(items) => todo!(),
+                flyer::websocket::Event::Binary(items) => todo!(),
+                flyer::websocket::Event::Ping(items) => todo!(),
+                flyer::websocket::Event::Pong(items) => todo!(),
+                flyer::websocket::Event::Close(reason) => todo!(),
+            }
+        });
     });
 
 
