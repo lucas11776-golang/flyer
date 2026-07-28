@@ -139,12 +139,7 @@ impl Mail {
         self
     }
 
-    pub fn view(
-        self,
-        path: impl Into<String>,
-        template: impl Into<String>,
-        data: Option<ViewData>,
-    ) -> Result<Self> {
+    pub fn view(self, path: impl Into<String>, template: impl Into<String>, data: Option<ViewData>) -> Result<Self> {
         let view_bytes = View::render(path, template, data)?;
         Ok(self.html(view_bytes))
     }

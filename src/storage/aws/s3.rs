@@ -1,14 +1,14 @@
-
-
 use std::path::Path;
 
 use anyhow::{Context, Result};
+use aws_credential_types::Credentials;
+use aws_sdk_s3::config::Region;
+use aws_sdk_s3::{Config};
 use aws_sdk_s3::{primitives::ByteStream, Client};
 use uuid::Uuid;
 
 use crate::request::form::File;
 use crate::storage::Storage;
-
 
 #[derive(Debug, Clone)]
 pub struct S3Config {
@@ -48,22 +48,18 @@ impl S3Config {
     }
 }
 
-pub struct S3 {
+pub struct S3Storage {
     client: Client,
     bucket: String,
 }
 
-use aws_credential_types::Credentials;
-use aws_sdk_s3::config::Region;
-use aws_sdk_s3::{Config};
-
-impl S3 {
+impl S3Storage {
     pub fn new(config: S3Config) -> Self {
         let credentials = Credentials::new(
             config.access_key,
             config.secret_key,
             config.session_token,
-            None, // Provider expiration
+            None,
             "manual",
         );
 
@@ -94,19 +90,19 @@ impl S3 {
         
         format!("{folder}/{name}")
     }
+
+    pub fn generate_random_filename(&self, original_name: &str) -> String {
+        let extension = Path::new(original_name)
+            .extension()
+            .and_then(|e| e.to_str())
+            .map(|e| format!(".{e}"))
+            .unwrap_or_default();
+
+        format!("{}{}", Uuid::new_v4(), extension)
+    }
 }
 
-pub fn generate_random_filename(original_name: &str) -> String {
-    let extension = Path::new(original_name)
-        .extension()
-        .and_then(|e| e.to_str())
-        .map(|e| format!(".{e}"))
-        .unwrap_or_default();
-
-    format!("{}{}", Uuid::new_v4(), extension)
-}
-
-impl Storage for S3 {
+impl Storage for S3Storage {
     async fn save_as(&self, folder: impl Into<String>, name: impl Into<String>, file: File) -> Result<String> {
         let key = self.make_key(&folder.into(), &name.into());
 
@@ -124,7 +120,7 @@ impl Storage for S3 {
     }
 
     async fn save(&self, folder: impl Into<String>, file: File) -> Result<String> {
-        let random_name = generate_random_filename(&file.name);
+        let random_name = self.generate_random_filename(&file.name);
         self.save_as(folder, random_name, file).await
     }
 
@@ -155,7 +151,6 @@ impl Storage for S3 {
         {
             Ok(_) => Ok(true),
             Err(err) => {
-                // Check if the error represents a 404 Not Found response
                 if let Some(service_err) = err.as_service_error() {
                     if service_err.is_not_found() {
                         return Ok(false);

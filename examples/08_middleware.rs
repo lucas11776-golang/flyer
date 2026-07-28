@@ -1,5 +1,7 @@
 use flyer::{
-    request::Request, response::{HTTP_UNAUTHORIZED, Response}, routing::next::Next, server
+    request::Request,
+    response::{HTTP_UNAUTHORIZED, Response},
+    routing::next::Next, server
 };
 use serde::{Deserialize, Serialize};
 
@@ -28,7 +30,7 @@ pub async fn auth(req: Request, res: Response, next: Next) -> Response {
 }
 
 fn main() {
-    let mut server = server("127.0.0.1", 9999);
+    let server = server("127.0.0.1", 9999);
 
     server.router().group("api", |router| {
         router.get("/", async |_req, res| {

@@ -27,7 +27,7 @@ pub async fn destroy(_req: Request, res: Response) -> Response {
 }
 
 fn main() {
-    let mut server = server("127.0.0.1", 9999);
+    let server = server("127.0.0.1", 9999);
     
     server.router().group("/", |router| {
         router.group("users", |router| {

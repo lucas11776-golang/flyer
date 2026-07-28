@@ -18,7 +18,6 @@ impl LocalStorage {
         }
     }
 
-    /// Helper to resolve target path and protect against path traversal outside the base directory.
     fn resolve_path(&self, relative_path: &str) -> PathBuf {
         self.directory.join(relative_path)
     }
@@ -29,21 +28,17 @@ impl Storage for LocalStorage {
         let folder_str = folder.into();
         let name_str = name.into();
 
-        // Build target directory and file paths
         let target_dir = self.resolve_path(&folder_str);
         let target_path = target_dir.join(&name_str);
 
-        // Ensure target directory exists
         fs::create_dir_all(&target_dir)
             .await
             .with_context(|| format!("Failed to create directory: {}", target_dir.display()))?;
 
-        // Write file contents asynchronously
         fs::write(&target_path, file.content)
             .await
             .with_context(|| format!("Failed to write file: {}", target_path.display()))?;
 
-        // Return path relative to base directory
         let relative_result = Path::new(&folder_str).join(&name_str);
 
         Ok(relative_result.to_string_lossy().into_owned())
@@ -75,12 +70,10 @@ impl Storage for LocalStorage {
         let filename_str = filename.into();
         let path = self.resolve_path(&filename_str);
 
-        // Read bytes asynchronously
         let content_bytes = fs::read(&path)
             .await
             .with_context(|| format!("Failed to read file: {}", path.display()))?;
 
-        // Extract filename and guess MIME type from file extension
         let file_name = Path::new(&filename_str)
             .file_name()
             .map(|n| n.to_string_lossy().into_owned())

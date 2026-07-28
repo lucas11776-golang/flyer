@@ -12,6 +12,8 @@ pub mod local;
 
 pub mod aws;
 
+pub const DEFAULT_STORAGE: &'static str = "default";
+
 static GLOBAL_STORAGE: LazyLock<RwLock<HashMap<String, Arc<dyn StorageErasure>>>> =
     LazyLock::new(|| RwLock::new(HashMap::new()));
 
@@ -71,21 +73,31 @@ fn get_storage(name: &str) -> Result<Arc<dyn StorageErasure>> {
 }
 
 pub async fn save_as(storage: &str, folder: impl Into<String>, name: impl Into<String>, file: File) -> Result<String> {
-    get_storage(storage)?.save_as(folder.into(), name.into(), file).await
+    get_storage(storage)?
+        .save_as(folder.into(), name.into(), file)
+        .await
 }
 
 pub async fn save(storage: &str, folder: impl Into<String>, file: File) -> Result<String> {
-    get_storage(storage)?.save(folder.into(), file).await
+    get_storage(storage)?
+        .save(folder.into(), file)
+        .await
 }
 
 pub async fn delete(storage: &str, filename: impl Into<String>) -> Result<()> {
-    get_storage(storage)?.delete(filename.into()).await
+    get_storage(storage)?
+        .delete(filename.into())
+        .await
 }
 
 pub async fn exists(storage: &str, filename: impl Into<String>) -> Result<bool> {
-    get_storage(storage)?.exists(filename.into()).await
+    get_storage(storage)?
+        .exists(filename.into())
+        .await
 }
 
 pub async fn get(storage: &str, filename: impl Into<String>) -> Result<File> {
-    get_storage(storage)?.get(filename.into()).await
+    get_storage(storage)?
+        .get(filename.into())
+        .await
 }

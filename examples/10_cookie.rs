@@ -11,7 +11,7 @@ use flyer::{
 /// - Setting cookies with expiration
 /// - Reading cookies
 /// - Removing cookies
-pub async fn home_view(req: Request, mut res: Response) -> Response {
+pub async fn home_view(_req: Request, mut res: Response) -> Response {
     // Set a cookie
     res.cookies()
         .set("user_id", "1")
@@ -26,7 +26,7 @@ pub async fn cookie(req: Request, res: Response) -> Response {
     return res.html(format!("<h1>User ID cookie is {:?}</h1>", cookie_val).as_str());
 }
 
-pub async fn remove_cookie(req: Request, mut res: Response) -> Response {
+pub async fn remove_cookie(_req: Request, mut res: Response) -> Response {
     // Remove a cookie
     res.cookies().remove("user_id");
     return res.redirect("/");

@@ -18,14 +18,14 @@ pub async fn home_view(req: Request, res: Response) -> Response {
     return res.html(format!("<h1>Welcome user {}</h1>", user_id).as_str());
 }
 
-pub async fn login(req: Request, res: Response) -> Response {
+pub async fn login(_req: Request, res: Response) -> Response {
     // Set session data
     return res
         .set_session("user_id", "1")
         .back();
 }
 
-pub async fn logout(req: Request, res: Response) -> Response {
+pub async fn logout(_req: Request, res: Response) -> Response {
     // Remove session data
     return res
         .remove_session("user_id")
@@ -33,7 +33,7 @@ pub async fn logout(req: Request, res: Response) -> Response {
 }
 
 fn main() {
-    let mut server = server("127.0.0.1", 9999);
+    let server = server("127.0.0.1", 9999);
 
     server.router().group("/", |router| {
         router.get("/", home_view);

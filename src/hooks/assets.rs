@@ -36,7 +36,7 @@ impl AssetsHook {
         let max_file_size_bytes = (max_cache_size_kilobytes as usize).saturating_mul(1024);
 
         let mut builder = Cache::builder()
-            .max_capacity(100_000_000) // 100 MB max total cache memory capacity
+            .max_capacity(100_000_000)
             .weigher(|_key, asset: &Asset| asset.data.len() as u32);
 
         if !expires_in.is_zero() {
