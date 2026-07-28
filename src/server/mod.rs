@@ -13,17 +13,21 @@ use tokio::runtime::Builder;
 
 use crate::cookies::Cookies;
 use crate::error::logger::{Logger, LoggerErasure, LoggerWrapper, PanicErrorInfo};
-use crate::hooks::form::MultipartForm;
+use crate::hooks::form::MultipartFormHook;
 use crate::hooks::{Hook, HookErasure, HookWrapper};
+use crate::mail;
 use crate::request::Request;
 use crate::response::Response;
+use crate::routing::WebsocketHandler;
 use crate::routing::next::Next;
+use crate::routing::route::Route;
 use crate::routing::{resolver::Resolver, router::Router, routes::Routes};
 use crate::server::protocol::{tcp::Tcp, udp::Udp, ServerHandler};
 use crate::session::local::LocalSession;
 use crate::storage::{self, Storage};
 use crate::utils::mem::Instance;
 use crate::view::View;
+use crate::websocket::Websocket;
 
 pub(crate) mod protocol;
 
@@ -60,7 +64,7 @@ impl Server {
             cookies: Box::new(HookWrapper::new(Cookies::new())),
             session: Box::new(HookWrapper::new(LocalSession::new(Some("sessions"), Duration::from_secs(60 * 60)))),
             view: Box::new(HookWrapper::new(View::new(None))),
-            multipart_form: Box::new(HookWrapper::new(MultipartForm::new())),
+            multipart_form: Box::new(HookWrapper::new(MultipartFormHook::new())),
             hooks: Vec::new(),
             server_config: server_config,
             loggers: Vec::new(),
@@ -126,7 +130,13 @@ impl Server {
     pub fn storage<S: Storage + 'static>(&mut self, name: impl Into<String>, storage: S) -> &mut Self {
         storage::add(name, storage);
         self
-    } 
+    }
+
+    pub fn mailer(&mut self, host: impl Into<String>, port: u16, username: impl Into<String>, password: impl Into<String>, tls: bool) -> &mut Self {
+        mail::SMTP::init(host, port, username, password, tls).unwrap();
+
+        self
+    }
 
     pub fn init<C, Fut>(&mut self, callback: C)
     where
@@ -246,8 +256,17 @@ impl Server {
         }).await;
     }
 
-    pub(crate) async fn on_websocket(&self, _req: Request, _res: Response) -> Result<()> {
-        return Ok(());
+    pub(crate) async fn on_websocket(&self, req: Request, res: Response) -> (Request, Option<&Box<Route<WebsocketHandler>>>) {
+
+
+        self
+            .routes
+            .handle_websocket(req, res)
+            .await
+
+        // return Ok(());
+
+        // todo!()
     }
 
     pub(crate) async fn on_logger(&mut self, info: PanicErrorInfo, req: Request, res: Response) {

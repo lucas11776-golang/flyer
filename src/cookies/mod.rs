@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use crate::{
     cookies::cookie::Cookie,
     hooks::Hook,
@@ -70,6 +72,12 @@ impl Cookies {
             .last_mut()
             .unwrap();
     } 
+
+    pub fn remove(&mut self, k: impl Into<String>) {
+        self
+            .set(k, "")
+            .set_expires(Duration::from_secs(0) - Duration::from_secs(100));
+    }
 
     pub(crate) fn parse(&self, raw: &str) -> Values {
         let mut cookies = Values::new();

@@ -10,6 +10,7 @@ use crate::request::Request;
 use crate::response::Response;
 use crate::server::protocol::TcpHandler;
 use crate::server::Server;
+use crate::server::protocol::tcp::http1::ws::Ws;
 use crate::utils::http::Headers;
 use crate::utils::mem::Instance;
 use crate::utils::url::parse_query;
@@ -31,7 +32,7 @@ impl TcpHandler for Http1 {
 
     async fn handle<RW>(&mut self, mut rw: BufReader<RW>) -> Result<()>
     where
-        RW: AsyncRead + AsyncWrite + Unpin + Send + Sync,
+        RW: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     {
         let req = match self.deserialize(&mut rw).await {
             Ok(req) => req,
@@ -39,11 +40,11 @@ impl TcpHandler for Http1 {
         };
 
         if req.header("upgrade").eq_ignore_ascii_case("websocket") {
-            return self.server.as_mut().on_websocket(req, Response::new()).await;
+            return Ws::new(self.server.clone(), self.addr).handle(rw, req).await;
         }
 
         let (_, res) = self.server.as_mut().on_http(req, Response::new()).await;
-        let serialized_res = self.serialize(&res);
+        let serialized_res = Self::serialize(&res);
 
         rw.write_all(&serialized_res).await?;
         rw.flush().await?;
@@ -233,7 +234,7 @@ impl Http1 {
         Ok(body)
     }
 
-    fn serialize(&self, res: &Response) -> Vec<u8> {
+    fn serialize(res: &Response) -> Vec<u8> {
         let content_length = res.content.len();
         let mut serialized = Vec::with_capacity(128 + (res.headers.len() * 32) + content_length);
         let status_text = http::StatusCode::from_u16(res.status_code)

@@ -26,7 +26,7 @@ pub trait TcpHandler {
 
     async fn handle<RW>(&mut self, rw: BufReader<RW>) -> Result<()>
     where
-        RW: AsyncRead + AsyncWrite + Unpin + Send + Sync;
+        RW: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static;
 }
 
 pub trait UdpHandler {

@@ -6,7 +6,7 @@ use tokio::{net::TcpListener, io::{AsyncBufReadExt, AsyncRead, AsyncWrite, BufRe
 use tokio_rustls::TlsAcceptor;
 
 use crate::server::protocol::TcpHandler;
-use crate::server::protocol::tcp::http2::Http2;
+use crate::server::protocol::tcp::http2::{H2_PREFACE, Http2};
 use crate::{
     server::{Server, protocol::ServerHandler, protocol::{tcp::http1::Http1, Protocol}},
     utils::{mem::Instance, server::get_tls_acceptor}
@@ -14,9 +14,6 @@ use crate::{
 
 pub mod http1;
 pub mod http2;
-
-
-pub(crate) const H2_PREFACE: &[u8] = b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n";
 
 pub struct Tcp;
 
