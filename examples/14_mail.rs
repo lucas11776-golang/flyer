@@ -16,7 +16,7 @@ fn main() {
         Mail::new()
             .from("no-reply@test.com".to_string(), Some("no-reply"))
             .html(format!("<h1>Token: {}</h1>", Uuid::new_v4()))
-            .send("user@test.com".to_string(), Some("User".to_string()))
+            .send("user@test.com".to_string(), Some("User"))
             .unwrap();
 
         return res.html("<h1>Email sent!</h1>")

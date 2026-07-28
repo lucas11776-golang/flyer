@@ -50,7 +50,7 @@ pub struct Mailbox {
 }
 
 impl Mailbox {
-    pub fn new(email: impl Into<String>, name: Option<impl Into<String>>) -> Self {
+    pub fn new(email: impl Into<String>, name: Option<&str>) -> Self {
         Self {
             email: email.into(),
             name: name.map(Into::into),
@@ -82,31 +82,31 @@ impl Mail {
         }
     }
 
-    pub fn from(mut self, email: impl Into<String>, name: Option<impl Into<String>>) -> Self {
+    pub fn from(mut self, email: impl Into<String>, name: Option<&str>) -> Self {
         let mb = LettreMailBox::new(name.map(Into::into), email.into().parse().unwrap());
         self.builder = self.builder.from(mb);
         self
     }
 
-    pub fn reply_to(mut self, email: impl Into<String>, name: Option<impl Into<String>>) -> Self {
+    pub fn reply_to(mut self, email: impl Into<String>, name: Option<&str>) -> Self {
         let mb = LettreMailBox::new(name.map(Into::into), email.into().parse().unwrap());
         self.builder = self.builder.reply_to(mb);
         self
     }
 
-    pub fn sender(mut self, email: impl Into<String>, name: Option<impl Into<String>>) -> Self {
+    pub fn sender(mut self, email: impl Into<String>, name: Option<&str>) -> Self {
         let mb = LettreMailBox::new(name.map(Into::into), email.into().parse().unwrap());
         self.builder = self.builder.sender(mb);
         self
     }
 
-    pub fn cc(mut self, email: impl Into<String>, name: Option<impl Into<String>>) -> Self {
+    pub fn cc(mut self, email: impl Into<String>, name: Option<&str>) -> Self {
         let mb = LettreMailBox::new(name.map(Into::into), email.into().parse().unwrap());
         self.builder = self.builder.cc(mb);
         self
     }
 
-    pub fn bcc(mut self, email: impl Into<String>, name: Option<impl Into<String>>) -> Self {
+    pub fn bcc(mut self, email: impl Into<String>, name: Option<&str>) -> Self {
         let mb = LettreMailBox::new(name.map(Into::into), email.into().parse().unwrap());
         self.builder = self.builder.bcc(mb);
         self
@@ -139,9 +139,9 @@ impl Mail {
         self
     }
 
-    pub fn view(self, path: impl Into<String>, template: impl Into<String>, data: Option<ViewData>) -> Result<Self> {
-        let view_bytes = View::render(path, template, data)?;
-        Ok(self.html(view_bytes))
+    pub fn view(self, path: impl Into<String>, template: impl Into<String>, data: Option<ViewData>) -> Self {
+        let view_bytes = View::render(path, template, data).unwrap();
+        self.html(view_bytes)
     }
 
     pub fn send_to_many(&self, recipients: &[Mailbox]) -> Result<()> {
@@ -161,7 +161,7 @@ impl Mail {
         Ok(())
     }
 
-    pub fn send(&self, email: impl Into<String>, name: Option<impl Into<String>>) -> Result<()> {
+    pub fn send(&self, email: impl Into<String>, name: Option<&str>) -> Result<()> {
         self.send_to_many(&[Mailbox::new(email, name)])
     }
 }

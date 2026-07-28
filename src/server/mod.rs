@@ -61,7 +61,7 @@ impl Server {
             routers: Vec::new(),
             cookies: Box::new(HookWrapper::new(Cookies::new())),
             session: Box::new(HookWrapper::new(LocalSession::new(Some("sessions"), Duration::from_secs(60 * 60)))),
-            view: Box::new(HookWrapper::new(View::new(None))),
+            view: Box::new(HookWrapper::new(View::new(None::<String>))),
             multipart_form: Box::new(HookWrapper::new(MultipartFormHook::new())),
             hooks: Vec::new(),
             server_config: server_config,
@@ -147,6 +147,10 @@ impl Server {
     }
 
     async fn run(&mut self) {
+        for init in &self.init_callbacks {
+            tokio::spawn((Arc::clone(init))());
+        }
+
         // if self.init_callback.is_some() {
         //     let instance = self.get_instance().clone();
         //     tokio::spawn(async move {

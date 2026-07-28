@@ -1,6 +1,5 @@
-use std::{fs::File, io::Read};
-
-use anyhow::Result;
+use std::sync::Arc;
+use anyhow::{Context as _, Result};
 use bytes::Bytes;
 use serde::Serialize;
 use tera::{Context, Tera};
@@ -10,85 +9,77 @@ use crate::{
     request::Request,
     response::Response,
     routing::next::Next,
-    view::functions::register,
+    view::functions::{register, session::{CURRENT_SESSION, SessionState}}
 };
 
 pub(crate) mod functions;
 
 #[derive(Clone, Default)]
 pub struct View {
-    engine: Option<Tera>
+    engine: Option<Arc<Tera>>,
 }
 
 impl Hook for View {
-    #[allow(static_mut_refs)]
     async fn before(&self, req: Request, res: Response, next: Next) -> Response {
-        return next.handle(req, res);
+        next.handle(req, res)
     }
-    
+
     async fn after(&self, req: Request, mut res: Response, next: Next) -> Response {
         if let Some(engine) = &self.engine {
-            if let Some(view) = res.view.as_mut() {
-                let template_name = view
-                    .view
-                    .trim()
-                    .trim_start_matches("/");
+            if let Some(mut view) = res.view.take() {
+                let session_state = SessionState::from_session(req.session());
 
-                let template = engine
-                    .get_template(template_name)
-                    .unwrap();
+                let rendered_result = CURRENT_SESSION
+                    .scope(session_state, async {
+                        self.render_with_engine(engine, &mut view)
+                    })
+                    .await;
 
-                let mut engine = Tera::default();
-
-                engine.templates.insert(template_name.into(), template.clone());
-
-                register(&mut engine, &req);
-
-                res.content = self
-                    .render_with_engine(&mut engine.clone(), view)
-                    .unwrap()
-                    .into();
+                if let Ok(rendered) = rendered_result {
+                    res.content = Bytes::from(rendered);
+                }
             }
         }
 
-        return next.handle(req, res);
+        next.handle(req, res)
     }
 }
 
 impl View {
-    pub(crate) fn new(directory: Option<String>) -> Self {
-        return match directory {
-            Some(d) => Self {
-                engine: Some(Tera::new(&format!("{}/**/*", d.trim_end_matches("/"))).unwrap()),
-            },
-            None => Self {
-                engine: None
-            },
-        };
+    pub(crate) fn new(directory: Option<impl Into<String>>) -> Self {
+        let engine = directory.map(|dir| {
+            let glob_path = format!("{}/**/*", dir.into().trim_end_matches('/'));
+            let mut tera = Tera::new(&glob_path).expect("Failed to initialize Tera engine");
+
+            register(&mut tera);
+
+            Arc::new(tera)
+        });
+
+        Self { engine }
     }
 
-    fn render_with_engine(&self, engine: &mut Tera, bag: &mut ViewBag) -> Result<String> {
-        return engine
-            .render(&bag.view, &bag.data.as_mut().unwrap_or(&mut ViewData::default()).context)
-            .map_err(|err| anyhow::Error::from(err));
+    fn render_with_engine(&self, engine: &Tera, bag: &mut ViewBag) -> Result<String> {
+        let default_data = &mut ViewData::default();
+        let context = &bag.data.as_mut().unwrap_or(default_data).context;
+
+        engine
+            .render(&bag.view, context)
+            .context("Tera render error")
     }
 
     pub fn render(path: impl Into<String>, template: impl Into<String>, data: Option<ViewData>) -> Result<Bytes> {
-        let filename = format!("{}/{}", path.into().trim_end_matches("/"), template.into().trim_start_matches(""));
-        let mut template = String::new();
+        let filename = format!(
+            "{}/{}",
+            path.into().trim_end_matches('/'),
+            template.into().trim_start_matches('/')
+        );
 
-        File::open(filename)
-            .unwrap()
-            .read_to_string(&mut template)
-            .unwrap();
+        let template_content = std::fs::read_to_string(filename)?;
+        let context = data.map(|d| d.context).unwrap_or_default();
 
-        let context = data
-            .map(|d| d.context)
-            .unwrap_or(Context::new());
-
-        return Tera::one_off(&template, &context, false)
-            .map(|view| view.into())
-            .map_err(|err| err.into());
+        let rendered = Tera::one_off(&template_content, &context, false)?;
+        Ok(Bytes::from(rendered))
     }
 }
 
@@ -100,31 +91,27 @@ pub(crate) struct ViewBag {
 
 impl ViewBag {
     pub fn new(view: impl Into<String>, data: Option<ViewData>) -> Self {
-        return Self {
+        Self {
             view: view.into(),
-            data: data,
-        };
+            data,
+        }
     }
 }
 
 #[derive(Clone, Default)]
 pub struct ViewData {
-    pub(crate) context: Context, 
+    pub(crate) context: Context,
 }
 
 impl ViewData {
     pub fn new() -> Self {
-        return Self {
-            context: Context::new()
-        }
+        Self::default()
     }
 
-    pub fn with<T: Serialize + ?Sized, S: Into<String>>(key: S, val: &T) -> ViewData {
+    pub fn with<T: Serialize + ?Sized, S: Into<String>>(key: S, val: &T) -> Self {
         let mut data = Self::new();
-
         data.insert(key, val);
-
-        return data;
+        data
     }
 
     pub fn insert<T: Serialize + ?Sized, S: Into<String>>(&mut self, key: S, val: &T) {

@@ -4,3 +4,4 @@
 * Sentry logger is not done.
 * Server needs cleanup.
 * Messing hooks documentation.
+* Messing logger documentation.
