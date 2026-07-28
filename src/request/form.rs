@@ -4,8 +4,7 @@ use anyhow::Result;
 use bytes::Bytes;
 
 use crate::{
-    // storage::{DEFAULT_STORAGE, GLOBAL_STORAGE},
-    // storage::{DEFAULT_STORAGE},
+    storage::{DEFAULT_STORAGE, save, save_as},
     utils::Values
 };
 
@@ -56,23 +55,11 @@ impl File {
 
     #[allow(static_mut_refs)]
     pub async fn save_as(&self, folder: impl Into<String>, name: impl Into<String>,) -> Result<String> {
-        todo!()
-        // unsafe  {
-        //     return GLOBAL_STORAGE
-        //         .get(DEFAULT_STORAGE)
-        //         .unwrap()
-        //         .save_as(folder, name, self);
-        // }
+        save_as(DEFAULT_STORAGE, folder, name, self.clone()).await
     }
 
     #[allow(static_mut_refs)]
     pub async fn save(&self, folder: impl Into<String>,) -> Result<String> {
-        todo!()
-        // unsafe  {
-        //     return GLOBAL_STORAGE
-        //         .get(DEFAULT_STORAGE)
-        //         .unwrap()
-        //         .save(folder, self);
-        // }
+        save(DEFAULT_STORAGE, folder, self.clone()).await
     }
 }

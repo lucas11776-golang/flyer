@@ -22,6 +22,9 @@ pub mod validation;
 pub mod view;
 pub mod websocket;
 
+pub use anyhow;
+pub use anyhow::Result;
+
 pub(crate) static mut GLOBAL_SERVER: OnceCell<Box<Server>> = OnceCell::new();
 
 #[allow(static_mut_refs)]
