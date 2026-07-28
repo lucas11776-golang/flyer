@@ -22,7 +22,7 @@ fn main() {
     let host = env::env("HOST");
     let port: u32 = env::env("PORT").parse().unwrap_or(9999);
 
-    let mut server = server(host, port)
+    let server = server(host, port)
         .view("views");
 
     server.router().group("/", |router| {

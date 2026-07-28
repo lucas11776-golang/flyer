@@ -254,17 +254,11 @@ impl Server {
         }).await;
     }
 
-    pub(crate) async fn on_websocket(&self, req: Request, res: Response) -> (Request, Option<&Box<Route<WebsocketHandler>>>) {
-
-
+    pub(crate) async fn on_websocket(&self, req: Request, res: Response) -> (Request, Option<&Route<WebsocketHandler>>) {
         self
             .routes
             .handle_websocket(req, res)
             .await
-
-        // return Ok(());
-
-        // todo!()
     }
 
     pub(crate) async fn on_logger(&mut self, info: PanicErrorInfo, req: Request, res: Response) {
