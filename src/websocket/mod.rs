@@ -9,7 +9,16 @@ pub(crate) type OnEvent = Box<dyn Fn(Event, Writer) -> BoxFuture<'static, ()> + 
 #[derive(Debug)]
 pub struct Reason {
     pub code: u16,
-    pub message: String,
+    pub message: Bytes,
+}
+
+impl Reason {
+    pub fn new(code: u16, message: Bytes) -> Self {
+        Self {
+            code: code,
+            message: message,
+        }
+    }
 }
 
 pub enum Event {
@@ -22,7 +31,7 @@ pub enum Event {
 }
 
 pub trait WriterInterface: Send + Sync {
-    fn write(&mut self, data: Bytes) -> Result<()>;
+    fn write(&self, data: Bytes) -> Result<()>;
     fn write_binary(&mut self, data: Bytes) -> Result<()>;
     fn ping(&mut self, data: Bytes) -> Result<()>;
     fn pong(&mut self, data: Bytes) ->  Result<()>;
@@ -42,41 +51,26 @@ impl Writer {
     }
 }
 
-impl Writer {
-    // async fn write(&mut self, data: Bytes) -> Result<()> {
-    //     self
-    //         .instance
-    //         .write(data)
-    //         .await
-    // }
+impl WriterInterface for Writer {
+    fn write(&self, data: Bytes) -> Result<()> {
+        self.instance.write(data)
+    }
 
-    // async fn write_binary(&mut self, data: Bytes) -> Result<()> {
-    //     self
-    //         .instance
-    //         .write_binary(data)
-    //         .await
-    // }
+    fn write_binary(&mut self, data: Bytes) -> Result<()> {
+        self.instance.write_binary(data)
+    }
 
-    // async fn ping(&mut self, data: Bytes) -> Result<()> {
-    //     self
-    //         .instance
-    //         .ping(data)
-    //         .await
-    // }
+    fn ping(&mut self, data: Bytes) -> Result<()> {
+        self.instance.ping(data)
+    }
 
-    // async fn pong(&mut self, data: Bytes) -> Result<()> {
-    //     self
-    //         .instance
-    //         .pong(data)
-    //         .await
-    // }
+    fn pong(&mut self, data: Bytes) ->  Result<()> {
+        self.instance.pong(data)
+    }
 
-    // async fn close(&mut self) -> Result<()> {
-    //     self
-    //         .instance
-    //         .close()
-    //         .await
-    // }
+    fn close(&mut self) -> Result<()> {
+        self.instance.close()
+    }
 }
 
 
@@ -99,9 +93,5 @@ impl Websocket {
         self.event = Some(Box::new(move |event, writer| Box::pin(callback(event, writer))));
 
         return self;
-    }
-
-    pub fn write(&mut self) -> Result<()> {
-        todo!()
     }
 }

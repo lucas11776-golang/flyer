@@ -5,26 +5,13 @@ use flyer::{
     response::Response,
     routing::next::Next,
     server_tls,
-    session::{cookie::CookieSession, local::LocalSession},
+    session::local::LocalSession,
     validation::{Rules, Validator},
-    websocket::Websocket
+    websocket::{Websocket, WriterInterface}
 };
 
 pub async fn http(_req: Request, res: Response) -> Response {
     return res.body("<h1>Hello World</h1>".as_bytes());
-}
-
-pub async fn websocket(_req: Request, ws: Websocket) -> Websocket {
-    ws.on(async |event, writer| {
-        match event {
-            flyer::websocket::Event::Ready() => todo!(),
-            flyer::websocket::Event::Text(bytes) => todo!(),
-            flyer::websocket::Event::Binary(bytes) => todo!(),
-            flyer::websocket::Event::Ping(bytes) => todo!(),
-            flyer::websocket::Event::Pong(bytes) => todo!(),
-            flyer::websocket::Event::Close(reason) => todo!(),
-        }
-    })
 }
 
 pub async fn group(req: Request, res: Response, next: Next) -> Response {
@@ -57,7 +44,6 @@ pub fn main() {
     // let server = server("127.0.0.1", 8888)
     let server = server_tls("127.0.0.1", 9999, "host.key", "host.cert")
         .view("views")
-        // .session(CookieSession::new("session", "eye.lock.dasfafasf", Duration::from_secs(60 * 60 * 24)))
         .session(LocalSession::new(Some("storage"), Duration::from_secs(60 * 60)));
 
 
@@ -88,7 +74,9 @@ pub fn main() {
         ws.on(async |event, writer| {
             match event {
                 flyer::websocket::Event::Ready() => todo!(),
-                flyer::websocket::Event::Text(items) => todo!(),
+                flyer::websocket::Event::Text(items) => {
+                    writer.write("HELLO TO YOU".into()).unwrap()
+                },
                 flyer::websocket::Event::Binary(items) => todo!(),
                 flyer::websocket::Event::Ping(items) => todo!(),
                 flyer::websocket::Event::Pong(items) => todo!(),
@@ -97,17 +85,14 @@ pub fn main() {
         })
     });
 
-
     server.router().get("/submit", async |_req, res| {
         return res.back();
     });
-
 
     server.router().group("api", |router| {
         router.group("v1", |router| {
             router.group("users", |router| {
                 router.get("/", http).middleware(middleware);
-                router.ws("/", websocket).middleware(middleware);
             }).middleware(group);
         }); //.middleware(group);
     });

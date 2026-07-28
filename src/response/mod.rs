@@ -155,8 +155,19 @@ impl Response {
     }
 
     #[inline]
+    pub fn session(&mut self) -> &mut Session {
+        &mut self.session
+    }
+
+    #[inline]
     pub fn set_session(mut self, k: impl Into<String>, v: impl Into<String>) -> Self {
         self.session.set(k, v);
+        self
+    }
+
+    #[inline]
+    pub fn remove_session(mut self, k: impl Into<String>) -> Self {
+        self.session.remove(k);
         self
     }
 

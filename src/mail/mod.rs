@@ -1,195 +1,172 @@
+use std::sync::OnceLock;
 use std::time::SystemTime;
 
-use anyhow::Result;
-use bytes::Bytes;
-use lettre::message::MessageBuilder;
-use lettre::message::{Mailbox as LettreMailBox, header::ContentType};
+use anyhow::{anyhow, Result};
+use lettre::message::header::ContentType;
+use lettre::message::{Mailbox as LettreMailBox, MessageBuilder};
 use lettre::transport::smtp::authentication::Credentials;
 use lettre::transport::smtp::client::Tls;
 use lettre::{Message, SmtpTransport, Transport};
-use once_cell::sync::OnceCell;
 
-use crate::view::{ViewData, View};
+use crate::view::{View, ViewData};
 
-pub(crate) static mut GLOBAL_MAILER: OnceCell<Box<SMTP>> = OnceCell::new();
+static GLOBAL_MAILER: OnceLock<SmtpTransport> = OnceLock::new();
 
-pub(crate) struct SMTP {
-    transport: SmtpTransport,
-}
+pub struct SMTP;
 
 impl SMTP {
-    pub fn new(host: String, port: u16, username: String, password: String, tls: bool) -> Result<SMTP> {
-        let mut builder = SmtpTransport::relay(&host)
-                .unwrap()
-                .port(port)
-                .credentials(Credentials::new(username, password));
+    pub fn init(
+        host: impl Into<String>,
+        port: u16,
+        username: impl Into<String>,
+        password: impl Into<String>,
+        tls: bool
+    ) -> Result<()> {
+        let mut builder = SmtpTransport::relay(&host.into())?
+            .port(port)
+            .credentials(Credentials::new(username.into(), password.into()));
 
         if !tls {
             builder = builder.tls(Tls::None);
         }
 
-        return Ok(Self {
-            transport: builder.build(),
-        });
+        GLOBAL_MAILER
+            .set(builder.build())
+            .map_err(|_| anyhow!("Global mailer already initialized"))
     }
 
-    #[allow(static_mut_refs)]
-    pub fn add(host: String, port: u16, username: String, password: String, tls: bool) -> Result<()> {
-        unsafe { 
-            return GLOBAL_MAILER
-                .set(Box::new(Self::new(host, port, username, password, tls).unwrap()))
-                .map_err(|_| anyhow::anyhow!("Global mailer already initialized"));
-        }
+    #[inline]
+    pub fn global() -> Result<&'static SmtpTransport> {
+        GLOBAL_MAILER
+            .get()
+            .ok_or_else(|| anyhow!("Mailer has not been initialized. Call SMTP::init first."))
     }
 }
 
+#[derive(Clone, Debug)]
 pub struct Mailbox {
-    email: String,
-    name: Option<String>
+    pub email: String,
+    pub name: Option<String>,
 }
 
 impl Mailbox {
-    pub fn new(email: String, name: Option<String>) -> Self {
-        return Self {
-            email: email,
-            name: name
-        };
+    pub fn new(email: impl Into<String>, name: Option<impl Into<String>>) -> Self {
+        Self {
+            email: email.into(),
+            name: name.map(Into::into),
+        }
+    }
+
+    fn to_lettre(&self) -> Result<LettreMailBox> {
+        let address = self.email.parse()?;
+        Ok(LettreMailBox::new(self.name.clone(), address))
     }
 }
 
 pub struct Mail {
     builder: MessageBuilder,
-    body: Option<Bytes>,
+    body: Vec<u8>,
 }
 
-// TODO: Need to implement (attachment, attachments)
+impl Default for Mail {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Mail {
     pub fn new() -> Self {
-        return Self {
+        Self {
             builder: Message::builder(),
-            body: None,
-        };
-    }
-
-    pub fn from(&mut self, email: String, name: Option<String>) -> &mut Self {
-        self.builder = self.builder
-            .clone()
-            .from(LettreMailBox::new(name, email.parse().unwrap()));
-
-        return self;
-    }
-
-    pub fn reply_to(&mut self, email: String, name: Option<String>) -> &mut Self {
-        self.builder = self
-            .builder
-            .clone()
-            .reply_to(LettreMailBox::new(name, email.parse().unwrap()));
-
-        return self;
-    }
-
-    pub fn sender(&mut self, email: String, name: Option<String>) -> &mut Self {
-        self.builder = self
-            .builder
-            .clone()
-            .sender(LettreMailBox::new(name, email.parse().unwrap()));
-
-        return self;
-    }
-
-    pub fn date(&mut self) -> &mut Self {
-        self.builder = self
-            .builder
-            .clone()
-            .date_now();
-
-        return self;
-    }
-
-    pub fn date_now(&mut self, time: SystemTime) -> &mut Self {
-        self.builder = self
-            .builder
-            .clone()
-            .date(time);
-
-        return self;
-    }
-
-    pub fn cc(&mut self, email: String, name: Option<String>) -> &mut Self {
-        self.builder = self
-            .builder
-            .clone()
-            .cc(LettreMailBox::new(name, email.parse().unwrap()));
-
-        return self;
-    }
-
-    pub fn bcc(&mut self, email: String, name: Option<String>) -> &mut Self {
-        self.builder = self
-            .builder
-            .clone()
-            .bcc(LettreMailBox::new(name, email.parse().unwrap()));
-
-        return self;
-    }
-
-    pub fn subject(&mut self, subject: String) -> &mut Self {
-        self.builder = self.builder.clone().subject(subject);
-
-        return self;
-    }
-
-    pub fn text(&mut self, text: Bytes) -> &mut Self {
-        self.builder = self.builder
-            .clone()
-            .header(ContentType::TEXT_PLAIN);
-
-        self.body = Some(text);
-
-        return self;
-    }
-
-    pub fn html(&mut self, html: Bytes) -> &mut Self {
-        self.builder = self.builder
-            .clone()
-            .header(ContentType::TEXT_HTML);
-
-        self.body = Some(html);
-
-        return self;
-    }
-
-    pub fn view(&mut self, path: impl Into<String>, template: impl Into<String>, data: Option<ViewData>) -> &mut Self {
-        let view = View::render(path, template, data)
-            .unwrap();
-
-        return self.html(view);
-    }
-
-    #[allow(static_mut_refs)]
-    pub async fn send_to_many(&mut self, to: Vec<Mailbox>) -> Result<()> {
-        unsafe {
-            let transport = &GLOBAL_MAILER
-                    .get_mut()
-                    .unwrap()
-                    .transport;
-            let body: Vec<u8> = Vec::from(self.body.clone().unwrap_or(Bytes::new()));
-
-            for mailbox in to {
-                let message =  self.builder
-                    .clone()
-                    .to(LettreMailBox::new(mailbox.name, mailbox.email.parse().unwrap()))
-                    .body(body.clone())
-                    .unwrap();
-
-                transport.send(&message).unwrap();
-            }
-
-            return Ok(());
+            body: Vec::new(),
         }
     }
 
-    pub async fn send(&mut self, email: String, name: Option<String>) -> Result<()> {
-        return self.send_to_many(vec![Mailbox::new(email, name)]).await;
+    pub fn from(mut self, email: impl Into<String>, name: Option<impl Into<String>>) -> Self {
+        let mb = LettreMailBox::new(name.map(Into::into), email.into().parse().unwrap());
+        self.builder = self.builder.from(mb);
+        self
+    }
+
+    pub fn reply_to(mut self, email: impl Into<String>, name: Option<impl Into<String>>) -> Self {
+        let mb = LettreMailBox::new(name.map(Into::into), email.into().parse().unwrap());
+        self.builder = self.builder.reply_to(mb);
+        self
+    }
+
+    pub fn sender(mut self, email: impl Into<String>, name: Option<impl Into<String>>) -> Self {
+        let mb = LettreMailBox::new(name.map(Into::into), email.into().parse().unwrap());
+        self.builder = self.builder.sender(mb);
+        self
+    }
+
+    pub fn cc(mut self, email: impl Into<String>, name: Option<impl Into<String>>) -> Self {
+        let mb = LettreMailBox::new(name.map(Into::into), email.into().parse().unwrap());
+        self.builder = self.builder.cc(mb);
+        self
+    }
+
+    pub fn bcc(mut self, email: impl Into<String>, name: Option<impl Into<String>>) -> Self {
+        let mb = LettreMailBox::new(name.map(Into::into), email.into().parse().unwrap());
+        self.builder = self.builder.bcc(mb);
+        self
+    }
+
+    pub fn date(mut self) -> Self {
+        self.builder = self.builder.date_now();
+        self
+    }
+
+    pub fn date_at(mut self, time: SystemTime) -> Self {
+        self.builder = self.builder.date(time);
+        self
+    }
+
+    pub fn subject(mut self, subject: impl Into<String>) -> Self {
+        self.builder = self.builder.subject(subject);
+        self
+    }
+
+    pub fn text(mut self, text: impl Into<Vec<u8>>) -> Self {
+        self.builder = self.builder.header(ContentType::TEXT_PLAIN);
+        self.body = text.into();
+        self
+    }
+
+    pub fn html(mut self, html: impl Into<Vec<u8>>) -> Self {
+        self.builder = self.builder.header(ContentType::TEXT_HTML);
+        self.body = html.into();
+        self
+    }
+
+    pub fn view(
+        self,
+        path: impl Into<String>,
+        template: impl Into<String>,
+        data: Option<ViewData>,
+    ) -> Result<Self> {
+        let view_bytes = View::render(path, template, data)?;
+        Ok(self.html(view_bytes))
+    }
+
+    pub fn send_to_many(&self, recipients: &[Mailbox]) -> Result<()> {
+        let transport = SMTP::global()?;
+
+        for recipient in recipients {
+            let lettre_mb = recipient.to_lettre()?;
+            let message = self
+                .builder
+                .clone()
+                .to(lettre_mb)
+                .body(self.body.clone())?;
+
+            transport.send(&message)?;
+        }
+
+        Ok(())
+    }
+
+    pub fn send(&self, email: impl Into<String>, name: Option<impl Into<String>>) -> Result<()> {
+        self.send_to_many(&[Mailbox::new(email, name)])
     }
 }

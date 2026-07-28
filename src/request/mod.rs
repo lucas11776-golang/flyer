@@ -4,11 +4,7 @@ use bytes::Bytes;
 use serde::de::{DeserializeOwned};
 
 use crate::{
-    cookies::Cookies,
-    request::form::Form,
-    server::Server,
-    session::Session,
-    utils::{Values, http::Headers, mem::Instance}
+    cookies::Cookies, request::form::{File, Form}, server::Server, session::Session, utils::{Values, http::Headers, mem::Instance}
 };
 
 pub mod form;
@@ -114,6 +110,13 @@ impl Request {
             .into()
     }
 
+    pub fn file(&self, k: impl Into<String>) -> Option<&File> {
+        self
+            .form
+            .files
+            .get(&k.into())
+    }
+
     #[inline]
     pub fn body(&self) -> &Bytes {
         &self.body
@@ -145,10 +148,8 @@ impl Request {
             .into()
     }
 
-    pub fn cookies(&self) -> Values {
-        self
-            .cookies
-            .cookies()
+    pub fn cookies(&self) -> &Cookies {
+        &self.cookies
     }
 
     #[inline]

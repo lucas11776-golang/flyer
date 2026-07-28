@@ -16,7 +16,7 @@ use crate::response::Response;
 use crate::server::protocol::tcp::http1::Http1;
 use crate::server::Server;
 use crate::utils::mem::Instance;
-use crate::websocket::{Event, SEC_WEB_SOCKET_ACCEPT_STATIC, Websocket, Writer, WriterInterface};
+use crate::websocket::{Event, Reason, SEC_WEB_SOCKET_ACCEPT_STATIC, Websocket, Writer, WriterInterface};
 
 pub struct Ws {
     server: Instance<Server>,
@@ -35,7 +35,7 @@ impl TcpWriter {
 }
 
 impl WriterInterface for TcpWriter {
-    fn write(&mut self, data: Bytes) -> Result<()> {
+    fn write(&self, data: Bytes) -> Result<()> {
         let text = Utf8Bytes::try_from(data)?;
         self.sender.send(Message::Text(text))?;
         Ok(())
@@ -109,12 +109,12 @@ impl Ws {
     ) where
         RW: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     {
+        let writer = TcpWriter::new(tx);
+
         while let Some(Ok(msg)) = stream.next().await {
             let Some(callback) = &ws.event else {
                 continue;
             };
-
-            let writer = TcpWriter::new(tx.clone());
 
             let event = match msg {
                 Message::Text(data) => Event::Text(data.into()),
@@ -122,12 +122,12 @@ impl Ws {
                 Message::Ping(bytes) => Event::Ping(bytes),
                 Message::Pong(bytes) => Event::Pong(bytes),
                 Message::Close(frame) => {
-                    todo!()
+                    Event::Close(frame.map(|f| Reason::new(f.code.into(), f.reason.into())))
                 },
                 Message::Frame(_) => continue,
             };
 
-            callback(event, Writer { instance: Box::new(writer) }).await;
+            callback(event, Writer::new(writer.clone())).await;
         }
     }
 

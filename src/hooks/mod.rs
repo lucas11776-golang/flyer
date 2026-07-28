@@ -3,9 +3,13 @@ use std::sync::Arc;
 use futures::future::BoxFuture;
 
 use crate::{
-    request::Request, response::Response, routing::next::Next, utils::future::SendFuture
+    request::Request,
+    response::Response,
+    routing::next::Next,
+    utils::future::SendFuture
 };
 
+pub mod assets;
 pub mod form;
 
 #[allow(async_fn_in_trait)]
@@ -14,12 +18,12 @@ pub trait Hook: Send + Sync {
     async fn after(&self, req: Request, res: Response, next: Next) -> Response;
 }
 
-pub trait HookErasure: Send + Sync {
+pub(crate) trait HookErasure: Send + Sync {
     fn before(&self, req: Request, res: Response, next: Next) -> BoxFuture<'static, Response>;
     fn after(&self, req: Request, res: Response, next: Next) -> BoxFuture<'static, Response>;
 }
 
-pub struct HookWrapper<T: Hook + 'static> {
+pub(crate) struct HookWrapper<T: Hook + 'static> {
     pub instance: Arc<T>,
 }
 

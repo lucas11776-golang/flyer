@@ -7,11 +7,11 @@ use tokio::fs;
 use crate::request::form::File;
 use crate::storage::Storage;
 
-pub struct Local {
+pub struct LocalStorage {
     directory: PathBuf,
 }
 
-impl Local {
+impl LocalStorage {
     pub fn new(directory: impl Into<String>) -> Self {
         Self {
             directory: PathBuf::from(directory.into()),
@@ -24,7 +24,7 @@ impl Local {
     }
 }
 
-impl Storage for Local {
+impl Storage for LocalStorage {
     async fn save_as(&self, folder: impl Into<String>, name: impl Into<String>, file: File) -> Result<String> {
         let folder_str = folder.into();
         let name_str = name.into();

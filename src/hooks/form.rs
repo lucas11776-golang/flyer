@@ -19,15 +19,15 @@ use crate::{
 pub type JsonValues = HashMap<String, Value>;
 pub type Names = Vec<String>;
 
-pub struct MultipartForm;
+pub struct MultipartFormHook;
 
-impl MultipartForm {
+impl MultipartFormHook {
     pub fn new() -> Self {
         return Self;
     }
 }
 
-impl Hook for MultipartForm {
+impl Hook for MultipartFormHook {
     async fn before(&self, mut req: Request, res: Response, next: Next) -> Response {
         if let Err(_) = self.parse(&mut req).await {
             // TODO: request bad request maybe Hook should have need still thinking about it.
@@ -41,7 +41,7 @@ impl Hook for MultipartForm {
     }
 }
 
-impl MultipartForm {
+impl MultipartFormHook {
     async fn parse(&self, req: &mut Request) -> Result<()> {
         let content_type = req
             .header("content-type")
