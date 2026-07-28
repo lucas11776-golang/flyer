@@ -1,45 +1,41 @@
-# Flyer - Web Framework
+# Flyer 🚀
 
-## Information
+Welcome to **Flyer**, a modern, high-performance, asynchronous web framework for Rust designed for building fast, scalable, and robust web applications and APIs. Flyer provides an expressive, batteries-included developer experience inspired by traditional high-level web frameworks while maintaining the raw speed, safety, and concurrency guarantees of Rust.
 
-Flyer web framework supports concurrent requests, allowing you to run requests without blocking each other.
+---
 
-### Supports
+## 🌟 Core Information & Protocol Support
 
-- HTTP/1.1
-- HTTP/2.0
-- HTTP/3.0
-- WebSocket
+Flyer is built from the ground up on modern asynchronous primitives (powered by Tokio) to ensure that concurrent requests never block one another. 
 
-## Getting Started
+### Supported Protocols
+* **HTTP/1.1** & **HTTP/2.0** — Fully supported out-of-the-box for traditional web traffic and high-throughput API endpoints.
+* **HTTP/3.0** — Next-generation transport layer support for minimal latency and improved connection migration.
+* **WebSocket** — Real-time, bidirectional communication channels with robust event-handling hooks.
 
-### Prerequisites
+---
 
-**Key features:**
+## 📦 Getting Started
 
-- Router
-- Subdomain
-- View
-- Env
-- Assets
-- Middleware
-- Session
-- Cookie
-- Form and Multipart-Form
-- Form Validation
-- WebSocket
-- Mail
+### Feature Checklist
+Flyer comes packed with modular features to handle everything from microservices to full-stack monoliths:
+* 🔀 **High-Performance Router** with Grouping & Parameters
+* 🌐 **Subdomain Routing** (with built-in local DNS utilities for development)
+* 🎨 **View Engine** powered by Tera templates
+* ⚙️ **Environment Configuration** management (`.env`)
+* 📂 **Static Asset Management** with caching hooks
+* 🛡️ **Middleware Interceptors** for security & logging
+* 🍪 **Sessions & Cookies** state management
+* 📤 **Multipart-Form Handling & File Uploads** (supporting local & cloud storage)
+* ✅ **Form Validation Engine** with expressive rule sets
+* 🔌 **WebSocket** asynchronous server events
+* 📧 **Built-in Mailer** interface
 
-### Getting with Flyer
+---
 
-First, create a new project:
+### Installation
 
-```sh
-cargo new example
-cd example
-```
-
-Add `flyer` to your project:
+Add `flyer` to your `Cargo.toml` dependency list via cargo:
 
 ```sh
 cargo add flyer
@@ -47,58 +43,64 @@ cargo add flyer
 
 ---
 
-## Examples
+## 💡 Examples & Guides
 
 ### 1. Basic Routing
-
-This example demonstrates how to set up a basic HTTP server and define a simple GET route.
+Get a simple HTTP server running in just a few lines of code. The `server` helper binds your host and port, while closures handle routing asynchronously.
 
 ```rust
 use flyer::server;
 
 fn main() {
+    // Initialize the server bound to 127.0.0.1 on port 9999
     let server = server("127.0.0.1", 9999);
     
+    // Register a simple GET endpoint
     server.router().get("/", async |_req, res| {
-        return res.html("<h1>Hello World!!!</h1>")
+        return res.html("<h1>Hello World from Flyer!</h1>");
     });
 
     print!("\r\n\r\nRunning server: {}\r\n\r\n", server.address());
 
+    // Start listening for incoming connections
     server.listen();
 }
 ```
 
-### 2. Advanced Routing
+---
 
-Demonstrates route grouping, parameters, and HTTP methods.
+### 2. Advanced Routing & Grouping
+Flyer supports modular route groups, dynamic path parameters (via `{param}` syntax), and standard RESTful HTTP methods (`GET`, `POST`, `PATCH`, `DELETE`).
 
 ```rust
 use flyer::{server, request::Request, response::Response};
 
 pub async fn index(_req: Request, res: Response) -> Response {
-    return res.html("<h1>Users List</h1>");
+    res.html("<h1>Users List</h1>")
 }
 
 pub async fn store(_req: Request, res: Response) -> Response {
-    return res.redirect("users/1");
+    res.redirect("users/1")
 }
 
 pub async fn view(req: Request, res: Response) -> Response {
-    return res.html(format!("<h1>User {}</h1>", req.parameter("user")).as_str());
+    let user_id = req.parameter("user");
+    res.html(format!("<h1>User Profile: {}</h1>", user_id).as_str())
 }
 
 pub async fn update(req: Request, res: Response) -> Response {
-    return res.redirect(format!("users/{}", req.parameter("user")).as_str());
+    let user_id = req.parameter("user");
+    res.redirect(format!("users/{}", user_id).as_str())
 }
 
 pub async fn destroy(_req: Request, res: Response) -> Response {
-    return res.redirect("users")
+    res.redirect("users")
 }
 
 fn main() {
     let server = server("127.0.0.1", 9999);
     
+    // Group routes under prefixes cleanly
     server.router().group("/", |router| {
         router.group("users", |router| {
             router.get("/", index);
@@ -112,29 +114,26 @@ fn main() {
     });
 
     print!("\r\n\r\nRunning server: {}\r\n\r\n", server.address());
-
     server.listen();
 }
 ```
 
-### 3. Subdomain
+---
 
-To use subdomains locally, you must configure a local DNS resolver.
+### 3. Subdomain Routing
+Flyer makes multi-tenant or modular subdomain architectures straightforward. For local development, Flyer includes built-in DNS utilities.
 
-#### macOS/Linux
-Create a resolver file:
-```sh
-sudo bash -c 'echo -e "nameserver 127.0.0.1 \nport 5354" > /etc/resolver/tracker.com'
-```
-
-#### Windows
-You need to add a DNS client NRPT rule (requires PowerShell):
-```powershell
-Add-DnsClientNrptRule -Namespace "tracker.com" -NameServers "127.0.0.1" -Comment "Per-domain DNS for tracker"
-```
+#### Local DNS Resolver Setup
+* **macOS / Linux:**
+  ```sh
+  sudo bash -c 'echo -e "nameserver 127.0.0.1 \nport 5354" > /etc/resolver/tracker.com'
+  ```
+* **Windows (PowerShell):**
+  ```powershell
+  Add-DnsClientNrptRule -Namespace "tracker.com" -NameServers "127.0.0.1" -Comment "Per-domain DNS for tracker"
+  ```
 
 #### Example Usage
-
 ```rust
 use flyer::server;
 use flyer::utils::development::dns;
@@ -142,12 +141,14 @@ use flyer::utils::development::dns;
 fn main() {
     let server = server("127.0.0.1", 80);
 
+    // Bind routes exclusively to the "api" subdomain
     server.router().subdomain("api", |router| {
         router.get("/", async |_req, res| {
-            return res.html("<h1>API Subdomain</h1>");
+            res.html("<h1>Welcome to the API Subdomain</h1>")
         });
     });
 
+    // Spin up the local development DNS resolver asynchronously alongside the server
     server.init(async || {
         tokio::spawn(async {
             dns::run("tracker.com", "127.0.0.1", 5354);
@@ -158,64 +159,70 @@ fn main() {
 }
 ```
 
-### 4. View Rendering
+---
 
-Flyer uses [Tera](https://keats.github.io/tera/) for view rendering.
+### 4. View Rendering (Tera Integration)
+Flyer integrates directly with the [Tera](https://keats.github.io/tera/) templating engine for powerful server-side rendering.
 
-Create `views/index.html`:
+**Template File (`views/index.html`):**
 ```html
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Hello {{ user.first_name }}</title>
+    <title>Welcome, {{ user.first_name }}</title>
 </head>
 <body>
     <h1>Hi, {{ user.first_name }} {{ user.last_name }}!</h1>
+    <p>Contact: {{ user.email }}</p>
 </body>
 </html>
 ```
 
-Main application:
+**Rust Application:**
 ```rust
-use flyer::{server, view::{ViewData}};
+use flyer::{server, view::ViewData};
 use serde::Serialize;
 
 #[derive(Serialize)]
 pub struct User {
     first_name: &'static str,
     last_name: &'static str,
-    email: &'static str
+    email: &'static str,
 }
 
 fn main() {
+    // Register the directory containing templates
     let server = server("127.0.0.1", 9999)
         .view("views");
 
     server.router().get("/", async |_req, res| {
         let mut data = ViewData::new();
-        data.insert("user", &User{
-            first_name: "Jeo",
-            last_name: "Deo",
-            email: "jeo.deo@gmail.com",
+        data.insert("user", &User {
+            first_name: "Jane",
+            last_name: "Doe",
+            email: "jane.doe@gmail.com",
         });
 
-        return res.view("index.html", Some(data));
+        res.view("index.html", Some(data))
     });
 
     server.listen();
 }
 ```
 
-### 5. Env
+---
 
-Create a `.env` file:
+### 5. Environment Configuration
+Manage configuration parameters safely using standard `.env` files.
+
+**`.env` file:**
 ```env
 HOST="127.0.0.1"
 PORT="9999"
 ```
 
-Application:
+**Rust Application:**
 ```rust
 use flyer::{server, utils::env};
 
@@ -225,42 +232,48 @@ fn main() {
     let host = env::env("HOST");
     let port: u32 = env::env("PORT").parse().unwrap_or(9999);
 
-    let server = server(host, port)
-        .view("views");
+    let server = server(host, port).view("views");
     
     server.listen();
 }
 ```
 
-### 6. Assets
+---
 
-Configure an assets directory to serve static files like CSS and JS.
+### 6. Static Asset Hook
+Serve static files like CSS, JavaScript, and images efficiently with built-in caching control.
 
-`assets/style.css`:
+**`assets/style.css`:**
 ```css
-body { background-color: black; color: white; }
+body {
+    background-color: #121212;
+    color: #e0e0e0;
+    font-family: sans-serif;
+}
 ```
 
-Application:
+**Rust Application:**
 ```rust
 use std::time::Duration;
 use flyer::{hooks::assets::AssetsHook, server, view::ViewData};
 
 fn main() {
+    // Attach an asset hook mapping the local "assets" folder with a 1-hour cache duration
     let server = server("127.0.0.1", 9999)
         .hook(AssetsHook::new("assets", Duration::from_secs(3600), 1024 * 10));
 
     server.router().get("/", async |_req, res| {
-        return res.view("index.html", Some(ViewData::new()));
+        res.view("index.html", Some(ViewData::new()))
     });
 
     server.listen();
 }
 ```
 
-### 7. Middleware
+---
 
-Use middleware for request interception and security.
+### 7. Middleware Interceptors
+Middleware allows you to inspect, filter, or modify requests and responses globally or per route group (e.g., for authentication).
 
 ```rust
 use flyer::{
@@ -272,15 +285,18 @@ use flyer::{
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
-pub struct JsonMessage { message: String }
+pub struct JsonMessage { 
+    message: String 
+}
 
 pub async fn auth(req: Request, res: Response, next: Next) -> Response {
     if req.header("authorization") != "my-secret-token" {
-        return res.status_code(HTTP_UNAUTHORIZED).json(&JsonMessage{
-            message: "Unauthorized Access".to_owned()
-        })
+        return res.status_code(HTTP_UNAUTHORIZED).json(&JsonMessage {
+            message: "Unauthorized Access: Invalid Token".to_owned()
+        });
     }
-    return next.handle(req, res);
+    // Pass control to the next middleware or final handler
+    next.handle(req, res).await
 }
 
 fn main() {
@@ -288,7 +304,7 @@ fn main() {
 
     server.router().group("api", |router| {
         router.get("/", async |_req, res| {
-            return res.html("<h1>Authorized Access</h1>");
+            res.html("<h1>Authorized Access Granted</h1>")
         });
     }).middleware(auth);
 
@@ -296,20 +312,22 @@ fn main() {
 }
 ```
 
-### 8. Session
+---
 
-Manage user sessions securely.
+### 8. Session Management
+Maintain persistent user state across HTTP requests using Flyer's session store.
 
 ```rust
 use flyer::{request::Request, response::Response, server};
 
 pub async fn home_view(req: Request, res: Response) -> Response {
-    let user_id = req.session().get("user_id");
-    return res.html(format!("<h1>Welcome user {}</h1>", user_id).as_str());
+    let user_id = req.session().get("user_id").unwrap_or_default();
+    res.html(format!("<h1>Welcome back, user #{}</h1>", user_id).as_str())
 }
 
 pub async fn login(_req: Request, res: Response) -> Response {
-    return res.set_session("user_id", "1").back();
+    // Set a session variable and redirect back
+    res.set_session("user_id", "42").back()
 }
 
 fn main() {
@@ -324,46 +342,53 @@ fn main() {
 }
 ```
 
-### 9. Cookie
+---
+
+### 9. Cookies
+Easily set, inspect, and configure secure HTTP cookies.
 
 ```rust
 use std::time::Duration;
 use flyer::{request::Request, response::Response, server};
 
 pub async fn home_view(_req: Request, mut res: Response) -> Response {
-    res.cookies().set("user_id", "1").set_expires(Duration::from_secs(3600));
-    return res.html("<h1>Cookie set!</h1>");
+    res.cookies()
+        .set("user_id", "42")
+        .set_expires(Duration::from_secs(3600));
+        
+    res.html("<h1>Cookie has been successfully set!</h1>")
 }
 
 fn main() {
     let server = server("127.0.0.1", 9999);
-
     server.router().get("/", home_view);
-
     server.listen();
 }
 ```
 
-### 10. Form & Multipart-Form
+---
 
-HTML for file upload:
+### 10. Forms & Multipart File Uploads
+Handle multipart form data securely and save uploaded files directly using local or abstract storage layers.
+
+**HTML Form:**
 ```html
 <form method="post" action="/upload" enctype="multipart/form-data">
     <input type="file" name="file">
-    <button type="submit">Upload</button>
+    <button type="submit">Upload File</button>
 </form>
 ```
 
-Application:
+**Rust Application:**
 ```rust
 use flyer::{request::Request, response::Response, server, storage::local::LocalStorage};
 
 pub async fn upload(req: Request, res: Response) -> Response {
     if let Some(file) = req.file("file") {
-        let path = file.save("uploads").await.unwrap();
-        return res.html("<h1>File uploaded!</h1>");
+        let _path = file.save("uploads").await.unwrap();
+        return res.html("<h1>File uploaded successfully!</h1>");
     }
-    return res.html("<h1>No file uploaded!</h1>");
+    res.html("<h1>No file found in request.</h1>")
 }
 
 fn main() {
@@ -375,18 +400,21 @@ fn main() {
 }
 ```
 
-### 11. Form Validation
+---
 
-View for registration:
+### 11. Form Validation
+Validate incoming request payloads declaratively with custom validation rules.
+
+**HTML Form:**
 ```html
 <form action="/register" method="post">
-    <input type="email" name="email">
-    <input type="password" name="password">
+    <input type="email" name="email" placeholder="Email">
+    <input type="password" name="password" placeholder="Password">
     <button type="submit">Register</button>
 </form>
 ```
 
-Application:
+**Rust Application:**
 ```rust
 use flyer::{
     request::Request, response::Response, routing::next::Next, server, validation::Rules,
@@ -396,21 +424,25 @@ pub async fn register_form(req: Request, res: Response, next: Next) -> Response 
     let mut rules = Rules::new();
     rules.rule("email", vec!["required", "email"]);
     rules.rule("password", vec!["required", "min:5"]);
-    return rules.handle(req, res, next).await;
+    
+    rules.handle(req, res, next).await
 }
 
 fn main() {
     let server = server("127.0.0.1", 9999);
 
     server.router().post("register", async |_req, res| {
-        return res.html("<h1>Registration Successful!</h1>");
+        res.html("<h1>Registration Successful!</h1>")
     }).middleware(register_form);
 
     server.listen();
 }
 ```
 
-### 12. WebSocket
+---
+
+### 12. WebSockets
+Build high-performance, real-time bidirectional communication channels.
 
 ```rust
 use flyer::{server, websocket::{Websocket, WriterInterface}};
@@ -420,8 +452,9 @@ fn main() {
 
     server.router().ws("/", async |_req, ws| -> Websocket {
         ws.on(async |event, writer| {
-            if let flyer::websocket::Event::Text(bytes) = event {
-                writer.write("Hello WebSocket!".into()).unwrap();
+            if let flyer::websocket::Event::Text(text_data) = event {
+                println!("Received message: {}", text_data);
+                let _ = writer.write("Hello from Flyer WebSocket Server!".into());
             }
         })
     });
@@ -430,25 +463,56 @@ fn main() {
 }
 ```
 
-### 13. Mail
+---
+
+### 13. Mailer Integration
+Send transactional emails out of the box using built-in mail utilities and template strings.
 
 ```rust
 use flyer::{mail::Mail, server};
 use uuid::Uuid;
 
 fn main() {
+    // Configure mailer parameters (host, port, username, password, tls)
     let server = server("127.0.0.1", 9999)
         .mailer("127.0.0.1".to_string(), 5555, "".to_string(), "".to_string(), false);
     
     server.router().get("/send-mail", async |_req, res| {
-        Mail::new()
-            .from("no-reply@test.com".to_string(), Some("no-reply"))
-            .html(format!("<h1>Token: {}</h1>", Uuid::new_v4()))
-            .send("user@test.com".to_string(), Some("User".to_string()))
-            .unwrap();
+        let _ = Mail::new()
+            .from("no-reply@test.com".to_string(), Some("No-Reply"))
+            .html(format!("<h1>Your Verification Token: {}</h1>", Uuid::new_v4()))
+            .send("user@test.com".to_string(), Some("User Name".to_string()));
 
-        return res.html("<h1>Email sent!</h1>")
+        res.html("<h1>Email sent successfully!</h1>")
     });
 
     server.listen();
 }
+```
+
+---
+
+## 🎨 Tera View Template Built-in Functions
+
+Flyer exposes a rich set of helper functions ready to be used directly inside your Tera templates for sessions, validation feedback, and environment variables.
+
+### Session Functions
+| Function      | Description                                            | Usage Example                   |
+| :------------ | :----------------------------------------------------- | :------------------------------ |
+| `session`     | Retrieves a value from the active session by key.      | `{{ session(name="key") }}`     |
+| `session_has` | Checks if a key currently exists in the session store. | `{{ session_has(name="key") }}` |
+
+### Validation & Flash Feedback Functions
+| Function    | Description                                                               | Usage Example                 |
+| :---------- | :------------------------------------------------------------------------ | :---------------------------- |
+| `error`     | Retrieves a validation error string for a specific form field.            | `{{ error(name="key") }}`     |
+| `error_has` | Checks whether a validation error exists for a given field.               | `{{ error_has(name="key") }}` |
+| `old`       | Retrieves previously submitted input values following validation failure. | `{{ old(name="key") }}`       |
+| `flash`     | Retrieves a temporary session flash message.                              | `{{ flash(name="key") }}`     |
+| `flash_has` | Checks if a flash message is present.                                     | `{{ flash_has(name="key") }}` |
+
+### Utility Functions
+| Function | Description                                                           | Usage Example                 |
+| :------- | :-------------------------------------------------------------------- | :---------------------------- |
+| `env`    | Retrieves an environment variable directly in the template.           | `{{ env(name="KEY") }}`       |
+| `url`    | Automatically generates a full URL path for named or standard routes. | `{{ url(path="/my-route") }}` |
