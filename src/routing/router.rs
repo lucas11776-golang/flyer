@@ -18,8 +18,8 @@ pub struct Router {
     pub(crate) server: Instance<Server>,
     pub(crate) subdomain: String,
     pub(crate) path: Vec<String>,
-    pub(crate) http: Vec<Box<Route<HttpHandler>>>,
-    pub(crate) websocket: Vec<Box<Route<WebsocketHandler>>>,
+    pub(crate) http: Vec<Route<HttpHandler>>,
+    pub(crate) websocket: Vec<Route<WebsocketHandler>>,
     pub(crate) routers: Vec<Box<Router>>,
     pub(crate) groups: Vec<GroupRouter>,
     pub(crate) middlewares: HashSet<String>,
@@ -97,14 +97,14 @@ impl Router {
         C: Fn(Request, Response) -> Fut + Send + Sync + 'static,
         Fut: Future<Output = Response> + Send + 'static,
     {
-        self.http.push(Box::new(Route {
+        self.http.push(Route {
             server: self.server.clone(),
             method: method.to_uppercase(),
             subdomain: self.subdomain.clone(),
             path: vec::merge(self.path.clone(), url::clean(path)),
             handler: Box::new(move |req, res| Box::pin(callback(req, res))),
             middlewares: self.middlewares.clone(),
-        }));
+        });
 
         self.http.last_mut().unwrap()
     }
@@ -114,14 +114,14 @@ impl Router {
         C: Fn(Request, Websocket) -> Fut + Send + Sync + 'static,
         Fut: Future<Output = Websocket> + Send + 'static,
     {
-        self.websocket.push(Box::new(Route {
+        self.websocket.push(Route {
             server: self.server.clone(),
             method: "GET".to_string(),
             subdomain: self.subdomain.clone(),
             path: vec::merge(self.path.clone(), url::clean(path)),
             handler: Box::new(move |req, ws| Box::pin(callback(req, ws))),
             middlewares: self.middlewares.clone(),
-        }));
+        });
 
         self.websocket.last_mut().unwrap()
     }

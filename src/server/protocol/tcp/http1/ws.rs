@@ -20,7 +20,7 @@ use crate::websocket::{Event, Reason, SEC_WEB_SOCKET_ACCEPT_STATIC, Websocket, W
 
 pub struct Ws {
     server: Instance<Server>,
-    addr: SocketAddr,
+    _addr: SocketAddr,
 }
 
 #[derive(Clone)]
@@ -64,7 +64,10 @@ impl WriterInterface for TcpWriter {
 
 impl Ws {
     pub fn new(server: Instance<Server>, addr: SocketAddr) -> Self {
-        Self { server, addr }
+        Self {
+            server: server,
+            _addr: addr
+        }
     }
 
     pub async fn handle<RW>(&mut self, mut rw: BufReader<RW>, mut req: Request) -> Result<()>

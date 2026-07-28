@@ -4,7 +4,6 @@ use std::panic::{self, AssertUnwindSafe};
 use std::sync::Arc;
 use std::time::Duration;
 
-use anyhow::Result;
 use futures::future::{BoxFuture, join};
 use futures::FutureExt;
 use once_cell::sync::OnceCell;
@@ -27,7 +26,6 @@ use crate::session::local::LocalSession;
 use crate::storage::{self, Storage};
 use crate::utils::mem::Instance;
 use crate::view::View;
-use crate::websocket::Websocket;
 
 pub(crate) mod protocol;
 
@@ -256,17 +254,11 @@ impl Server {
         }).await;
     }
 
-    pub(crate) async fn on_websocket(&self, req: Request, res: Response) -> (Request, Option<&Box<Route<WebsocketHandler>>>) {
-
-
+    pub(crate) async fn on_websocket(&self, req: Request, res: Response) -> (Request, Option<&Route<WebsocketHandler>>) {
         self
             .routes
             .handle_websocket(req, res)
             .await
-
-        // return Ok(());
-
-        // todo!()
     }
 
     pub(crate) async fn on_logger(&mut self, info: PanicErrorInfo, req: Request, res: Response) {

@@ -1112,3 +1112,38 @@ fn main() {
     server.listen();
 }
 ```
+
+
+
+
+## View Template Functions
+
+Flyer includes several built-in functions for use directly within your Tera templates.
+
+### Session Functions
+
+These functions interact with the current user session data.
+
+| Function      | Description                            | Usage                           |
+| :------------ | :------------------------------------- | :------------------------------ |
+| `session`     | Retrieves a value from the session.    | `{{ session(name="key") }}`     |
+| `session_has` | Checks if a key exists in the session. | `{{ session_has(name="key") }}` |
+
+### Validation & Flash Functions
+
+Used primarily for handling form feedback.
+
+| Function    | Description                                    | Usage                          |
+| :---------- | :--------------------------------------------- | :----------------------------- |
+| `error`     | Retrieves a validation error for a field.      | `{{ error(name="key") }}`      |
+| `error_has` | Checks if a field has a validation error.      | `{{ error_has(name="key") }}`  |
+| `old`       | Retrieves the old value submitted for a field. | `{{ old(name="key") }}`        |
+| `flash`     | Retrieves a flash message.                     | `{{ flash(name="key") }}`      |
+| `flash_has` | Checks if a flash message exists.              | `{{ flash_has(name="key") }}`  |
+
+### Utility Functions
+
+| Function | Description                        | Usage                         |
+| :------- | :--------------------------------- | :---------------------------- |
+| `env`    | Retrieves an environment variable. | `{{ env(name="KEY") }}`       |
+| `url`    | Generates a URL for a given path.  | `{{ url(path="/my-route") }}` |
