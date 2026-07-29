@@ -9,28 +9,28 @@ impl Resolver {
         server.routers.clear();
     }
 
-    fn resolve(server: &mut Routes, nodes: &mut Vec<Box<Router>>) {
+    fn resolve(server: &mut Routes, nodes: &mut Vec<Router>) {
         for router in nodes {
             Self::recursive(server, router);
         }
     }
 
-    fn recursive(routes: &mut Routes, router: &mut Box<Router>) {
+    fn recursive(routes: &mut Routes, router: &mut Router) {
         for group in &router.groups {
             let mut middlewares = router.middlewares.clone();
 
             middlewares.extend(group.middlewares.clone());
 
-            router.routers.push(Box::new(Router::new(
+            router.routers.push(Router::new(
                 router.server.clone(),
                 group.subdomain.clone(),
                 vec::merge(router.path.clone(), group.path.clone()),
                 middlewares,
-            )));
+            ));
 
             let last = router.routers.len() - 1;
 
-            group.call(router.routers[last].as_mut());
+            group.call(&mut router.routers[last]);
         }
 
         routes.http.append(&mut router.http);

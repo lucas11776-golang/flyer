@@ -20,7 +20,7 @@ pub struct Router {
     pub(crate) path: Vec<String>,
     pub(crate) http: Vec<Route<HttpHandler>>,
     pub(crate) websocket: Vec<Route<WebsocketHandler>>,
-    pub(crate) routers: Vec<Box<Router>>,
+    pub(crate) routers: Vec<Router>,
     pub(crate) groups: Vec<GroupRouter>,
     pub(crate) middlewares: HashSet<String>,
 }
