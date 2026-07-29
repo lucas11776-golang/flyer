@@ -30,6 +30,8 @@ Flyer comes packed with modular features to handle everything from microservices
 * ✅ **Form Validation Engine** with expressive rule sets
 * 🔌 **WebSocket** asynchronous server events
 * 📧 **Built-in Mailer** interface
+* 🪝 **Custom Server Hooks** for request/response lifecycles
+* 📋 **Custom Error Loggers** with built-in Sentry support
 
 ---
 
@@ -485,6 +487,109 @@ fn main() {
 
         res.html("<h1>Email sent successfully!</h1>")
     });
+
+    server.listen();
+}
+```
+
+---
+
+### 14. Custom Server Hooks
+Custom server hooks allow you to intercept request/response cycles before or after your routes and middleware are executed.
+
+```rust
+use flyer::{
+    hooks::Hook,
+    request::Request,
+    response::Response,
+    routing::next::Next,
+    server
+};
+
+pub struct CustomHook { }
+
+impl CustomHook {
+    pub fn new() -> Self {
+        Self { }
+    }
+}
+
+impl Hook for CustomHook {
+    async fn before(&self, req: Request, res: Response, next: Next) ->  Response {
+        // Do some work before request hits middleware and route.
+        println!("BEFORE HOOK");
+        next.handle(req, res)
+    }
+
+    async fn after(&self, req: Request, res: Response, next: Next) -> Response {
+        // Do some work after request hits middleware and route.
+        println!("AFTER HOOK");
+        next.handle(req, res)
+    }
+}
+
+fn main() {
+    let server = server("127.0.0.1", 9999);
+
+    server.router().get("/", async |_req, res| {
+        println!("CONTROLLER");
+        res.html("<h1>Hello controller</h1>")
+    });
+
+    server.hook(CustomHook::new());
+
+    server.listen();
+}
+```
+
+---
+
+### 15. Custom Error Loggers
+Flyer allows you to define custom error logging behavior for your application, including built-in support for Sentry.
+
+```rust
+use flyer::{
+    error::logger::{Logger, PanicErrorInfo},
+    loggers::sentry::Sentry,
+    request::Request,
+    response::Response, server
+};
+
+pub struct DebuggerLogger { }
+
+impl DebuggerLogger {
+    pub fn new() -> Self {
+        Self { }
+    }
+}
+
+impl Logger for DebuggerLogger {
+    async fn call(&self, info: PanicErrorInfo, req: Request, res: Response) -> () {
+        println!("\r\n\r\nError: {}\r\nMessage: {}\r\nPath: {}r\n\r\n", info.error, info.message, req.path());
+    }
+}
+
+fn main() {
+    let server = server("127.0.0.1", 9999);
+
+    server.router().group("/", |router| {
+        router.get("/", async |_req, res| {
+            res.html("<h1>Page With No Error Show</h1>")
+        });
+        router.get("error", async |_req, res| {
+            let user_id: Option<String> = None;
+
+            user_id.unwrap();
+
+            res.html("<h1>Page With Error Will No Show</h1>")
+        });
+    });
+
+    // Custom logger
+    server.logger(DebuggerLogger::new());
+
+    // Prebuilt logger for sentry
+    // server.logger(Sentry::new("SENTRY_DNS", "ENVIRONMENT"));
 
     server.listen();
 }
