@@ -1,44 +1,20 @@
 use std::collections::{HashMap, HashSet};
+use url_domain_parse::Url;
 
 use crate::{
     error::logger::PanicErrorInfo,
     request::Request,
     response::{Response, HTTP_INTERNAL_SERVER_ERROR, HTTP_NOT_FOUND},
     routing::{
-        next::Next, route::Route, HttpErrorHandler, HttpHandler, Middlewares, WebsocketHandler,
+        next::Next,
+        route::Route,
+        HttpErrorHandler,
+        HttpHandler,
+        Middlewares,
+        WebsocketHandler,
     },
     utils::{url, Values},
 };
-
-struct RequestContext<'a> {
-    subdomains: Vec<&'a str>,
-    path_segments: Vec<String>,
-}
-
-impl<'a> RequestContext<'a> {
-    fn from_request(req: &'a Request) -> Self {
-        let host_clean = req
-            .host
-            .trim_start_matches("https://")
-            .trim_start_matches("http://")
-            .split(':')
-            .next()
-            .unwrap_or("")
-            .trim_start_matches("www.");
-
-        let subdomains = host_clean
-            .split('.')
-            .filter(|s| !s.is_empty())
-            .collect();
-
-        let path_segments = url::clean(&req.path);
-
-        Self {
-            subdomains,
-            path_segments,
-        }
-    }
-}
 
 pub struct Routes {
     pub(crate) http: Vec<Route<HttpHandler>>,
@@ -75,7 +51,8 @@ impl Routes {
         (req, res)
     }
 
-    pub async fn handle_websocket(&self,
+    pub async fn handle_websocket(
+        &self,
         req: Request,
         res: Response,
     ) -> (Request, Option<&Route<WebsocketHandler>>) {
@@ -118,36 +95,40 @@ impl Routes {
         middlewares: &HashSet<String>,
     ) -> (bool, Request, Response) {
         for middleware in middlewares {
-            if let Some(callback) = self.middlewares.get(middleware) {
-                res.next(false);
-                res = (callback.as_ref())(req.clone(), res, Next::new()).await;
+            let Some(callback) = self.middlewares.get(middleware) else {
+                continue;
+            };
 
-                if !res.is_next() {
-                    return (false, req, res);
-                }
+            res.next(false);
+            res = (callback.as_ref())(req.clone(), res, Next::new()).await;
 
-                req = res.request();
+            if !res.is_next() {
+                return (false, req, res);
             }
+
+            req = res.request();
         }
 
         (true, req, res)
     }
 
     async fn handler<'h, H>(
-        &'h self,
+        &self,
         mut req: Request,
         res: Response,
         routes: &'h [Route<H>],
     ) -> (Request, Response, Option<&'h Route<H>>) {
-        let ctx = RequestContext::from_request(&req);
+        let req_segments = url::clean(&req.path);
+        let parsed_url = self.parse_request_url(&req.host);
 
         for route in routes {
-            if let Some(params) = self.match_route(route, &req.method, &ctx) {
+            if let Some(params) =
+                self.match_route(route, &req.method, &req_segments, parsed_url.as_ref())
+            {
                 req.parameters = params;
 
-                let (resolved, req, res) = self
-                    .resolve_middleware(req, res, &route.middlewares)
-                    .await;
+                let (resolved, req, res) =
+                    self.resolve_middleware(req, res, &route.middlewares).await;
 
                 if !resolved {
                     return (req, res, None);
@@ -160,72 +141,110 @@ impl Routes {
         (req, res, None)
     }
 
-    fn match_route<H>(
-        &self,
-        route: &Route<H>,
+    fn match_route<H>(&self, route: &Route<H>,
         req_method: &str,
-        ctx: &RequestContext,
+        req_segments: &[String],
+        parsed_url: Option<&Url>,
     ) -> Option<Values> {
         if !route.method.eq_ignore_ascii_case(req_method) {
             return None;
         }
 
-        let route_subs: Vec<&str> = route
-            .subdomain
-            .split('.')
-            .filter(|s| !s.is_empty())
-            .collect();
+        let url = parsed_url?;
+        let req_sub_str = url.subdomain().unwrap_or_default();
 
-        if route_subs.len() != ctx.subdomains.len() {
+        let mut extracted_params = Vec::with_capacity(4);
+
+        if !self.match_subdomains(&route.subdomain, &req_sub_str, &mut extracted_params) {
             return None;
         }
 
-        for (r_sub, q_sub) in route_subs.iter().zip(&ctx.subdomains) {
-            if r_sub != q_sub && !is_param(r_sub) {
-                return None;
-            }
-        }
-
-        let has_wildcard = route.path.last().map_or(false, |s| s == "*");
-
-        if !has_wildcard && route.path.len() != ctx.path_segments.len() {
+        if !self.match_path_segments(&route.path, req_segments, &mut extracted_params) {
             return None;
-        }
-
-        for (route_seg, req_seg) in route.path.iter().zip(&ctx.path_segments) {
-            if route_seg == "*" {
-                break;
-            }
-            if route_seg != req_seg && !is_param(route_seg) {
-                return None;
-            }
         }
 
         let mut parameters = Values::new();
-
-        for (r_sub, q_sub) in route_subs.iter().zip(&ctx.subdomains) {
-            if is_param(r_sub) {
-                parameters.insert(r_sub[1..r_sub.len() - 1].to_string(), q_sub.to_string());
-            }
-        }
-
-        for (route_seg, req_seg) in route.path.iter().zip(&ctx.path_segments) {
-            if route_seg == "*" {
-                break;
-            }
-            if is_param(route_seg) {
-                parameters.insert(
-                    route_seg[1..route_seg.len() - 1].to_string(),
-                    req_seg.clone(),
-                );
-            }
+        for (k, v) in extracted_params {
+            parameters.insert(k.to_string(), v.to_string());
         }
 
         Some(parameters)
     }
+
+    fn parse_request_url(&self, host: &str) -> Option<Url> {
+        if host.starts_with("http://") || host.starts_with("https://") {
+            Url::parse(host).ok()
+        } else {
+            let host_clean = host.trim_start_matches("www.");
+            let mut url_buf = String::with_capacity(7 + host_clean.len());
+            url_buf.push_str("http://");
+            url_buf.push_str(host_clean);
+            Url::parse(&url_buf).ok()
+        }
+    }
+
+    fn match_subdomains<'a>(
+        &self,
+        route_subdomain: &'a str,
+        req_sub_str: &'a str,
+        parameters: &mut Vec<(&'a str, &'a str)>,
+    ) -> bool {
+        let mut route_subs = route_subdomain.split('.').filter(|s| !s.is_empty());
+        let mut req_subs = req_sub_str.split('.').filter(|s| !s.is_empty());
+
+        loop {
+            match (route_subs.next(), req_subs.next()) {
+                (Some(r_sub), Some(q_sub)) => {
+                    if r_sub == q_sub {
+                        continue;
+                    }
+                    if let Some((k, v)) = self.dynamic_parameter_match(r_sub, q_sub) {
+                        parameters.push((k, v));
+                    } else {
+                        return false;
+                    }
+                }
+                (None, None) => return true,
+                _ => return false,
+            }
+        }
+    }
+
+    fn match_path_segments<'a>(
+        &self,
+        route_segments: &'a [String],
+        req_segments: &'a [String],
+        parameters: &mut Vec<(&'a str, &'a str)>,
+    ) -> bool {
+        let has_wildcard = route_segments.last().map_or(false, |s| s == "*");
+
+        if !has_wildcard && route_segments.len() != req_segments.len() {
+            return false;
+        }
+
+        for (route_seg, req_seg) in route_segments.iter().zip(req_segments.iter()) {
+            if route_seg == "*" {
+                return true;
+            }
+            if route_seg == req_seg {
+                continue;
+            }
+            if let Some((k, v)) = self.dynamic_parameter_match(route_seg, req_seg) {
+                parameters.push((k, v));
+            } else {
+                return false;
+            }
+        }
+
+        true
+    }
+
+    #[inline]
+    fn dynamic_parameter_match<'a>(&self, route_seg: &'a str, req_seg: &'a str) -> Option<(&'a str, &'a str)> {
+        if route_seg.starts_with('{') && route_seg.ends_with('}') && route_seg.len() > 2 {
+            return Some((&route_seg[1..route_seg.len() - 1], req_seg))
+        }
+        None
+    }
 }
 
-#[inline(always)]
-fn is_param(seg: &str) -> bool {
-    seg.starts_with('{') && seg.ends_with('}') && seg.len() > 2
-}

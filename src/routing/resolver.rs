@@ -33,9 +33,9 @@ impl Resolver {
             group.call(router.routers[last].as_mut());
         }
 
-        Self::resolve(routes, &mut router.routers);
-
         routes.http.append(&mut router.http);
         routes.websocket.append(&mut router.websocket);
+
+        Self::resolve(routes, &mut router.routers);
     }
 }
