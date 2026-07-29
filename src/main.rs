@@ -36,7 +36,7 @@ pub fn sentry_(_api_key: impl Into<String>)
 }
 
 
-pub async fn rule_exists(form: &Form, field: String, args: Vec<String>) -> Option<String> {
+pub async fn rule_exists(_form: &Form, _field: String, _args: Vec<String>) -> Option<String> {
     return None;
 }
 
@@ -48,9 +48,6 @@ pub fn main() {
 
 
     Rules::add("testing", rule_exists);
-
-    println!("TESTING");
-
 
     server.router().get("/", async |req, res| {
         let mut validator = Validator::new(req.form(), {
@@ -70,17 +67,17 @@ pub fn main() {
     });
 
 
-    server.router().ws("/", async |req, mut ws| -> Websocket {
+    server.router().ws("/", async |_req, ws| -> Websocket {
         ws.on(async |event, writer| {
             match event {
                 flyer::websocket::Event::Ready() => todo!(),
-                flyer::websocket::Event::Text(items) => {
+                flyer::websocket::Event::Text(_items) => {
                     writer.write("HELLO TO YOU".into()).unwrap()
                 },
-                flyer::websocket::Event::Binary(items) => todo!(),
-                flyer::websocket::Event::Ping(items) => todo!(),
-                flyer::websocket::Event::Pong(items) => todo!(),
-                flyer::websocket::Event::Close(reason) => todo!(),
+                flyer::websocket::Event::Binary(_items) => todo!(),
+                flyer::websocket::Event::Ping(_items) => todo!(),
+                flyer::websocket::Event::Pong(_items) => todo!(),
+                flyer::websocket::Event::Close(_reason) => todo!(),
             }
         })
     });

@@ -75,18 +75,17 @@ impl Ws {
         RW: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     {
         Self::handshake(&mut rw, &mut req).await?;
+        
+        let result = self.server.as_mut().on_websocket(req, Response::new()).await;
+
+        let Some(websocket) = result else {
+            return Ok(());
+        };
 
         let ws_stream = WebSocketStream::from_raw_socket(rw, RoleServer, None).await;
         let (mut sink, stream) = ws_stream.split();
 
         let (tx, mut rx) = unbounded_channel::<Message>();
-
-        let (req, route) = self.server.as_mut().on_websocket(req, Response::new()).await;
-        let Some(route) = route else {
-            return Ok(());
-        };
-
-        let websocket = (route.handler)(req, Websocket::new()).await;
 
         let writer_task = async move {
             while let Some(msg) = rx.recv().await {

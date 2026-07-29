@@ -55,15 +55,15 @@ impl Routes {
         &self,
         req: Request,
         res: Response,
-    ) -> (Request, Option<&Route<WebsocketHandler>>) {
+    ) -> (Request, Response, Option<&Route<WebsocketHandler>>) {
         let (req, mut res, route) = self.handler(req, res, &self.websocket).await;
 
         if route.is_none() {
             res.status_code = HTTP_NOT_FOUND;
-            return (req, None);
+            return (req, res, None);
         }
 
-        (req, route)
+        (req, res, route)
     }
 
     pub async fn handle_error(
