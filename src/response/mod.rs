@@ -225,7 +225,7 @@ impl Response {
             "<!DOCTYPE html><html><head><meta http-equiv=\"Refresh\" content=\"0; url='{target}'\"></head><body></body></html>"
         );
 
-        self.set_header("Location", &target)
+        self
             .html(html)
             .status_code(status_code)
     }
