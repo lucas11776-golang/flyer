@@ -628,6 +628,7 @@ Flyer exposes a rich set of helper functions ready to be used directly inside yo
 ### Validation & Flash Feedback Functions
 | Function    | Description                                                               | Usage Example                 |
 | :---------- | :------------------------------------------------------------------------ | :---------------------------- |
+| `errors`     | Retrieves a validation error hash map for a form fields.                 | `{{ error() }}`.              |
 | `error`     | Retrieves a validation error string for a specific form field.            | `{{ error(name="key") }}`     |
 | `error_has` | Checks whether a validation error exists for a given field.               | `{{ error_has(name="key") }}` |
 | `old`       | Retrieves previously submitted input values following validation failure. | `{{ old(name="key") }}`       |

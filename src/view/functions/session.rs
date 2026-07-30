@@ -10,6 +10,7 @@ tokio::task_local! {
 pub(crate) fn register_global_functions(render: &mut Tera) {
     render.register_function("session", session_fn());
     render.register_function("session_has", session_has_fn());
+    render.register_function("errors", errors_fn());
     render.register_function("error", error_fn());
     render.register_function("error_has", error_has_fn());
     render.register_function("old", old_fn());
@@ -55,6 +56,15 @@ fn error_fn() -> impl Fn(&HashMap<String, Value>) -> tera::Result<Value> + Send 
                 None => to_value(""),
             }
         })
+        .unwrap()
+        .map_err(|err| err.into())
+    }
+}
+
+fn errors_fn() -> impl Fn(&HashMap<String, Value>) -> tera::Result<Value> + Send + Sync + 'static {
+    |_| {
+        // let name = get_arg(args, "name").unwrap_or_default();
+        GLOBAL_CURRENT_SESSION.try_with(|s| to_value(s.errors.clone()))
         .unwrap()
         .map_err(|err| err.into())
     }

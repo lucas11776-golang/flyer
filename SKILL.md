@@ -284,6 +284,7 @@ impl Logger for CustomLogger {
 | :--- | :--- | :--- | :--- |
 | `session` | `name` | Retrieve session value by key | `{{ session(name="user_id") }}` |
 | `session_has` | `name` | Check if session key exists | `{% if session_has(name="user_id") %}` |
+| `errors` |  | Retrieve hash map validation errors | `{{ errors() }}` |
 | `error` | `name` | Retrieve field validation error | `{{ error(name="email") }}` |
 | `error_has` | `name` | Check if field has validation error | `{% if error_has(name="email") %}` |
 | `old` | `name` | Retrieve previously submitted form value | `value="{{ old(name="email") }}"` |
