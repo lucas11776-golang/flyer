@@ -27,7 +27,7 @@ impl PanicErrorInfo {
 
 impl fmt::Display for PanicErrorInfo {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}: {}", self.error, self.message)
+        write!(f, "{}", self.error)
     }
 }
 

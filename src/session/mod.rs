@@ -43,10 +43,10 @@ impl Session {
         }
     }
 
-    pub fn get(&self, k: &str) -> String {
+    pub fn get(&self, k: impl Into<String>) -> String {
         return self
             .session
-            .get(k)
+            .get(&k.into())
             .unwrap_or(&String::new())
             .into();
     }
@@ -102,7 +102,6 @@ impl Session {
             .unwrap_or(&String::new())
             .into()
     }
-
 
     pub fn olds(&self) -> Values {
         return self

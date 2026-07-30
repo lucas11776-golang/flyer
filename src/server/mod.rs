@@ -1,6 +1,5 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::error::Error;
 use std::fmt::Debug;
 use std::future::Future;
 use std::panic::{self, AssertUnwindSafe};

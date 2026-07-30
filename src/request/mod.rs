@@ -1,14 +1,10 @@
-use std::{collections::HashMap, net::{IpAddr, SocketAddr}};
+use std::net::{IpAddr, SocketAddr};
 
 use bytes::Bytes;
-use serde::{Serialize, de::DeserializeOwned};
+use serde::{de::DeserializeOwned};
 
 use crate::{
-    cookies::Cookies,
-    request::form::{File, Form},
-    server::Server,
-    session::Session,
-    utils::{Values, http::Headers, mem::Instance}
+    cookies::Cookies, request::form::{File, Files, Form}, server::Server, session::Session, utils::{Values, http::Headers, mem::Instance}
 };
 
 pub mod form;
@@ -27,7 +23,7 @@ pub struct Request {
     pub(crate) session: Session,
     pub(crate) body: Bytes,
     pub(crate) parameters: Values,
-    pub(crate) form: Form, // TODO: need to make it pub(crate)
+    pub(crate) form: Form,
 }
 
 impl Into<serde_json::Value> for Request {
@@ -118,8 +114,16 @@ impl Request {
     }
 
     #[inline]
-    pub fn session(&self) -> &Session {
-        &self.session
+    pub fn session(&self, k: impl Into<String>) -> String {
+        self
+            .session
+            .get(k)
+    }
+
+    pub fn values(&self) -> &Values {
+        &self
+            .form
+            .values
     }
 
     pub fn value(&self, key: impl Into<String>) -> String {
@@ -129,6 +133,13 @@ impl Request {
             .get(&key.into())
             .unwrap_or(&String::new())
             .into()
+    }
+    
+    #[inline]
+    pub fn files(&self) -> &Files {
+        &self
+            .form
+            .files
     }
 
     pub fn file(&self, k: impl Into<String>) -> Option<&File> {

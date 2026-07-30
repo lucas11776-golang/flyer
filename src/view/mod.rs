@@ -9,7 +9,7 @@ use crate::{
     request::Request,
     response::Response,
     routing::next::Next,
-    view::functions::{register, session::{CURRENT_SESSION, SessionState}}
+    view::functions::{register, session::GLOBAL_CURRENT_SESSION}
 };
 
 pub(crate) mod functions;
@@ -27,10 +27,8 @@ impl Hook for View {
     async fn after(&self, req: Request, mut res: Response, next: Next) -> Response {
         if let Some(engine) = &self.engine {
             if let Some(mut view) = res.view.take() {
-                let session_state = SessionState::from_session(req.session());
-
-                let rendered_result = CURRENT_SESSION
-                    .scope(session_state, async {
+                let rendered_result = GLOBAL_CURRENT_SESSION
+                    .scope(req.session.clone(), async {
                         self.render_with_engine(engine, &mut view)
                     })
                     .await;
@@ -77,8 +75,8 @@ impl View {
 
         let template_content = std::fs::read_to_string(filename)?;
         let context = data.map(|d| d.context).unwrap_or_default();
-
         let rendered = Tera::one_off(&template_content, &context, false)?;
+
         Ok(Bytes::from(rendered))
     }
 }

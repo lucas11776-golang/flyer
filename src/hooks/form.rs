@@ -19,7 +19,7 @@ use crate::{
 pub type JsonValues = HashMap<String, Value>;
 pub type Names = Vec<String>;
 
-pub struct MultipartFormHook;
+pub(crate) struct MultipartFormHook;
 
 impl MultipartFormHook {
     pub fn new() -> Self {
@@ -92,6 +92,11 @@ impl MultipartFormHook {
             let cursor = Cursor::new(&req.body[..]);
             let stream = ReaderStream::new(cursor);
             let mut multipart = Multipart::new(stream, boundary);
+            let mut file_idx = 0;
+            let mut value_idx = 0;
+
+            let mut files_indexed: Vec<(String, File)> = Vec::new();
+            
 
             while let Some(field) = multipart.next_field().await? {
                 let name = field
@@ -100,6 +105,9 @@ impl MultipartFormHook {
                     .to_string();
 
                 if let Some(filename) = field.file_name() {
+
+                    println!("TESTING FILE INSERT");
+
                     let filename = filename.to_string();
                     let content_type = field
                         .content_type()
@@ -111,9 +119,11 @@ impl MultipartFormHook {
                         .await?
                         .into();
 
-                    if !data.is_empty() {
-                        files.insert(name, File::create(&filename, &content_type, data));
+                    if data.is_empty() {
+                        continue;
                     }
+
+                    files_indexed.push((name, File::create(&filename, &content_type, data)));
                 } else {
                     let text = field
                         .text()
@@ -121,6 +131,19 @@ impl MultipartFormHook {
                         .unwrap_or_default();
 
                     values.insert(name, text);
+                }
+            }
+
+
+            if files_indexed.len() == 1 {
+                for (name, file) in files_indexed {
+                    files.insert(name, file);
+                }
+            } else if files_indexed.len() > 1 {
+                let mut idx = 0;
+                for (name, file) in files_indexed {
+                    files.insert(format!("{}[{}]", name, idx), file);
+                    idx += 1;
                 }
             }
         }
