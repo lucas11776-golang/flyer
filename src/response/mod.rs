@@ -88,6 +88,18 @@ pub struct Response {
     is_next: bool,
 }
 
+impl Into<serde_json::Value> for Response {
+    fn into(self) -> serde_json::Value {
+        serde_json::json!({
+            "status_code": &self.status_code,
+            "headers": &self.headers,
+            "cookies": &self.cookies,
+            "session": &self.session,
+            "view": &self.view,
+        })
+    }
+}
+
 impl Default for Response {
     fn default() -> Self {
         Self {

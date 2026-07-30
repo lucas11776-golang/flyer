@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 use anyhow::{Context as _, Result};
 use bytes::Bytes;
 use serde::Serialize;
@@ -9,7 +9,7 @@ use crate::{
     request::Request,
     response::Response,
     routing::next::Next,
-    view::functions::{register, session::{CURRENT_SESSION, SessionState}}
+    view::functions::{register, session::GLOBAL_CURRENT_SESSION}
 };
 
 pub(crate) mod functions;
@@ -27,10 +27,8 @@ impl Hook for View {
     async fn after(&self, req: Request, mut res: Response, next: Next) -> Response {
         if let Some(engine) = &self.engine {
             if let Some(mut view) = res.view.take() {
-                let session_state = SessionState::from_session(req.session());
-
-                let rendered_result = CURRENT_SESSION
-                    .scope(session_state, async {
+                let rendered_result = GLOBAL_CURRENT_SESSION
+                    .scope(req.session.clone(), async {
                         self.render_with_engine(engine, &mut view)
                     })
                     .await;
@@ -77,8 +75,8 @@ impl View {
 
         let template_content = std::fs::read_to_string(filename)?;
         let context = data.map(|d| d.context).unwrap_or_default();
-
         let rendered = Tera::one_off(&template_content, &context, false)?;
+
         Ok(Bytes::from(rendered))
     }
 }
@@ -89,11 +87,24 @@ pub(crate) struct ViewBag {
     pub(crate) data: Option<ViewData>,
 }
 
+impl Serialize for ViewBag {
+    fn serialize<S>(&self, serializer: S) -> std::prelude::v1::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer
+    {
+        let mut map: HashMap<String, serde_json::Value> = Default::default();
+
+        map.insert("view".into(), self.view.clone().into());
+
+        serializer.collect_map(map)
+    }
+}
+
 impl ViewBag {
     pub fn new(view: impl Into<String>, data: Option<ViewData>) -> Self {
         Self {
             view: view.into(),
-            data,
+            data: data,
         }
     }
 }

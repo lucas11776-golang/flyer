@@ -15,20 +15,23 @@ use flyer::{
 pub async fn home(_req: Request, res: Response) -> Response {
     return res.html(r#"
         <form method="post" action="/upload" enctype="multipart/form-data">
-            <input type="file" name="file">
+            <h1>Upload File/Files</h1>
+            <input type="file" name="file" multiple>
             <button type="submit">Upload</button>
         </form>
     "#);
 }
 
 pub async fn upload(req: Request, res: Response) -> Response {
-    if let Some(file) = req.file("file") {
-        // Save file using default storage
-        let path = file.save("uploads").await.unwrap();
-        println!("File saved to: {}", path);
+    if req.files().len() > 0 {
+        for (_, file) in req.files() {
+            file
+                .save_as("", &file.name)
+                .await
+                .unwrap();
+        }
         return res.html("<h1>File uploaded!</h1>");
     }
-
     return res.html("<h1>No file uploaded!</h1>");
 }
 

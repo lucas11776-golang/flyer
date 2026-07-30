@@ -1,4 +1,6 @@
 use std::cell::RefCell;
+use std::collections::HashMap;
+use std::fmt::Debug;
 use std::future::Future;
 use std::panic::{self, AssertUnwindSafe};
 use std::sync::Arc;
@@ -8,11 +10,13 @@ use futures::future::{join, BoxFuture};
 use futures::FutureExt;
 use once_cell::sync::OnceCell;
 use rustls::ServerConfig;
+use serde::Serialize;
 use tokio::runtime::Builder;
+use serde_json::Value;
 
 use crate::cookies::Cookies;
-use crate::error::logger::{Logger, LoggerErasure, LoggerWrapper, PanicErrorInfo};
-use crate::hooks::form::MultipartFormHook;
+use crate::loggers::{Logger, LoggerErasure, LoggerWrapper, PanicErrorInfo};
+use crate::hooks::form::FormHook;
 use crate::hooks::{Hook, HookErasure, HookWrapper};
 use crate::mail;
 use crate::request::Request;
@@ -31,10 +35,10 @@ use crate::websocket::Websocket;
 pub(crate) mod protocol;
 
 tokio::task_local! {
-    pub(crate) static PANIC_CONTEXT: RefCell<PanicErrorInfo>;
+    pub(crate) static GLOBAL_PANIC_CONTEXT: RefCell<PanicErrorInfo>;
 }
 
-pub(crate) static PANIC_IS_SET: OnceCell<()> = OnceCell::new();
+pub(crate) static GLOBAL_PANIC_IS_SET: OnceCell<()> = OnceCell::new();
 
 pub(crate) type InitCallback = dyn Fn() -> BoxFuture<'static, ()> + Send + Sync;
 
@@ -55,6 +59,30 @@ pub struct Server {
     pub(crate) after_hooks: Vec<Arc<dyn HookErasure>>,
 }
 
+impl Debug for Server {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f
+            .debug_struct("Server")
+            .field("host", &self.host)
+            .field("port", &self.port)
+            .finish()
+    }
+}
+
+impl Serialize for Server {
+    fn serialize<S>(&self, serializer: S) -> std::prelude::v1::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer
+    {
+        let mut map: HashMap<String, Value> = Default::default();
+
+        map.insert("host".into(), self.host.clone().into());
+        map.insert("port".into(), self.port.into());
+
+        serializer.collect_map(map)
+    }
+}
+
 impl Server {
     pub fn new(host: String, port: u32, server_config: Option<ServerConfig>) -> Self {
         Self {
@@ -65,7 +93,7 @@ impl Server {
             cookies: Arc::new(HookWrapper::new(Cookies::new())),
             session: Arc::new(HookWrapper::new(LocalSession::new(Some("sessions"), Duration::from_secs(3600),))),
             view: Arc::new(HookWrapper::new(View::new(None::<String>))),
-            multipart_form: Arc::new(HookWrapper::new(MultipartFormHook::new())),
+            multipart_form: Arc::new(HookWrapper::new(FormHook::new())),
             hooks: Vec::new(),
             server_config,
             loggers: Vec::new(),
@@ -229,7 +257,7 @@ impl Server {
     }
 
     pub(crate) async fn on_http(&self, req: Request, mut res: Response) -> (Request, Response) {
-        PANIC_CONTEXT.scope(RefCell::new(PanicErrorInfo::default()), async move {
+        GLOBAL_PANIC_CONTEXT.scope(RefCell::new(PanicErrorInfo::default()), async move {
             res.referer = req.header("referer");
 
             let req_backup = req.clone();
@@ -250,7 +278,7 @@ impl Server {
             match result {
                 Ok(out) => out,
                 Err(_) => {
-                    let error = PANIC_CONTEXT.with(|cell| cell.borrow().clone());
+                    let error = GLOBAL_PANIC_CONTEXT.with(|cell| cell.borrow().clone());
                     self.on_logger(error.clone(), req_backup.clone(), res_backup.clone()).await;
                     self.routes.handle_error(error, req_backup, res_backup).await
                 }
@@ -259,7 +287,7 @@ impl Server {
     }
 
     pub(crate) async fn on_websocket(&self, req: Request, res: Response) -> Option<Websocket> {
-        PANIC_CONTEXT.scope(RefCell::new(PanicErrorInfo::default()), async move {
+        GLOBAL_PANIC_CONTEXT.scope(RefCell::new(PanicErrorInfo::default()), async move {
             let result = AssertUnwindSafe(async {
                 let (req, res, route) = self
                     .routes
@@ -281,7 +309,7 @@ impl Server {
                     return Some((route.unwrap().handler)(req, Websocket::new()).await)
                 },
                 Err(_) => {
-                    let error = PANIC_CONTEXT.with(|cell| cell.borrow().clone());
+                    let error = GLOBAL_PANIC_CONTEXT.with(|cell| cell.borrow().clone());
                     self.on_logger(error.clone(), req.clone(), res.clone()).await;
                     self.routes.handle_error(error, req, res).await;
                     return None
@@ -304,9 +332,9 @@ impl Server {
     }
 
     pub fn setup_global_panic_hook(&self) {
-        PANIC_IS_SET.get_or_init(|| {
+        GLOBAL_PANIC_IS_SET.get_or_init(|| {
             panic::set_hook(Box::new(|info| {
-                let _ = PANIC_CONTEXT.try_with(|cell| {
+                let _ = GLOBAL_PANIC_CONTEXT.try_with(|cell| {
                     *cell.borrow_mut() = PanicErrorInfo::new(
                         info.to_string(),
                         info.payload_as_str().unwrap_or("").into(),

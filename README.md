@@ -323,7 +323,7 @@ Maintain persistent user state across HTTP requests using Flyer's session store.
 use flyer::{request::Request, response::Response, server};
 
 pub async fn home_view(req: Request, res: Response) -> Response {
-    let user_id = req.session().get("user_id").unwrap_or_default();
+    let user_id = req.session("user_id").unwrap_or_default();
     res.html(format!("<h1>Welcome back, user #{}</h1>", user_id).as_str())
 }
 
@@ -373,31 +373,49 @@ fn main() {
 ### 10. Forms & Multipart File Uploads
 Handle multipart form data securely and save uploaded files directly using local or abstract storage layers.
 
-**HTML Form:**
-```html
-<form method="post" action="/upload" enctype="multipart/form-data">
-    <input type="file" name="file">
-    <button type="submit">Upload File</button>
-</form>
-```
-
 **Rust Application:**
 ```rust
-use flyer::{request::Request, response::Response, server, storage::local::LocalStorage};
+use flyer::{
+    request::Request,
+    response::Response,
+    server,
+    storage::local::LocalStorage,
+};
+
+pub async fn home(_req: Request, res: Response) -> Response {
+    return res.html(r#"
+        <form method="post" action="/upload" enctype="multipart/form-data">
+            <h1>Upload File/Files</h1>
+            <input type="file" name="file" multiple>
+            <button type="submit">Upload</button>
+        </form>
+    "#);
+}
 
 pub async fn upload(req: Request, res: Response) -> Response {
-    if let Some(file) = req.file("file") {
-        let _path = file.save("uploads").await.unwrap();
-        return res.html("<h1>File uploaded successfully!</h1>");
+    if req.files().len() > 0 {
+        for (_, file) in req.files() {
+            file
+                .save_as("", &file.name)
+                .await
+                .unwrap();
+        }
+        return res.html("<h1>File uploaded!</h1>");
     }
-    res.html("<h1>No file found in request.</h1>")
+    return res.html("<h1>No file uploaded!</h1>");
 }
 
 fn main() {
     let server = server("127.0.0.1", 9999)
         .storage("default", LocalStorage::new("storage"));
 
-    server.router().post("upload", upload);
+    server.router().group("/", |router| {
+        router.get("/", home);
+        router.post("upload", upload);
+    });
+
+    print!("\r\n\r\nRunning server: {}\r\n\r\n", server.address());
+
     server.listen();
 }
 ```

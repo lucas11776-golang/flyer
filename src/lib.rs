@@ -44,7 +44,9 @@ pub fn server<'s>(host: impl Into<String>, port: u32) -> &'s mut Server {
 #[allow(static_mut_refs)]
 pub fn server_tls<'s>(host: impl Into<String>, port: u32, key_path: impl Into<String>, cert_path: impl Into<String>) -> &'s mut Server {
     return unsafe {
-        let server_config = Some(server_config(get_tls_config(&TlsPathConfig::new(&key_path.into(), &cert_path.into())).unwrap()).unwrap());
+        let server_config = Some(server_config(
+            get_tls_config(&TlsPathConfig::new(&key_path.into(), &cert_path.into())).unwrap()
+        ).unwrap());
         let server = Server::new(host.into(), port, server_config);
 
         GLOBAL_SERVER

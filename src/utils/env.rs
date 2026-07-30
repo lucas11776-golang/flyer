@@ -1,6 +1,3 @@
-
-
-
 pub fn load(path: &str) {
     dotenv::from_filename(path).unwrap();
 }

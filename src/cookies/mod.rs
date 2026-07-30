@@ -1,5 +1,7 @@
 use std::time::Duration;
 
+use serde::Serialize;
+
 use crate::{
     cookies::cookie::Cookie,
     hooks::Hook,
@@ -11,14 +13,14 @@ use crate::{
 
 pub mod cookie;
 
-#[derive(Clone, Debug, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, Copy, PartialEq, Eq, Hash, Serialize)]
 pub enum SameSite {
     Strict,
     Lax,
     None,
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, Serialize)]
 pub struct Cookies {
     inner: Values,
     outer: Vec<Cookie>,

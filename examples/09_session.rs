@@ -11,7 +11,7 @@ use flyer::{
 /// - Retrieving data from the session
 /// - Managing login state
 pub async fn home_view(req: Request, res: Response) -> Response {
-    let user_id = req.session().get("user_id");
+    let user_id = req.session("user_id");
     if user_id == "" {
         return res.html("<h1>Not logged in</h1>");
     }

@@ -56,7 +56,7 @@ ulid = "1.2.1"
 ipnetwork = "0.21.1"
 serde_urlencoded = "0.7.1"
 lettre = "0.11.22"
-sentry = { version = "0.48.4", features = ["reqwest", "native-tls"] }
+sentry = { version = "0.48.4", features = ["reqwest", "native-tls", "backtrace"] }
 async-trait = "0.1.89"
 rand = "0.10.2"
 aws-config = "1.10.0"

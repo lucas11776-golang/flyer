@@ -1,54 +1,52 @@
-use std::collections::BTreeMap;
+use std::time::Duration;
 
 use sentry::{
+    protocol::Event,
     ClientInitGuard,
     Level,
-    Scope,
-    protocol::Event
 };
 
 use crate::{
-    error::logger::{Logger, PanicErrorInfo},
+    loggers::{Logger, PanicErrorInfo},
     request::Request,
-    response::Response
+    response::Response,
 };
 
 pub struct Sentry {
-    environment: String,
     guard: ClientInitGuard,
 }
 
 impl Sentry {
-    pub fn new(api_key: impl Into<String>, environment: impl Into<String>) -> Self {
-        return Self {
-            environment: environment.into(),
-            guard: sentry::init((api_key.into(), sentry::ClientOptions {
+    pub fn new(dsn: impl Into<String>, environment: impl Into<String>) -> Self {
+        let guard = sentry::init((
+            dsn.into(),
+            sentry::ClientOptions {
                 release: sentry::release_name!(),
+                environment: Some(environment.into().into()),
                 send_default_pii: true,
                 ..Default::default()
-            }))
-        };
+            },
+        ));
+
+        Self { guard }
     }
 }
 
 impl Logger for Sentry {
-    async fn call(&self, _info: PanicErrorInfo, _req: Request, _res: Response) -> () {
-        let mut scope = Scope::default();
-        scope.set_extra("scope_level_extra", "This comes from the scope object".into());
-        scope.set_tag("module", "billing_worker");
-        scope.set_level(Some(Level::Error));
+    async fn call(&self, info: PanicErrorInfo, req: Request, res: Response) {
+        sentry::configure_scope(|scope| {
+            scope.clear();
 
-        let mut event_extras = BTreeMap::new();
-        event_extras.insert("event_level_extra".to_string(), "This comes directly from the Event struct".into());
-        event_extras.insert("retry_attempts".to_string(), 3.into());
+            scope.set_extra("request", req.into());
+            scope.set_extra("response", res.into());
+        });
 
-        let event = Event {
-            message: Some("Database handshake timeout".to_string()),
-            extra: event_extras,
-            environment: Some(self.environment.clone().into()),
+        sentry::capture_event(Event {
+            level: Level::Error,
+            message: Some(format!("{}", info.error)),
             ..Default::default()
-        };
+        });
 
-        self.guard.capture_event(event, Some(&scope));
+        self.guard.flush(Some(Duration::from_secs(2)));
     }
 }

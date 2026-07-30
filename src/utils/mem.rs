@@ -1,5 +1,6 @@
 pub(crate) type InstancePointer<T> = *mut T; 
 
+#[derive(Debug)]
 pub(crate) struct Instance<T>(pub InstancePointer<T>);
 
 unsafe impl <T>Send for Instance<T> {}
