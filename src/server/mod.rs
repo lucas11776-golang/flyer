@@ -16,7 +16,7 @@ use serde_json::Value;
 
 use crate::cookies::Cookies;
 use crate::loggers::{Logger, LoggerErasure, LoggerWrapper, PanicErrorInfo};
-use crate::hooks::form::MultipartFormHook;
+use crate::hooks::form::FormHook;
 use crate::hooks::{Hook, HookErasure, HookWrapper};
 use crate::mail;
 use crate::request::Request;
@@ -93,7 +93,7 @@ impl Server {
             cookies: Arc::new(HookWrapper::new(Cookies::new())),
             session: Arc::new(HookWrapper::new(LocalSession::new(Some("sessions"), Duration::from_secs(3600),))),
             view: Arc::new(HookWrapper::new(View::new(None::<String>))),
-            multipart_form: Arc::new(HookWrapper::new(MultipartFormHook::new())),
+            multipart_form: Arc::new(HookWrapper::new(FormHook::new())),
             hooks: Vec::new(),
             server_config,
             loggers: Vec::new(),
