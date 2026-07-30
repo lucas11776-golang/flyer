@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use futures::future::BoxFuture;
 
-use crate::error::logger::PanicErrorInfo;
+use crate::loggers::PanicErrorInfo;
 use crate::request::Request;
 use crate::response::Response;
 use crate::routing::next::Next;

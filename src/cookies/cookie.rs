@@ -1,10 +1,11 @@
 use std::time::Duration;
 
 use cookie::time::OffsetDateTime;
+use serde::Serialize;
 
 use crate::cookies::SameSite;
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, Serialize)]
 pub struct Cookie {
     pub(crate) name: String,
     pub(crate) value: String,

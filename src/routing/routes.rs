@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 use url_domain_parse::Url;
 
 use crate::{
-    error::logger::PanicErrorInfo,
+    loggers::PanicErrorInfo,
     request::Request,
     response::{Response, HTTP_INTERNAL_SERVER_ERROR, HTTP_NOT_FOUND},
     routing::{

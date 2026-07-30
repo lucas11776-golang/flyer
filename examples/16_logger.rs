@@ -1,5 +1,5 @@
 use flyer::{
-    error::logger::{Logger, PanicErrorInfo},
+    loggers::{Logger, PanicErrorInfo},
     loggers::sentry::Sentry,
     request::Request,
     response::Response, server
@@ -14,7 +14,7 @@ impl DebuggerLogger {
 }
 
 impl Logger for DebuggerLogger {
-    async fn call(&self, info: PanicErrorInfo, req: Request, res: Response) -> () {
+    async fn call(&self, info: PanicErrorInfo, req: Request, _res: Response) -> () {
         println!("\r\n\r\nError: {}\r\nMessage: {}\r\nPath: {}r\n\r\n", info.error, info.message, req.path());
     }
 }

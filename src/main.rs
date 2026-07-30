@@ -1,13 +1,7 @@
 use std::time::Duration;
 
 use flyer::{
-    request::{Request, form::Form},
-    response::Response,
-    routing::next::Next,
-    server_tls,
-    session::local::LocalSession,
-    validation::{Rules, Validator},
-    websocket::{Websocket, WriterInterface}
+    loggers::{Logger, PanicErrorInfo, sentry::Sentry}, request::{Request, form::Form}, response::Response, routing::next::Next, server, server_tls, session::local::LocalSession, validation::{Rules, Validator}, websocket::{Websocket, WriterInterface}
 };
 
 pub async fn http(_req: Request, res: Response) -> Response {
@@ -30,19 +24,27 @@ pub async fn middleware1(req: Request, res: Response, next: Next) -> Response {
     return next.handle(req, res);
 }
 
-// pub async fn sentry_(api_key: impl Into<String>)
-pub fn sentry_(_api_key: impl Into<String>) 
-{
-}
-
-
 pub async fn rule_exists(_form: &Form, _field: String, _args: Vec<String>) -> Option<String> {
     return None;
 }
 
+pub struct DebuggerLogger { }
+
+impl DebuggerLogger {
+    pub fn new() -> Self {
+        Self { }
+    }
+}
+
+impl Logger for DebuggerLogger {
+    async fn call(&self, info: PanicErrorInfo, req: Request, res: Response) -> () {
+        println!("\r\n\r\nError: {}\r\nMessage: {}\r\nPath: {}r\n\r\n", info.error, info.message, req.path());
+    }
+}
+
 pub fn main() {
-    // let server = server("127.0.0.1", 8888)
-    let server = server_tls("127.0.0.1", 9999, "host.key", "host.cert")
+    let server = server("127.0.0.1", 9999)
+    // let server = server_tls("127.0.0.1", 9999, "host.key", "host.cert")
         .view("views")
         .session(LocalSession::new(Some("storage"), Duration::from_secs(60 * 60)));
 
@@ -50,6 +52,10 @@ pub fn main() {
     Rules::add("testing", rule_exists);
 
     server.router().get("/", async |req, res| {
+        // let a: Option<String> = None;
+
+        // a.unwrap();
+
         let mut validator = Validator::new(req.form(), {
             let mut rules = Rules::new();
             rules.rule("email", vec!["testing"]);
@@ -59,6 +65,8 @@ pub fn main() {
         let valid = validator.validate().await;
 
         println!("\r\n\r\nVALIDATION -> {} : {:?}", valid, validator.errors());
+
+        panic!(" --- ERROR GET CONTROLLER --- ");
 
 
         return res
@@ -98,10 +106,12 @@ pub fn main() {
 
     });
 
-    // server.logger(Sentry::new(
-    //     "https://1ebec3a6d4b06d781b1040f3fce14f4f@o4511693601177600.ingest.us.sentry.io/4511693603930112",
-    //     "DEVELOPMENT"
-    // ));
+    // server.logger(DebuggerLogger::new());
+
+    server.logger(Sentry::new(
+        "https://1ebec3a6d4b06d781b1040f3fce14f4f@o4511693601177600.ingest.us.sentry.io/4511693603930112",
+        "DEVELOPMENT"
+    ));
 
     println!("\r\n\r\nRunning Server: {}\r\n\r\n", server.address());
 
@@ -111,7 +121,14 @@ pub fn main() {
 
 
 
+// Error: panicked at src/main.rs:57:11:
+// called `Option::unwrap()` on a `None` value
+// Message: called `Option::unwrap()` on a `None` value
+// Path: /r
 
+// thread 'tokio-rt-worker' (19644845) panicked at src/main.rs:57:11:
+// called `Option::unwrap()` on a `None` value
+// note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
 
 
 

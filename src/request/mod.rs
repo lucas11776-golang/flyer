@@ -1,15 +1,19 @@
-use std::net::{IpAddr, SocketAddr};
+use std::{collections::HashMap, net::{IpAddr, SocketAddr}};
 
 use bytes::Bytes;
-use serde::de::{DeserializeOwned};
+use serde::{Serialize, de::DeserializeOwned};
 
 use crate::{
-    cookies::Cookies, request::form::{File, Form}, server::Server, session::Session, utils::{Values, http::Headers, mem::Instance}
+    cookies::Cookies,
+    request::form::{File, Form},
+    server::Server,
+    session::Session,
+    utils::{Values, http::Headers, mem::Instance}
 };
 
 pub mod form;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Request {
     pub(crate) server: Instance<Server>,
     pub(crate) addr: SocketAddr,
@@ -17,13 +21,30 @@ pub struct Request {
     pub(crate) method: String,
     pub(crate) path: String,
     pub(crate) queries: Values,
-    pub(crate) host: String,
     pub(crate) headers: Headers,
+    pub(crate) host: String,
     pub(crate) cookies: Cookies,
     pub(crate) session: Session,
     pub(crate) body: Bytes,
     pub(crate) parameters: Values,
     pub(crate) form: Form, // TODO: need to make it pub(crate)
+}
+
+impl Into<serde_json::Value> for Request {
+    fn into(self) -> serde_json::Value {
+        serde_json::json!({
+            "ip": &self.queries,
+            "protocol": &self.protocol,
+            "method": &self.method,
+            "path": &self.path,
+            "queries": &self.queries,
+            "headers": &self.headers,
+            "host": &self.host,
+            "cookies": &self.cookies,
+            "session": &self.session,
+            "parameters": &self.parameters,
+        })
+    }
 }
 
 impl Request {
