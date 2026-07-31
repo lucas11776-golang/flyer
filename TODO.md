@@ -1,1 +1,0 @@
-* Must implement nested validation e.g `products.*.price`.

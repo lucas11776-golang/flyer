@@ -1,13 +1,16 @@
 use std::{
-    collections::HashMap,
-    sync::{Arc, LazyLock},
+    collections::{BTreeSet, HashMap},
+    sync::Arc,
+    sync::LazyLock,
 };
 
+use arc_swap::ArcSwap;
 use futures::future::BoxFuture;
+use regex::Regex;
 
 use crate::{
-    request::{Request, form::Form},
-    response::{HTTP_UNPROCESSABLE_CONTENT, Response},
+    request::{form::Form, Request},
+    response::{Response, HTTP_UNPROCESSABLE_CONTENT},
     routing::next::Next,
     utils::Values,
     validation::rules::*,
@@ -18,14 +21,14 @@ pub mod rules;
 pub type Rule = dyn for<'a> Fn(&'a Form, String, Vec<String>) -> BoxFuture<'a, Option<String>> + Send + Sync + 'static;
 
 pub trait AsyncRule<'a>: Send + Sync {
-    type Fut: Future<Output = Option<String>> + Send + 'a;
+    type Fut: std::future::Future<Output = Option<String>> + Send + 'a;
     fn call(&self, form: &'a Form, field: String, args: Vec<String>) -> Self::Fut;
 }
 
 impl<'a, F, Fut> AsyncRule<'a> for F
 where
     F: Fn(&'a Form, String, Vec<String>) -> Fut + Send + Sync + 'static,
-    Fut: Future<Output = Option<String>> + Send + 'a,
+    Fut: std::future::Future<Output = Option<String>> + Send + 'a,
 {
     type Fut = Fut;
     fn call(&self, form: &'a Form, field: String, args: Vec<String>) -> Self::Fut {
@@ -41,11 +44,11 @@ pub(crate) struct Field {
 
 impl Field {
     pub(crate) fn new(field: impl Into<String>, rules: Vec<(Arc<Rule>, Vec<String>)>, nullable: bool) -> Self {
-        return Self {
+        Self {
             name: field.into(),
             rules: rules,
             nullable: nullable,
-        };
+        }
     }
 }
 
@@ -55,16 +58,9 @@ pub struct Validator<'f> {
     pub(crate) errors: Values,
 }
 
+#[derive(Default)]
 pub struct Rules {
     pub(crate) fields: Vec<Field>,
-}
-
-impl Default for Rules {
-    fn default() -> Self {
-        return Self {
-            fields: Vec::new()
-        };
-    }
 }
 
 impl Rules {
@@ -72,10 +68,11 @@ impl Rules {
         Self::default()
     }
 
-    #[allow(static_mut_refs)]
     pub fn rule(&mut self, field: &str, rules: Vec<&str>) -> &mut Self {
         let mut v = Vec::with_capacity(rules.len());
         let mut is_nullable = false;
+
+        let registry = RULES.load();
 
         for rule_str in rules {
             let (name, args) = match rule_str.split_once(':') {
@@ -94,76 +91,238 @@ impl Rules {
                 continue;
             }
 
-            let rule_callback = unsafe {
-                RULES
-                    .get(name)
-                    .cloned() // Clones the Arc pointer (very fast)
-                    .unwrap_or_else(|| panic!("The rule `{}` does not exist", name))
-            };
+            let rule_callback = registry
+                .get(name)
+                .cloned()
+                .unwrap_or_else(|| panic!("The rule `{}` does not exist", name));
 
             v.push((rule_callback, args));
         }
 
         self.fields.push(Field::new(field, v, is_nullable));
-
-        return self;
+        self
     }
 
-    #[allow(static_mut_refs)]
     pub fn add<F>(name: impl Into<String>, callback: F)
     where
         F: for<'a> AsyncRule<'a> + Send + Sync + 'static,
     {
-        unsafe {
-            RULES.insert(name.into(), Arc::new(move |form, field, args| {
-                Box::pin(callback.call(form, field, args))
-            }));
-        }
+        let key = name.into();
+        let callback = Arc::new(callback);
+
+        RULES.rcu(|current_map| {
+            let mut new_map = (**current_map).clone();
+            let cb = Arc::clone(&callback);
+
+            new_map.insert(
+                key.clone(),
+                Arc::new(move |form, field, args| {
+                    Box::pin(cb.call(form, field, args))
+                }),
+            );
+            new_map
+        });
     }
 
     pub async fn handle(self, req: Request, res: Response, next: Next) -> Response {
-        return Validator::handle(req, res, next, self).await;
+        Validator::handle(req, res, next, self).await
     }
 }
 
 impl<'f> Validator<'f> {
     pub fn new(form: &'f Form, rules: Rules) -> Self {
-        return Self {
-            form: form,
-            rules: rules,
+        Self {
+            form,
+            rules,
             errors: Values::new(),
-        };
+        }
     }
 
     pub async fn validate(&mut self) -> bool {
-        for field in &mut self.rules.fields {
-            if let Some(error) = Self::validate_field(self.form, field).await {
-                self.errors.insert(field.name.clone(), error);
+        let mut key_map: HashMap<String, String> = HashMap::new();
+
+        for k in self.form.values.keys() {
+            key_map.insert(self.normalize_key(k), k.clone());
+        }
+        for k in self.form.files.keys() {
+            key_map.insert(self.normalize_key(k), k.clone());
+        }
+
+        let all_normalized_keys: Vec<String> = key_map.keys().cloned().collect();
+
+        for field in &self.rules.fields {
+            if field.name.contains('*') {
+                let expanded_keys = self.expand_wildcard_pattern(&all_normalized_keys, &field.name);
+
+                if expanded_keys.is_empty() {
+                    if let Some(message) = self.validate_concrete_field(
+                        self.form,
+                        field,
+                        &field.name,
+                        &field.name,
+                        &field.name,
+                        &key_map,
+                    ).await {
+                        self.errors.insert(field.name.clone(), message);
+                    }
+                } else {
+                    for normalized_dot_key in expanded_keys {
+                        let lookup_key = key_map
+                            .get(&normalized_dot_key)
+                            .cloned()
+                            .unwrap_or_else(|| normalized_dot_key.clone());
+
+                        if let Some(message) = self.validate_concrete_field(
+                            self.form,
+                            field,
+                            &lookup_key,
+                            &field.name,
+                            &normalized_dot_key,
+                            &key_map,
+                        ).await {
+                            self.errors.insert(lookup_key, message);
+                        }
+                    }
+                }
+            } else {
+                let normalized = self.normalize_key(&field.name);
+                let lookup_key = key_map
+                    .get(&normalized)
+                    .cloned()
+                    .unwrap_or_else(|| field.name.clone());
+
+                if let Some(message) = self.validate_concrete_field(
+                    self.form,
+                    field,
+                    &lookup_key,
+                    &field.name,
+                    &normalized,
+                    &key_map,
+                ).await {
+                    self.errors.insert(lookup_key, message);
+                }
             }
         }
 
-        return self.errors.is_empty();
+        self.errors.is_empty()
     }
 
     pub fn errors(&mut self) -> Values {
-        return self.errors.clone();
+        self.errors.clone()
     }
 
-    async fn validate_field(form: &Form, field: &Field) -> Option<String> {
-        if field.nullable && crate::validation::rules::is_empty(form, &field.name) {
+    async fn validate_concrete_field(
+        &self,
+        form: &Form,
+        field: &Field,
+        lookup_key: &str,
+        pattern: &str,
+        normalized_key: &str,
+        key_map: &HashMap<String, String>,
+    ) -> Option<String> {
+        if field.nullable && crate::validation::rules::is_empty(form, lookup_key) {
             return None;
         }
 
         for (rule, args) in &field.rules {
-            if let Some(error) = rule(form, field.name.clone(), args.clone()).await {
-                if error.is_empty() {
-                    return None;
+            let localized_args = self.localize_args(args, pattern, normalized_key);
+            let final_args: Vec<String> = localized_args
+                .into_iter()
+                .map(|arg| key_map.get(&arg).cloned().unwrap_or(arg))
+                .collect();
+
+            if let Some(error) = rule(form, lookup_key.to_string(), final_args).await {
+                if !error.is_empty() {
+                    return Some(error);
                 }
-                return Some(error);
+                return None;
             }
         }
 
-        return None;
+        None
+    }
+
+    pub fn normalize_key(&self, key: &str) -> String {
+        let re = Regex::new(r"\[([^\]]+)\]").unwrap();
+        let dotted = re.replace_all(key, ".$1");
+        dotted.trim_start_matches('.').to_string()
+    }
+
+    pub fn expand_wildcard_pattern(&self, all_normalized_keys: &[String], pattern: &str) -> Vec<String> {
+        let parts: Vec<&str> = pattern.split('.').collect();
+        let mut results = vec![String::new()];
+
+        for part in parts {
+            let mut next_results = Vec::new();
+            if part == "*" {
+                for prefix in &results {
+                    let prefix_dot = if prefix.is_empty() {
+                        String::new()
+                    } else {
+                        format!("{prefix}.")
+                    };
+
+                    let mut matched_segments = BTreeSet::new();
+                    for key in all_normalized_keys {
+                        if key.starts_with(&prefix_dot) {
+                            let remainder = &key[prefix_dot.len()..];
+                            if let Some(segment) = remainder.split('.').next() {
+                                matched_segments.insert(segment.to_string());
+                            }
+                        }
+                    }
+
+                    for seg in matched_segments {
+                        if prefix.is_empty() {
+                            next_results.push(seg);
+                        } else {
+                            next_results.push(format!("{prefix}.{seg}"));
+                        }
+                    }
+                }
+            } else {
+                for prefix in &results {
+                    if prefix.is_empty() {
+                        next_results.push(part.to_string());
+                    } else {
+                        next_results.push(format!("{prefix}.{part}"));
+                    }
+                }
+            }
+            results = next_results;
+        }
+
+        results
+    }
+
+    pub fn localize_args(&self, args: &[String], pattern: &str, concrete_key: &str) -> Vec<String> {
+        let pat_parts: Vec<&str> = pattern.split('.').collect();
+        let key_parts: Vec<&str> = concrete_key.split('.').collect();
+
+        if pat_parts.len() != key_parts.len() {
+            return args.to_vec();
+        }
+
+        let mut wildcard_values = Vec::new();
+        for (p, k) in pat_parts.iter().zip(key_parts.iter()) {
+            if *p == "*" {
+                wildcard_values.push(*k);
+            }
+        }
+
+        args.iter()
+            .map(|arg| {
+                if arg.contains('*') {
+                    let mut localized = arg.clone();
+                    for val in &wildcard_values {
+                        localized = localized.replacen('*', val, 1);
+                    }
+                    localized
+                } else {
+                    arg.clone()
+                }
+            })
+            .collect()
     }
 }
 
@@ -182,14 +341,13 @@ impl Validator<'_> {
                 .json(&validator.errors);
         }
 
-        return res
-            .with_old(req.form.values.clone())
+        res.with_old(req.form.values.clone())
             .with_errors(validator.errors)
-            .back();
+            .back()
     }
 }
 
-static mut RULES: LazyLock<HashMap<String, Arc<Rule>>> = LazyLock::new(|| {
+static RULES: LazyLock<ArcSwap<HashMap<String, Arc<Rule>>>> = LazyLock::new(|| {
     let mut map: HashMap<String, Arc<Rule>> = HashMap::new();
 
     map.insert(String::from("accepted"), Arc::new(|form, field, args| Box::pin(accepted(form, field, args))));
@@ -276,7 +434,5 @@ static mut RULES: LazyLock<HashMap<String, Arc<Rule>>> = LazyLock::new(|| {
     map.insert(String::from("ulid"), Arc::new(|form, field, args| Box::pin(ulid(form, field, args))));
     map.insert(String::from("uuid"), Arc::new(|form, field, args| Box::pin(uuid(form, field, args))));
 
-    return map;
+    ArcSwap::from_pointee(map)
 });
-
-
