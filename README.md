@@ -428,32 +428,73 @@ Validate incoming request payloads declaratively with custom validation rules.
 **HTML Form:**
 ```html
 <form action="/register" method="post">
+    <h1>Register</h1>
     <input type="email" name="email" placeholder="Email">
     <input type="password" name="password" placeholder="Password">
     <button type="submit">Register</button>
 </form>
 ```
 
+```html
+<form action="/upload/documents" method="post" enctype="multipart/form-data">
+    <h1>Upload Document</h1>
+    <br>
+    <label>Document 1</label>
+    <input type="text" name="documents[0][title]" placeholder="Document 1 title">
+    <input type="file" name="documents[0][file]" placeholder="Document 1 file">
+    <br>
+    <label>Document 2</label>
+    <input type="text" name="documents[1][title]" placeholder="Document 2 title">
+    <input type="file" name="documents[1][file]" placeholder="Document 2 file">
+    <button type="submit">Upload</button>
+</form>
+```
+
 **Rust Application:**
 ```rust
 use flyer::{
-    request::Request, response::Response, routing::next::Next, server, validation::Rules,
+    request::Request,
+    response::Response,
+    routing::next::Next,
+    server,
+    validation::Rules,
 };
 
 pub async fn register_form(req: Request, res: Response, next: Next) -> Response {
     let mut rules = Rules::new();
+
     rules.rule("email", vec!["required", "email"]);
     rules.rule("password", vec!["required", "min:5"]);
-    
-    rules.handle(req, res, next).await
+
+    return rules.handle(req, res, next).await;
+}
+
+pub async fn upload_documents_form(req: Request, res: Response, next: Next) -> Response {
+    let mut rules = Rules::new();
+
+    rules.rule("documents.*.name", vec!["required", "string", "min:5", "max:120"]);
+    rules.rule("documents.*.file", vec!["required_with:files.*.name", "extensions:pdf,docx"]);
+
+    return rules.handle(req, res, next).await;
+}
+
+pub async fn register(_req: Request, res: Response) -> Response {
+    return res.html("<h1>Registration Successful!</h1>");
+}
+
+pub async fn upload(_req: Request, res: Response) -> Response {
+    return res.html("<h1>Uploaded Documents Successful!</h1>");
 }
 
 fn main() {
     let server = server("127.0.0.1", 9999);
 
-    server.router().post("register", async |_req, res| {
-        res.html("<h1>Registration Successful!</h1>")
-    }).middleware(register_form);
+    server.router().group("/", |router| {
+        router.post("register", register).middleware(register_form);
+        router.post("upload/documents", upload).middleware(upload_documents_form);
+    });
+
+    print!("\r\n\r\nRunning server: {}\r\n\r\n", server.address());
 
     server.listen();
 }
@@ -628,6 +669,7 @@ Flyer exposes a rich set of helper functions ready to be used directly inside yo
 ### Validation & Flash Feedback Functions
 | Function    | Description                                                               | Usage Example                 |
 | :---------- | :------------------------------------------------------------------------ | :---------------------------- |
+| `errors`     | Retrieves a validation error hash map for a form fields.                 | `{{ error() }}`.              |
 | `error`     | Retrieves a validation error string for a specific form field.            | `{{ error(name="key") }}`     |
 | `error_has` | Checks whether a validation error exists for a given field.               | `{{ error_has(name="key") }}` |
 | `old`       | Retrieves previously submitted input values following validation failure. | `{{ old(name="key") }}`       |
