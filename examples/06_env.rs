@@ -5,12 +5,6 @@ use flyer::{
     utils::{env}
 };
 
-/// Environment Variables Example
-///
-/// This example demonstrates:
-/// - Loading a .env file
-/// - Accessing configuration using `env()`
-/// - Using environment settings to configure the server
 pub async fn index(_req: Request, res: Response) -> Response {
     return res.html("<h1>Check console for environment details</h1>");
 }

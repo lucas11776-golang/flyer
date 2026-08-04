@@ -5,12 +5,6 @@ use flyer::{
     server,
 };
 
-/// Cookie Example
-///
-/// This example demonstrates:
-/// - Setting cookies with expiration
-/// - Reading cookies
-/// - Removing cookies
 pub async fn home_view(_req: Request, mut res: Response) -> Response {
     // Set a cookie
     res.cookies()

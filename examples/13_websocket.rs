@@ -1,11 +1,5 @@
 use flyer::{server, websocket::{Websocket, WriterInterface}};
 
-/// WebSocket Example
-///
-/// This example demonstrates:
-/// - Handling WebSocket connections
-/// - Listening to events (Text, Ready, etc.)
-/// - Writing responses to the WebSocket
 fn main() {
     let server = server("127.0.0.1", 9999);
 

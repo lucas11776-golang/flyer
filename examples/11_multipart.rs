@@ -5,13 +5,6 @@ use flyer::{
     storage::local::LocalStorage,
 };
 
-/// File Upload & Storage Example
-///
-/// This example demonstrates:
-/// - Handling multipart/form-data
-/// - Accessing files from a request
-/// - Saving files to storage
-/// - Basic storage management
 pub async fn home(_req: Request, res: Response) -> Response {
     return res.html(r#"
         <form method="post" action="/upload" enctype="multipart/form-data">

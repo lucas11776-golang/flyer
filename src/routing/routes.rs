@@ -2,9 +2,13 @@ use std::collections::{HashMap, HashSet};
 use url_domain_parse::Url;
 
 use crate::{
-    error::Error, request::Request, response::{HTTP_INTERNAL_SERVER_ERROR, HTTP_NOT_FOUND, Response}, routing::{
+    error::Error,
+    request::Request,
+    response::{HTTP_INTERNAL_SERVER_ERROR, HTTP_NOT_FOUND, Response},
+    routing::{
         HttpErrorHandler, HttpHandler, Middlewares, WebsocketHandler, next::Next, route::Route,
-    }, utils::{Values, url},
+    },
+    utils::{Values, url},
 };
 
 pub struct Routes {
@@ -140,7 +144,9 @@ impl Routes {
         (req, res, None)
     }
 
-    fn match_route<H>(&self, route: &Route<H>,
+    fn match_route<H>(
+        &self,
+        route: &Route<H>,
         req_method: &str,
         req_segments: &[String],
         parsed_url: Option<&Url>,
@@ -239,11 +245,14 @@ impl Routes {
     }
 
     #[inline]
-    fn dynamic_parameter_match<'a>(&self, route_seg: &'a str, req_seg: &'a str) -> Option<(&'a str, &'a str)> {
+    fn dynamic_parameter_match<'a>(
+        &self,
+        route_seg: &'a str,
+        req_seg: &'a str,
+    ) -> Option<(&'a str, &'a str)> {
         if route_seg.starts_with('{') && route_seg.ends_with('}') && route_seg.len() > 2 {
-            return Some((&route_seg[1..route_seg.len() - 1], req_seg))
+            return Some((&route_seg[1..route_seg.len() - 1], req_seg));
         }
         None
     }
 }
-

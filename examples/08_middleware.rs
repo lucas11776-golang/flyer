@@ -5,13 +5,6 @@ use flyer::{
 };
 use serde::{Deserialize, Serialize};
 
-/// Middleware Example
-///
-/// This example demonstrates:
-/// - Creating middleware functions
-/// - Intercepting requests
-/// - Stopping request propagation (e.g., for unauthorized access)
-/// - Calling `next.handle()` to continue processing
 #[derive(Serialize, Deserialize)]
 pub struct JsonMessage {
     message: String

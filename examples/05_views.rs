@@ -1,12 +1,6 @@
 use flyer::{server, view::{ViewData}};
 use serde::Serialize;
 
-/// View Rendering Example
-///
-/// This example demonstrates:
-/// - Configuring a view directory
-/// - Passing data to a template (Tera)
-/// - Rendering a view
 #[derive(Serialize)]
 pub struct User {
     first_name: &'static str,

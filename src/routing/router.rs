@@ -1,7 +1,6 @@
 use std::{collections::HashSet, future::Future};
 
 use crate::{
-    error::Error,
     request::Request,
     response::Response,
     routing::{Group, HttpHandler, WebsocketHandler, next::Next, route::Route},
@@ -22,7 +21,6 @@ pub struct Router {
     pub(crate) groups: Vec<GroupRouter>,
     pub(crate) middlewares: HashSet<String>,
     pub(crate) not_found_callback: Option<HttpHandler>,
-    pub(crate) error: Option<HttpHandler>,
 }
 
 impl Clone for Router {
@@ -37,7 +35,6 @@ impl Clone for Router {
             groups: Vec::new(),
             middlewares: self.middlewares.clone(),
             not_found_callback: None,
-            error: None
         }
     }
 }
@@ -77,7 +74,6 @@ impl Router {
             groups: Vec::new(),
             middlewares: middlewares,
             not_found_callback: None,
-            error: None
         }
     }
 
@@ -117,14 +113,6 @@ impl Router {
         Fut: Future<Output = Response> + Send + 'static,
     {
         self.not_found_callback = Some(Box::new(move |req, res| Box::pin(callback(req, res))));
-    }
-
-    pub fn error<C, Fut>(&mut self, callback: C)
-    where
-        C: Fn(Error, Request, Response) -> Fut + Send + Sync + 'static,
-        Fut: Future<Output = Response> + Send + 'static,
-    {
-        // self.not_found_callback = Some(Box::new(move |req, res| Box::pin(callback(req, res))));
     }
 
     pub fn ws<C, Fut>(&mut self, path: &str, callback: C) -> &mut Route<WebsocketHandler>
