@@ -1,5 +1,11 @@
 
-use crate::{routing::{router::Router, routes::Routes}, server::Server, utils::vec};
+use std::mem;
+
+use crate::{
+    routing::{router::Router, routes::Routes},
+    server::Server,
+    utils::vec
+};
 
 pub(crate) struct Resolver {}
 
@@ -35,6 +41,10 @@ impl Resolver {
 
         routes.http.append(&mut router.http);
         routes.websocket.append(&mut router.websocket);
+
+        if router.not_found_callback.is_some() {
+            routes.not_found_callback = mem::take(&mut router.not_found_callback);
+        }
 
         Self::resolve(routes, &mut router.routers);
     }

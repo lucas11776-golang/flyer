@@ -31,7 +31,7 @@ Flyer is an asynchronous, high-performance Rust web framework running on Tokio. 
 | **Middleware** | `async fn(req: Request, res: Response, next: Next) -> Response` |
 | **WebSocket** | `async |_req, ws| -> Websocket` |
 | **Hook Lifecycle** | `async fn before(&self, req: Request, res: Response, next: Next) -> Response` |
-| **Custom Logger** | `async fn call(&self, info: PanicErrorInfo, req: Request, res: Response) -> ()` |
+| **Custom Logger** | `async fn call(&self, error: Error, req: Request, res: Response) -> ()` |
 
 ### Key Framework Imports
 ```rust
@@ -47,8 +47,8 @@ use flyer::{
     validation::Rules,
     websocket::{Websocket, Event, WriterInterface},
     mail::Mail,
-    error::logger::{Logger, PanicErrorInfo},
-    loggers::sentry::Sentry,
+    error::Error,
+    loggers::{Logger, sentry::Sentry},
 };
 ```
 
@@ -249,7 +249,8 @@ fn main() {
 ```rust
 use flyer::{
     hooks::Hook,
-    error::logger::{Logger, PanicErrorInfo},
+    error::Error,
+    loggers::{Logger, sentry::Sentry},
     request::Request,
     response::Response,
     routing::next::Next,
@@ -270,8 +271,8 @@ impl Hook for AuditHook {
 
 pub struct CustomLogger;
 impl Logger for CustomLogger {
-    async fn call(&self, info: PanicErrorInfo, req: Request, res: Response) -> () {
-        println!("Error: {} | Message: {} | Path: {}", info.error, info.message, req.path());
+    async fn call(&self, error: Error, req: Request, res: Response) -> () {
+        println!("Error: {} | Message: {} | Path: {}", error.error, error.message, req.path());
     }
 }
 ```

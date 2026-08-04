@@ -1,17 +1,15 @@
 use std::{collections::HashSet, future::Future};
 
 use crate::{
+    error::Error,
     request::Request,
     response::Response,
-    routing::{next::Next, route::Route, Group, HttpHandler, WebsocketHandler},
+    routing::{Group, HttpHandler, WebsocketHandler, next::Next, route::Route},
     server::Server,
-    utils::{
-        mem::Instance,
-        route::middleware_resolver,
+    utils::{mem::Instance, route::middleware_resolver,
         url::{self, clean},
         vec,
-    },
-    websocket::Websocket,
+    }, websocket::Websocket,
 };
 
 pub struct Router {
@@ -23,6 +21,8 @@ pub struct Router {
     pub(crate) routers: Vec<Router>,
     pub(crate) groups: Vec<GroupRouter>,
     pub(crate) middlewares: HashSet<String>,
+    pub(crate) not_found_callback: Option<HttpHandler>,
+    pub(crate) error: Option<HttpHandler>,
 }
 
 impl Clone for Router {
@@ -36,6 +36,8 @@ impl Clone for Router {
             routers: Vec::new(),
             groups: Vec::new(),
             middlewares: self.middlewares.clone(),
+            not_found_callback: None,
+            error: None
         }
     }
 }
@@ -46,7 +48,6 @@ impl From<&Router> for Router {
     }
 }
 
-/// Helper macro to generate standard HTTP verb shorthand methods
 macro_rules! impl_http_method {
     ($fn_name:ident, $method:expr) => {
         pub fn $fn_name<C, Fut>(&mut self, path: &str, callback: C) -> &mut Route<HttpHandler>
@@ -74,7 +75,9 @@ impl Router {
             websocket: Vec::new(),
             routers: Vec::new(),
             groups: Vec::new(),
-            middlewares,
+            middlewares: middlewares,
+            not_found_callback: None,
+            error: None
         }
     }
 
@@ -82,7 +85,6 @@ impl Router {
         Self::new(ptr, String::new(), Vec::new(), HashSet::new())
     }
 
-    // HTTP shorthand method handlers
     impl_http_method!(get, "GET");
     impl_http_method!(post, "POST");
     impl_http_method!(put, "PUT");
@@ -107,6 +109,22 @@ impl Router {
         });
 
         self.http.last_mut().unwrap()
+    }
+
+    pub fn not_found<C, Fut>(&mut self, callback: C)
+    where
+        C: Fn(Request, Response) -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = Response> + Send + 'static,
+    {
+        self.not_found_callback = Some(Box::new(move |req, res| Box::pin(callback(req, res))));
+    }
+
+    pub fn error<C, Fut>(&mut self, callback: C)
+    where
+        C: Fn(Error, Request, Response) -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = Response> + Send + 'static,
+    {
+        // self.not_found_callback = Some(Box::new(move |req, res| Box::pin(callback(req, res))));
     }
 
     pub fn ws<C, Fut>(&mut self, path: &str, callback: C) -> &mut Route<WebsocketHandler>

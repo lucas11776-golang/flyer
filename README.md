@@ -608,10 +608,11 @@ Flyer allows you to define custom error logging behavior for your application, i
 
 ```rust
 use flyer::{
-    error::logger::{Logger, PanicErrorInfo},
-    loggers::sentry::Sentry,
+    error::Error,
+    loggers::{Logger, sentry::Sentry},
     request::Request,
-    response::Response, server
+    response::Response,
+    server
 };
 
 pub struct DebuggerLogger { }
@@ -623,8 +624,8 @@ impl DebuggerLogger {
 }
 
 impl Logger for DebuggerLogger {
-    async fn call(&self, info: PanicErrorInfo, req: Request, res: Response) -> () {
-        println!("\r\n\r\nError: {}\r\nMessage: {}\r\nPath: {}r\n\r\n", info.error, info.message, req.path());
+    async fn call(&self, error: PanicErrorInfo, req: Request, res: Response) -> () {
+        println!("\r\n\r\nError: {}\r\nMessage: {}\r\nPath: {}r\n\r\n", error.error, error.message, req.path());
     }
 }
 

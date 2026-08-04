@@ -15,7 +15,8 @@ use tokio::runtime::Builder;
 use serde_json::Value;
 
 use crate::cookies::Cookies;
-use crate::loggers::{Logger, LoggerErasure, LoggerWrapper, PanicErrorInfo};
+use crate::error::Error;
+use crate::loggers::{Logger, LoggerErasure, LoggerWrapper};
 use crate::hooks::form::FormHook;
 use crate::hooks::{Hook, HookErasure, HookWrapper};
 use crate::mail;
@@ -35,7 +36,7 @@ use crate::websocket::Websocket;
 pub(crate) mod protocol;
 
 tokio::task_local! {
-    pub(crate) static GLOBAL_PANIC_CONTEXT: RefCell<PanicErrorInfo>;
+    pub(crate) static GLOBAL_PANIC_CONTEXT: RefCell<Error>;
 }
 
 pub(crate) static GLOBAL_PANIC_IS_SET: OnceCell<()> = OnceCell::new();
@@ -160,7 +161,7 @@ impl Server {
 
     pub fn error<C, Fut>(&mut self, callback: C) -> &mut Self
     where
-        C: Fn(PanicErrorInfo, Request, Response, Next) -> Fut + Send + Sync + 'static,
+        C: Fn(Error, Request, Response, Next) -> Fut + Send + Sync + 'static,
         Fut: Future<Output = Response> + Send + 'static,
     {
         self.routes.errors.push(Box::new(move |err, req, res, next| {
@@ -257,7 +258,7 @@ impl Server {
     }
 
     pub(crate) async fn on_http(&self, req: Request, mut res: Response) -> (Request, Response) {
-        GLOBAL_PANIC_CONTEXT.scope(RefCell::new(PanicErrorInfo::default()), async move {
+        GLOBAL_PANIC_CONTEXT.scope(RefCell::new(Error::default()), async move {
             res.referer = req.header("referer");
 
             let req_backup = req.clone();
@@ -287,7 +288,7 @@ impl Server {
     }
 
     pub(crate) async fn on_websocket(&self, req: Request, res: Response) -> Option<Websocket> {
-        GLOBAL_PANIC_CONTEXT.scope(RefCell::new(PanicErrorInfo::default()), async move {
+        GLOBAL_PANIC_CONTEXT.scope(RefCell::new(Error::default()), async move {
             let result = AssertUnwindSafe(async {
                 let (req, res, route) = self
                     .routes
@@ -318,7 +319,7 @@ impl Server {
         }).await
     }
 
-    pub(crate) async fn on_logger(&self, info: PanicErrorInfo, req: Request, res: Response) {
+    pub(crate) async fn on_logger(&self, info: Error, req: Request, res: Response) {
         for logger in &self.loggers {
             let logger = Arc::clone(logger);
             let info = info.clone();
@@ -335,7 +336,7 @@ impl Server {
         GLOBAL_PANIC_IS_SET.get_or_init(|| {
             panic::set_hook(Box::new(|info| {
                 let _ = GLOBAL_PANIC_CONTEXT.try_with(|cell| {
-                    *cell.borrow_mut() = PanicErrorInfo::new(
+                    *cell.borrow_mut() = Error::new(
                         info.to_string(),
                         info.payload_as_str().unwrap_or("").into(),
                     );

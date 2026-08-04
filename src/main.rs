@@ -1,7 +1,8 @@
 use std::time::Duration;
 
 use flyer::{
-    loggers::{Logger, PanicErrorInfo, sentry::Sentry},
+    error::Error,
+    loggers::{Logger, sentry::Sentry},
     request::{Request, form::Form},
     response::Response,
     routing::next::Next,
@@ -75,7 +76,7 @@ impl DebuggerLogger {
 }
 
 impl Logger for DebuggerLogger {
-    async fn call(&self, info: PanicErrorInfo, req: Request, _res: Response) -> () {
+    async fn call(&self, info: Error, req: Request, _res: Response) -> () {
         println!("{}", info);
     }
 }
