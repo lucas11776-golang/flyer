@@ -47,7 +47,7 @@ impl From<&Router> for Router {
 
 macro_rules! impl_http_method {
     ($fn_name:ident, $method:expr) => {
-        pub fn $fn_name<C, Fut>(&mut self, path: &str, callback: C) -> &mut Route<HttpHandler>
+        pub fn $fn_name<C, Fut>(&mut self, path: impl Into<String>, callback: C) -> &mut Route<HttpHandler>
         where
             C: Fn(Request, Response) -> Fut + Send + Sync + 'static,
             Fut: Future<Output = Response> + Send + 'static,
@@ -90,14 +90,14 @@ impl Router {
     impl_http_method!(head, "HEAD");
     impl_http_method!(options, "OPTION");
 
-    pub fn route<C, Fut>(&mut self, method: &str, path: &str, callback: C) -> &mut Route<HttpHandler>
+    pub fn route<C, Fut>(&mut self, method: impl Into<String>, path: impl Into<String>, callback: C) -> &mut Route<HttpHandler>
     where
         C: Fn(Request, Response) -> Fut + Send + Sync + 'static,
         Fut: Future<Output = Response> + Send + 'static,
     {
         self.http.push(Route {
             server: self.server.clone(),
-            method: method.to_uppercase(),
+            method: method.into().to_uppercase(),
             subdomain: self.subdomain.clone(),
             path: vec::merge(self.path.clone(), url::clean(path)),
             handler: Box::new(move |req, res| Box::pin(callback(req, res))),
@@ -115,7 +115,7 @@ impl Router {
         self.not_found_callback = Some(Box::new(move |req, res| Box::pin(callback(req, res))));
     }
 
-    pub fn ws<C, Fut>(&mut self, path: &str, callback: C) -> &mut Route<WebsocketHandler>
+    pub fn ws<C, Fut>(&mut self, path: impl Into<String>, callback: C) -> &mut Route<WebsocketHandler>
     where
         C: Fn(Request, Websocket) -> Fut + Send + Sync + 'static,
         Fut: Future<Output = Websocket> + Send + 'static,
