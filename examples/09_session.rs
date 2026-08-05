@@ -4,12 +4,6 @@ use flyer::{
     server,
 };
 
-/// Session Example
-///
-/// This example demonstrates:
-/// - Storing data in a user session
-/// - Retrieving data from the session
-/// - Managing login state
 pub async fn home_view(req: Request, res: Response) -> Response {
     let user_id = req.session("user_id");
     if user_id == "" {

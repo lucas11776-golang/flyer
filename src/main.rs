@@ -1,7 +1,8 @@
 use std::time::Duration;
 
 use flyer::{
-    loggers::{Logger, PanicErrorInfo, sentry::Sentry},
+    error::Error,
+    loggers::{Logger, sentry::Sentry},
     request::{Request, form::Form},
     response::Response,
     routing::next::Next,
@@ -22,14 +23,11 @@ pub async fn group(req: Request, res: Response, next: Next) -> Response {
     return next.handle(req, res);
 }
 
-
 pub async fn middleware(_req: Request, _res: Response, _next: Next) -> Response {
     return _next.handle(_req, _res);
 }
 
-
 pub async fn middleware1(req: Request, res: Response, next: Next) -> Response {
-    println!("MIDDLEWARE 0");
     return next.handle(req, res);
 }
 
@@ -75,7 +73,7 @@ impl DebuggerLogger {
 }
 
 impl Logger for DebuggerLogger {
-    async fn call(&self, info: PanicErrorInfo, req: Request, _res: Response) -> () {
+    async fn call(&self, info: Error, req: Request, _res: Response) -> () {
         println!("{}", info);
     }
 }

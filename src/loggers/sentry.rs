@@ -7,9 +7,7 @@ use sentry::{
 };
 
 use crate::{
-    loggers::{Logger, PanicErrorInfo},
-    request::Request,
-    response::Response,
+    error::Error, loggers::Logger, request::Request, response::Response,
 };
 
 pub struct Sentry {
@@ -33,7 +31,7 @@ impl Sentry {
 }
 
 impl Logger for Sentry {
-    async fn call(&self, info: PanicErrorInfo, req: Request, res: Response) {
+    async fn call(&self, error: Error, req: Request, res: Response) {
         sentry::configure_scope(|scope| {
             scope.clear();
 
@@ -43,7 +41,7 @@ impl Logger for Sentry {
 
         sentry::capture_event(Event {
             level: Level::Error,
-            message: Some(format!("{}", info.error)),
+            message: Some(format!("{}", error.error)),
             ..Default::default()
         });
 

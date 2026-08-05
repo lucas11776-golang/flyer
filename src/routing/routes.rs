@@ -2,18 +2,13 @@ use std::collections::{HashMap, HashSet};
 use url_domain_parse::Url;
 
 use crate::{
-    loggers::PanicErrorInfo,
+    error::Error,
     request::Request,
-    response::{Response, HTTP_INTERNAL_SERVER_ERROR, HTTP_NOT_FOUND},
+    response::{HTTP_INTERNAL_SERVER_ERROR, HTTP_NOT_FOUND, Response},
     routing::{
-        next::Next,
-        route::Route,
-        HttpErrorHandler,
-        HttpHandler,
-        Middlewares,
-        WebsocketHandler,
+        HttpErrorHandler, HttpHandler, Middlewares, WebsocketHandler, next::Next, route::Route,
     },
-    utils::{url, Values},
+    utils::{Values, url},
 };
 
 pub struct Routes {
@@ -21,6 +16,7 @@ pub struct Routes {
     pub(crate) websocket: Vec<Route<WebsocketHandler>>,
     pub(crate) middlewares: Middlewares,
     pub(crate) errors: Vec<HttpErrorHandler>,
+    pub(crate) not_found_callback: Option<HttpHandler>,
 }
 
 impl Default for Routes {
@@ -36,6 +32,7 @@ impl Routes {
             websocket: Vec::new(),
             middlewares: HashMap::new(),
             errors: Vec::new(),
+            not_found_callback: None,
         }
     }
 
@@ -44,10 +41,16 @@ impl Routes {
 
         let Some(route) = route else {
             res.status_code = HTTP_NOT_FOUND;
+
+            if let Some(cb) = &self.not_found_callback {
+                res = cb(req.clone(), res).await;
+            }
+
             return (req, res);
         };
 
         let res = (route.handler)(req.clone(), res).await;
+
         (req, res)
     }
 
@@ -68,7 +71,7 @@ impl Routes {
 
     pub async fn handle_error(
         &self,
-        error: PanicErrorInfo,
+        error: Error,
         mut req: Request,
         mut res: Response,
     ) -> (Request, Response) {
@@ -141,7 +144,9 @@ impl Routes {
         (req, res, None)
     }
 
-    fn match_route<H>(&self, route: &Route<H>,
+    fn match_route<H>(
+        &self,
+        route: &Route<H>,
         req_method: &str,
         req_segments: &[String],
         parsed_url: Option<&Url>,
@@ -240,11 +245,14 @@ impl Routes {
     }
 
     #[inline]
-    fn dynamic_parameter_match<'a>(&self, route_seg: &'a str, req_seg: &'a str) -> Option<(&'a str, &'a str)> {
+    fn dynamic_parameter_match<'a>(
+        &self,
+        route_seg: &'a str,
+        req_seg: &'a str,
+    ) -> Option<(&'a str, &'a str)> {
         if route_seg.starts_with('{') && route_seg.ends_with('}') && route_seg.len() > 2 {
-            return Some((&route_seg[1..route_seg.len() - 1], req_seg))
+            return Some((&route_seg[1..route_seg.len() - 1], req_seg));
         }
         None
     }
 }
-

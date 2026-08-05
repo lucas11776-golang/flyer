@@ -6,12 +6,6 @@ use flyer::{
     validation::Rules,
 };
 
-/// Form Validation Example
-///
-/// This example demonstrates:
-/// - Defining validation rules
-/// - Handling validation failures
-/// - Middleware for validation
 pub async fn register_form(req: Request, res: Response, next: Next) -> Response {
     let mut rules = Rules::new();
 

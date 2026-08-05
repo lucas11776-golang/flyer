@@ -32,6 +32,23 @@ impl Form {
     }
 }
 
+impl Form {
+    pub fn value(&self, k: impl Into<String>) -> String {
+        self
+            .values
+            .get(&k.into())
+            .map(|v| String::from(v))
+            .unwrap_or(String::new())
+    }
+
+    pub fn file(&self, k: impl Into<String>) -> Option<File> {
+        self
+            .files
+            .get(&k.into())
+            .map(|f| f.clone())
+    }
+}
+
 impl File {
     pub fn new(name: &str, content: Bytes) -> Self {
         return Self {

@@ -75,34 +75,54 @@ fn main() {
 Flyer supports modular route groups, dynamic path parameters (via `{param}` syntax), and standard RESTful HTTP methods (`GET`, `POST`, `PATCH`, `DELETE`).
 
 ```rust
-use flyer::{server, request::Request, response::Response};
+use flyer::{
+    error::Error,
+    request::Request,
+    response::{HTTP_NOT_FOUND, Response},
+    routing::next::Next,
+    server
+};
 
 pub async fn index(_req: Request, res: Response) -> Response {
-    res.html("<h1>Users List</h1>")
+    return res.html("<h1>Users List</h1>");
 }
 
 pub async fn store(_req: Request, res: Response) -> Response {
-    res.redirect("users/1")
+    return res.redirect("users/1");
 }
 
 pub async fn view(req: Request, res: Response) -> Response {
-    let user_id = req.parameter("user");
-    res.html(format!("<h1>User Profile: {}</h1>", user_id).as_str())
+    return res.html(format!("<h1>User {}</h1>", req.parameter("user")).as_str());
 }
 
 pub async fn update(req: Request, res: Response) -> Response {
-    let user_id = req.parameter("user");
-    res.redirect(format!("users/{}", user_id).as_str())
+    return res.redirect(format!("users/{}", req.parameter("user")).as_str());
 }
 
+// When calling destroy error controller will be called because get_user_id is `None`
 pub async fn destroy(_req: Request, res: Response) -> Response {
-    res.redirect("users")
+    let get_user_id: Option<String> = None;
+
+    get_user_id.unwrap();
+
+    return res.redirect("users")
+}
+
+pub async fn not_found(_req: Request, res: Response) -> Response {
+    res
+        .status_code(HTTP_NOT_FOUND)
+        .html("<h1>Hello World!!!</h1>")
+}
+
+pub async fn error(_error: Error, _req: Request, res: Response, _next: Next) -> Response {
+    res
+        .status_code(HTTP_NOT_FOUND)
+        .html("<h1>500 Internal Server Error</h1>")
 }
 
 fn main() {
     let server = server("127.0.0.1", 9999);
     
-    // Group routes under prefixes cleanly
     server.router().group("/", |router| {
         router.group("users", |router| {
             router.get("/", index);
@@ -115,7 +135,12 @@ fn main() {
         });
     });
 
+    server.router().not_found(not_found);
+
+    server.error(error);
+
     print!("\r\n\r\nRunning server: {}\r\n\r\n", server.address());
+
     server.listen();
 }
 ```
@@ -608,10 +633,11 @@ Flyer allows you to define custom error logging behavior for your application, i
 
 ```rust
 use flyer::{
-    error::logger::{Logger, PanicErrorInfo},
-    loggers::sentry::Sentry,
+    error::Error,
+    loggers::{Logger, sentry::Sentry},
     request::Request,
-    response::Response, server
+    response::Response,
+    server
 };
 
 pub struct DebuggerLogger { }
@@ -623,8 +649,8 @@ impl DebuggerLogger {
 }
 
 impl Logger for DebuggerLogger {
-    async fn call(&self, info: PanicErrorInfo, req: Request, res: Response) -> () {
-        println!("\r\n\r\nError: {}\r\nMessage: {}\r\nPath: {}r\n\r\n", info.error, info.message, req.path());
+    async fn call(&self, error: PanicErrorInfo, req: Request, res: Response) -> () {
+        println!("\r\n\r\nError: {}\r\nMessage: {}\r\nPath: {}r\n\r\n", error.error, error.message, req.path());
     }
 }
 
