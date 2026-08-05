@@ -167,6 +167,12 @@ impl Response {
     }
 
     #[inline]
+    pub fn remove_cookie(mut self, k: impl Into<String>) -> Self {
+        self.cookies.remove(k);
+        self
+    }
+
+    #[inline]
     pub fn session(&mut self) -> &mut Session {
         &mut self.session
     }
@@ -195,7 +201,6 @@ impl Response {
         self
     }
 
-    /// Serializes directly to a byte vector with no intermediate string allocation.
     pub fn json<J>(self, object: &J) -> Self
     where
         J: ?Sized + Serialize,
