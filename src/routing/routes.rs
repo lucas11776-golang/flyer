@@ -40,10 +40,10 @@ impl Routes {
         let (req, mut res, route) = self.handler(req, res, &self.http).await;
 
         let Some(route) = route else {
-            res.status_code = HTTP_NOT_FOUND;
-
-            if let Some(cb) = &self.not_found_callback {
-                res = cb(req.clone(), res).await;
+            if res.status_code == HTTP_NOT_FOUND {
+                if let Some(cb) = &self.not_found_callback {
+                    res = cb(req.clone(), res).await;
+                }
             }
 
             return (req, res);
@@ -118,16 +118,16 @@ impl Routes {
     async fn handler<'h, H>(
         &self,
         mut req: Request,
-        res: Response,
+        mut res: Response,
         routes: &'h [Route<H>],
     ) -> (Request, Response, Option<&'h Route<H>>) {
         let req_segments = url::clean(&req.path);
         let parsed_url = self.parse_request_url(&req.host);
 
         for route in routes {
-            if let Some(params) =
-                self.match_route(route, &req.method, &req_segments, parsed_url.as_ref())
-            {
+            let (matches, params) = self.match_route(route, &req.method, &req_segments, parsed_url.as_ref());
+
+            if matches {
                 req.parameters = params;
 
                 let (resolved, req, res) =
@@ -141,6 +141,8 @@ impl Routes {
             }
         }
 
+        res.status_code = HTTP_NOT_FOUND;
+
         (req, res, None)
     }
 
@@ -150,22 +152,22 @@ impl Routes {
         req_method: &str,
         req_segments: &[String],
         parsed_url: Option<&Url>,
-    ) -> Option<Values> {
+    ) -> (bool, Values) {
         if !route.method.eq_ignore_ascii_case(req_method) {
-            return None;
+            return (false, Default::default());
         }
 
-        let url = parsed_url?;
+        let url = parsed_url.unwrap();
         let req_sub_str = url.subdomain().unwrap_or_default();
 
         let mut extracted_params = Vec::with_capacity(4);
 
         if !self.match_subdomains(&route.subdomain, &req_sub_str, &mut extracted_params) {
-            return None;
+            return (false, Default::default());
         }
 
         if !self.match_path_segments(&route.path, req_segments, &mut extracted_params) {
-            return None;
+            return (false, Default::default());
         }
 
         let mut parameters = Values::new();
@@ -173,7 +175,7 @@ impl Routes {
             parameters.insert(k.to_string(), v.to_string());
         }
 
-        Some(parameters)
+        (true, parameters)
     }
 
     fn parse_request_url(&self, host: &str) -> Option<Url> {
@@ -231,6 +233,7 @@ impl Routes {
             if route_seg == "*" {
                 return true;
             }
+
             if route_seg == req_seg {
                 continue;
             }
