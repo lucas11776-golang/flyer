@@ -125,7 +125,8 @@ impl ViewData {
         data
     }
 
-    pub fn insert<T: Serialize + ?Sized, S: Into<String>>(&mut self, key: S, val: &T) {
+    pub fn insert<T: Serialize + ?Sized, S: Into<String>>(&mut self, key: S, val: &T) -> &mut Self {
         self.context.insert(key, val);
+        self
     }
 }
