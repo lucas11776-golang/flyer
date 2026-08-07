@@ -5,7 +5,9 @@ use crate::{
     response::Response,
     routing::{Group, HttpHandler, WebsocketHandler, next::Next, route::Route},
     server::Server,
-    utils::{mem::Instance, route::middleware_resolver,
+    utils::{
+        mem::Instance,
+        route::middleware_resolver,
         url::{self, clean},
         vec,
     }, websocket::Websocket,

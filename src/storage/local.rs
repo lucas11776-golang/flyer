@@ -1,8 +1,10 @@
+use std::ops::Add;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 use bytes::Bytes;
 use tokio::fs;
+use uuid::Uuid;
 
 use crate::request::form::File;
 use crate::storage::Storage;
@@ -26,7 +28,7 @@ impl LocalStorage {
 impl Storage for LocalStorage {
     async fn save_as(&self, folder: impl Into<String>, name: impl Into<String>, file: File) -> Result<String> {
         let folder_str = folder.into();
-        let name_str = name.into();
+        let name_str = format!("{}.{}", name.into(), file.name.split(".").last().unwrap());
 
         let target_dir = self.resolve_path(&folder_str);
         let target_path = target_dir.join(&name_str);
@@ -41,12 +43,18 @@ impl Storage for LocalStorage {
 
         let relative_result = Path::new(&folder_str).join(&name_str);
 
-        Ok(relative_result.to_string_lossy().into_owned())
+        Ok(format!("{}/{}", self.directory.to_string_lossy(), relative_result.to_string_lossy().into_owned()))
     }
 
     async fn save(&self, folder: impl Into<String>, file: File) -> Result<String> {
-        let file_name = file.name.clone();
-        self.save_as(folder, file_name, file).await
+        let mut filename = Uuid::new_v4().to_string().replace("-", "");
+        let extension = file.name.split(".").collect::<Vec<&str>>();
+
+        if extension.len() > 1 {
+            filename = filename.add(&format!(".{}", extension.last().unwrap()));
+        }
+
+        self.save_as(folder, filename, file).await
     }
 
     async fn delete(&self, filename: impl Into<String>) -> Result<()> {
