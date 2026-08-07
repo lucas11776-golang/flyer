@@ -90,7 +90,7 @@ impl Router {
     impl_http_method!(delete, "DELETE");
     impl_http_method!(copy, "COPY");
     impl_http_method!(head, "HEAD");
-    impl_http_method!(options, "OPTION");
+    impl_http_method!(options, "OPTIONS");
 
     pub fn route<C, Fut>(&mut self, method: impl Into<String>, path: impl Into<String>, callback: C) -> &mut Route<HttpHandler>
     where

@@ -10,7 +10,7 @@ use moka::sync::Cache;
 use crate::{
     hooks::Hook,
     request::Request,
-    response::{HTTP_NOT_FOUND, HTTP_OK, Response},
+    response::{HTTP_INTERNAL_SERVER_ERROR, HTTP_NOT_FOUND, HTTP_OK, Response},
     routing::next::Next,
 };
 
@@ -18,6 +18,15 @@ use crate::{
 pub(crate) struct Asset {
     pub data: Bytes,
     pub content_type: String,
+}
+
+impl Asset {
+    pub fn new(data: Bytes, content_type: String) -> Self {
+        Self {
+            data: data,
+            content_type: content_type
+        }
+    }
 }
 
 pub struct AssetsHook {
@@ -94,27 +103,24 @@ impl Hook for AssetsHook {
                 .set_header("Content-Type", asset.content_type);
         }
 
-        if let Some(file_path) = self.get_safe_path(&path) {
-            if let Ok(file_bytes) = tokio::fs::read(&file_path).await {
-                let data = Bytes::from(file_bytes);
-                let content_type = Self::guess_content_type(&file_path);
+        let Some(file_path) = self.get_safe_path(&path) else {
+            return next.handle(req, res)
+        };
 
-                let asset = Asset {
-                    data: data.clone(),
-                    content_type: content_type.clone(),
-                };
+        let Ok(file_bytes) = tokio::fs::read(&file_path).await else {
+            return res.status_code(HTTP_INTERNAL_SERVER_ERROR);
+        };
 
-                if data.len() < self.max_file_size_bytes {
-                    self.cache.insert(path.to_string(), asset);
-                }
+        let data = Bytes::from(file_bytes);
+        let content_type = Self::guess_content_type(&file_path);
 
-                return res
-                    .status_code(HTTP_OK)
-                    .body(data)
-                    .set_header("Content-Type", content_type);
-            }
+        if data.len() < self.max_file_size_bytes {
+            self.cache.insert(path.to_string(), Asset::new(data.clone(), content_type.clone()));
         }
 
-        next.handle(req, res)
+        res
+            .status_code(HTTP_OK)
+            .body(data)
+            .set_header("Content-Type", content_type)
     }
 }
