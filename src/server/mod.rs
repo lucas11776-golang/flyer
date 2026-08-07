@@ -230,10 +230,10 @@ impl Server {
     async fn call_before_hooks(&self, mut req: Request, mut res: Response) -> (bool, Request, Response) {
         for hook in &self.before_hooks {
             res.next(false);
-            res = hook.before(req, res, Next::new()).await;
+            res = hook.before(req.clone(), res, Next::new()).await;
 
             if !res.is_next() {
-                return (false, res.request(), res);
+                return (false, req, res);
             }
 
             req = res.request();
@@ -245,10 +245,10 @@ impl Server {
     async fn call_after_hooks(&self, mut req: Request, mut res: Response) -> (Request, Response) {
         for hook in &self.after_hooks {
             res.next(false);
-            res = hook.after(req, res, Next::new()).await;
+            res = hook.after(req.clone(), res, Next::new()).await;
 
             if !res.is_next() {
-                return (res.request(), res);
+                return (req, res);
             }
 
             req = res.request();
