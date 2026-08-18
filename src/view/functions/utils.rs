@@ -2,6 +2,8 @@ use std::collections::HashMap;
 
 use tera::{Tera, Value, to_value};
 
+use crate::utils;
+
 pub(crate) fn register<'r>(engine: &'r mut Tera) {
     engine.register_function("env", env());
     engine.register_function("url", url());
@@ -15,7 +17,7 @@ fn env() -> impl Fn(&HashMap<String, Value>) -> tera::Result<tera::Value>  {
             .as_str()
             .unwrap();
 
-        return Ok(to_value(key).unwrap());
+        Ok(to_value(utils::env::env(key)).unwrap())
     };
 }
 
@@ -33,6 +35,6 @@ fn url() -> impl Fn(&HashMap<String, Value>) -> tera::Result<tera::Value>  {
                 .to_owned();
         }
 
-        return Ok(to_value(crate::utils::url::url(&path)).unwrap());
+        Ok(to_value(crate::utils::url::url(&path)).unwrap())
     };
 }
