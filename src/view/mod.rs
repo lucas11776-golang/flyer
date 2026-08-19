@@ -36,9 +36,7 @@ impl Hook for View {
                 };
 
                 let content = VIEW_REQUEST_DATA
-                    .scope(view_request_data, async {
-                        self.render_with_engine(engine, &mut view)
-                    })
+                    .scope(view_request_data, async { self.render_with_engine(engine, &mut view) })
                     .await
                     .unwrap();
 
