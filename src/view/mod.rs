@@ -1,5 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
-use anyhow::{Context as _, Result};
+
+use anyhow::Result;
 use bytes::Bytes;
 use serde::Serialize;
 use tera::{Context, Tera};
@@ -9,7 +10,13 @@ use crate::{
     request::Request,
     response::Response,
     routing::next::Next,
-    view::functions::{VIEW_REQUEST_DATA, ViewRequestData, register}
+    view::functions::{
+        HelperFunctions,
+        VIEW_REQUEST_DATA,
+        ViewRequestData,
+        request::RequestHelperFunctions,
+        utils::UtilsHelperFunctions
+    }
 };
 
 pub(crate) mod functions;
@@ -25,24 +32,35 @@ impl Hook for View {
     }
 
     async fn after(&self, req: Request, mut res: Response, next: Next) -> Response {
-        if let Some(engine) = &self.engine {
-            if let Some(mut view) = res.view.take() {
-                let view_request_data = ViewRequestData {
-                    queries: req.queries.clone(),
-                    headers: req.headers.clone(),
-                    cookies: req.cookies.clone(),
-                    session: req.session.clone(),
-                    parameters: req.parameters.clone(),
-                };
-
-                let content = VIEW_REQUEST_DATA
-                    .scope(view_request_data, async { self.render_with_engine(engine, &mut view) })
-                    .await
-                    .unwrap();
-
-                res.content = Bytes::from(content);
-            }
+        if self.engine.is_none() && res.view.is_none() {
+            return next.handle(req, res);
         }
+
+        let engine = self
+            .engine
+            .as_ref()
+            .unwrap();
+
+        let mut view = res
+            .view
+            .take()
+            .unwrap();
+
+        let view_request_data = ViewRequestData {
+            queries: req.queries.clone(),
+            headers: req.headers.clone(),
+            cookies: req.cookies.clone(),
+            session: req.session.clone(),
+            parameters: req.parameters.clone(),
+        };
+
+        res.content = VIEW_REQUEST_DATA
+            .scope(view_request_data, async { 
+                self.render_with_engine(engine, &mut view)
+            })
+            .await
+            .unwrap()
+            .into();
 
         next.handle(req, res)
     }
@@ -51,12 +69,14 @@ impl Hook for View {
 impl View {
     pub(crate) fn new(directory: Option<impl Into<String>>) -> Self {
         let engine = directory.map(|dir| {
-            let glob_path = format!("{}/**/*", dir.into().trim_end_matches('/'));
-            let mut tera = Tera::new(&glob_path).expect("Failed to initialize Tera engine");
+            let view_path = format!("{}/**/*", dir.into().trim_end_matches('/'));
+            let mut engine = Tera::new(&view_path)
+                .unwrap();
 
-            register(&mut tera);
+            RequestHelperFunctions::register(&mut engine);
+            UtilsHelperFunctions::register(&mut engine);
 
-            Arc::new(tera)
+            Arc::new(engine)
         });
 
         Self { engine }
@@ -68,9 +88,10 @@ impl View {
 
         engine
             .render(&bag.view, context)
-            .context("Tera render error")
+            .map_err(|err| err.into())
     }
 
+    // TODO: need to be path only.
     pub fn render(path: impl Into<String>, template: impl Into<String>, data: Option<ViewData>) -> Result<Bytes> {
         let filename = format!(
             "{}/{}",
@@ -78,11 +99,20 @@ impl View {
             template.into().trim_start_matches('/')
         );
 
-        let template_content = std::fs::read_to_string(filename)?;
-        let context = data.map(|d| d.context).unwrap_or_default();
-        let rendered = Tera::one_off(&template_content, &context, false)?;
+        let template = std::fs::read_to_string(filename)?;
 
-        Ok(Bytes::from(rendered))
+        let context = data
+            .map(|d| d.context)
+            .unwrap_or_default();
+
+        let mut engine = Tera::default();
+
+        UtilsHelperFunctions::register(&mut engine);
+
+        engine
+            .render_str(&template, &context)
+            .map(|v| v.into())
+            .map_err(|err| err.into())
     }
 }
 

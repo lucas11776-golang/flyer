@@ -1,17 +1,11 @@
 use std::collections::HashMap;
 
-use tera::Tera;
-
-use tera::{Value, to_value};
+use tera::{Tera, Value};
 
 use crate::{
     cookies::Cookies,
     session::Session,
-    utils::{Values, http::Headers},
-    view::functions::{
-        request::RequestHelperFunctions,
-        utils::UtilsHelperFunctions
-    }
+    utils::{Values, http::Headers}
 };
 
 pub(crate) mod utils;
@@ -35,18 +29,4 @@ pub(crate) struct ViewRequestData {
     pub(crate) headers: Headers,
     pub(crate) cookies: Cookies,
     pub(crate) session: Session,
-}
-
-// TODO: cleanup
-pub(crate) fn register<'r>(engine: &mut Tera) {
-    register_session_functions(engine);
-    register_utils_functions(engine);
-}
-
-pub(crate) fn register_session_functions(render: &mut Tera) {
-    RequestHelperFunctions::register(render);
-}
-
-pub(crate) fn register_utils_functions<'r>(engine: &mut Tera) {
-    UtilsHelperFunctions::register(engine);
 }
