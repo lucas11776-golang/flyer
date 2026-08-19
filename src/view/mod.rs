@@ -9,7 +9,7 @@ use crate::{
     request::Request,
     response::Response,
     routing::next::Next,
-    view::functions::{register, session::GLOBAL_CURRENT_SESSION}
+    view::functions::{VIEW_REQUEST_DATA, ViewRequestData, register}
 };
 
 pub(crate) mod functions;
@@ -27,15 +27,22 @@ impl Hook for View {
     async fn after(&self, req: Request, mut res: Response, next: Next) -> Response {
         if let Some(engine) = &self.engine {
             if let Some(mut view) = res.view.take() {
-                let rendered_result = GLOBAL_CURRENT_SESSION
-                    .scope(req.session.clone(), async {
+                let view_request_data = ViewRequestData {
+                    queries: req.queries.clone(),
+                    headers: req.headers.clone(),
+                    cookies: req.cookies.clone(),
+                    session: req.session.clone(),
+                    parameters: req.parameters.clone(),
+                };
+
+                let content = VIEW_REQUEST_DATA
+                    .scope(view_request_data, async {
                         self.render_with_engine(engine, &mut view)
                     })
-                    .await;
+                    .await
+                    .unwrap();
 
-                if let Ok(rendered) = rendered_result {
-                    res.content = Bytes::from(rendered);
-                }
+                res.content = Bytes::from(content);
             }
         }
 
