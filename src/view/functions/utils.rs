@@ -17,31 +17,20 @@ impl HelperFunctions for UtilsHelperFunctions {
 impl UtilsHelperFunctions {
     fn env() -> impl Fn(&HashMap<String, Value>) -> tera::Result<tera::Value>  {
         return move |args: &HashMap<String, Value>| -> tera::Result<tera::Value> {
-            let key = args
-                .get("name")
-                .unwrap()
-                .as_str()
+            let key = Self::get_arg(args, "name")
                 .unwrap();
 
-            Ok(to_value(utils::env::env(key)).unwrap())
+            to_value(utils::env::env(key)).map_err(|err| err.into())
         };
     }
 
-    // TODO: refactor.
     fn url() -> impl Fn(&HashMap<String, Value>) -> tera::Result<tera::Value>  {
         return move |args: &HashMap<String, Value>| -> tera::Result<tera::Value> {
-            let mut path = String::new();
+            let path = Self::get_arg(args, "path")
+                .map(|v| String::from(v).trim_matches('/').into())
+                .unwrap_or(String::new());
 
-            if let Some(p) = args.get("path") {
-                path = p
-                    .as_str()
-                    .unwrap()
-                    .trim_start_matches("/")
-                    .trim_end_matches("/")
-                    .to_owned();
-            }
-
-            Ok(to_value(crate::utils::url::url(&path)).unwrap())
+            to_value(crate::utils::url::url(&path)).map_err(|err| err.into())
         };
     }
 }
