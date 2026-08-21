@@ -32,7 +32,7 @@ impl Hook for View {
     }
 
     async fn after(&self, req: Request, mut res: Response, next: Next) -> Response {
-        if self.engine.is_none() && res.view.is_none() {
+        if let None = res.view {
             return next.handle(req, res);
         }
 
