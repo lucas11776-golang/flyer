@@ -224,7 +224,7 @@ impl Server {
     }
 
     pub(crate) fn get_instance(&mut self) -> Instance<Server> {
-        Instance(self as *mut Self)
+        Instance::from_mut(self)
     }
 
     async fn call_before_hooks(&self, mut req: Request, mut res: Response) -> (bool, Request, Response) {

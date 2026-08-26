@@ -1,16 +1,7 @@
 use std::time::Duration;
 
 use flyer::{
-    error::Error,
-    loggers::Logger,
-    request::{Request, form::Form},
-    response::Response,
-    routing::next::Next,
-    server,
-    session::local::LocalSession,
-    storage::{DEFAULT_STORAGE, local::LocalStorage},
-    validation::{Rules, Validator},
-    websocket::{Websocket, WriterInterface}
+    error::Error, loggers::Logger, request::{Request, form::Form}, response::Response, routing::next::Next, server, server_tls, session::local::LocalSession, storage::{DEFAULT_STORAGE, local::LocalStorage}, validation::{Rules, Validator}, websocket::{Websocket, WriterInterface}
 };
 
 pub async fn http(_req: Request, res: Response) -> Response {
@@ -78,8 +69,8 @@ impl Logger for DebuggerLogger {
 }
 
 pub fn main() {
-    let server = server("127.0.0.1", 9999)
-    // let server = server_tls("127.0.0.1", 9999, "host.key", "host.cert")
+    // let server = server("127.0.0.1", 9999)
+    let server = server_tls("127.0.0.1", 9999, "host.key", "host.cert")
         .view("views")
         .session(LocalSession::new(Some("sessions"), Duration::from_secs(60 * 60)))
         .storage(DEFAULT_STORAGE, LocalStorage::new("storage"));

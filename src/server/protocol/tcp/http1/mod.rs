@@ -9,7 +9,7 @@ use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader};
 
 use crate::request::form::Form;
 use crate::request::Request;
-use crate::response::{LoggerTWrapper, Response, WriterT};
+use crate::response::{WriterWrapper, Response, Writer};
 use crate::server::protocol::TcpHandler;
 use crate::server::Server;
 use crate::server::protocol::tcp::http1::ws::Ws;
@@ -28,44 +28,37 @@ pub struct Http1 {
 }
 
 pub struct Http1Writer<RW>
-
 where
     RW: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
 {
     rw: Instance<BufReader<RW>>,
     res: Instance<Response>,
-    has_sent: Arc<AtomicBool>
+    has_sent: Arc<AtomicBool>,
 }
 
-
-impl <RW>Http1Writer<RW>
+impl<RW> Http1Writer<RW>
 where
-    RW: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static
+    RW: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
 {
-    pub fn new(rw: Instance<BufReader<RW>>, res: Instance<Response>, has_sent: Arc<AtomicBool>) -> Self {
-        Self {
-            rw: rw,
-            res: res,
-            has_sent: has_sent,
-        }
+    pub fn new(
+        rw: Instance<BufReader<RW>>,
+        res: Instance<Response>,
+        has_sent: Arc<AtomicBool>,
+    ) -> Self {
+        Self { rw, res, has_sent }
     }
 }
 
-impl <RW>WriterT for Http1Writer<RW>
+impl<RW> Writer for Http1Writer<RW>
 where
     RW: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
 {
     async fn write(&self, data: Bytes) -> Result<()> {
-        let rw = self.rw.as_mut();
-        let res = self.res.as_mut();
+        let rw =  self.rw.as_mut();
+        let res =  self.res.as_mut();
 
-
-        if !self.has_sent.load(Ordering::Relaxed) {
-            self.has_sent.store(true, Ordering::Relaxed);
-
-            Http1::write_header(rw, res)
-                .await
-                .unwrap();
+        if !self.has_sent.swap(true, Ordering::Relaxed) {
+            Http1::write_header(rw, res).await?;
         }
 
         rw
@@ -74,8 +67,6 @@ where
             .map_err(Into::into)
     }
 }
-
-
 
 impl TcpHandler for Http1 {
     fn new(server: Instance<Server>, addr: SocketAddr) -> Self {
@@ -92,31 +83,30 @@ impl TcpHandler for Http1 {
         };
 
         if req.header("upgrade").eq_ignore_ascii_case("websocket") {
-            return Ws::new(self.server.clone(), self.addr).handle(rw, req).await;
+            return Ws::new(self.server, self.addr).handle(rw, req).await;
         }
 
         let mut res = Response::new();
         let sent = Arc::new(AtomicBool::new(false));
 
         let writer = Http1Writer::new(
-            Instance(&mut rw as *mut BufReader<RW>),
-            Instance(&mut res as *mut Response),
+            Instance::from_mut(&mut rw),
+            Instance::from_mut(&mut res),
             Arc::clone(&sent),
         );
 
-        res.writer = Some(Arc::new(LoggerTWrapper::new(writer)));
+        res.writer = Some(Arc::new(WriterWrapper::new(writer)));
 
-        let (_req, res) = self
-            .server
-            .as_mut()
-            .on_http(req, res)
-            .await;
+        let server =  self.server.as_mut();
+        
+        let (_req, res) = server.on_http(req, res).await;
 
         if sent.load(Ordering::Relaxed) {
             return Ok(());
         }
 
         let content_length = res.content.len();
+
         let mut res = res.set_header("Content-Length", content_length.to_string());
 
         Self::write_response(&mut rw, &mut res).await
@@ -130,7 +120,6 @@ impl Http1 {
     {
         let mut buffer = BytesMut::with_capacity(MAX_HEADER_LENGTH);
 
-        // Read stream until complete HTTP headers are loaded
         let header_size = loop {
             let n = rw.read_buf(&mut buffer).await?;
             if n == 0 {
@@ -153,12 +142,12 @@ impl Http1 {
             }
         };
 
-        // Split off headers from leftover body data
         let header_bytes = buffer.split_to(header_size);
         let leftover_body = buffer;
 
         let mut headers_ptr = [httparse::EMPTY_HEADER; 64];
         let mut parsed_req = httparse::Request::new(&mut headers_ptr);
+
         parsed_req
             .parse(&header_bytes)
             .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
@@ -169,22 +158,21 @@ impl Http1 {
 
         for h in parsed_req.headers.iter().filter(|h| !h.name.is_empty()) {
             let val_str = std::str::from_utf8(h.value).unwrap_or("").trim();
-            let name_lower = h.name.to_ascii_lowercase();
+            let name = h.name;
 
-            if name_lower == "content-length" {
+            if name.eq_ignore_ascii_case("content-length") {
                 content_length = val_str.parse().unwrap_or(0);
-            } else if name_lower == "transfer-encoding" && val_str.contains("chunked") {
+            } else if name.eq_ignore_ascii_case("transfer-encoding") && val_str.contains("chunked") {
                 is_chunked = true;
             }
 
-            headers.insert(name_lower, val_str.to_string());
+            headers.insert(name.to_ascii_lowercase(), val_str.to_string());
         }
 
         let body = if is_chunked {
-            self.read_chunked_body(rw, leftover_body).await?
+            Self::read_chunked_body(rw, leftover_body).await?
         } else {
-            self.read_fixed_body(rw, leftover_body, content_length)
-                .await?
+            Self::read_fixed_body(rw, leftover_body, content_length).await?
         };
 
         let raw_url = parsed_req.path.unwrap_or("");
@@ -196,7 +184,7 @@ impl Http1 {
         let host = headers.get("host").cloned().unwrap_or_default();
 
         Ok(Request {
-            server: self.server.clone(),
+            server: self.server,
             addr: self.addr,
             protocol: "HTTP/1.1".to_string(),
             method: parsed_req.method.unwrap_or("GET").to_string(),
@@ -213,7 +201,6 @@ impl Http1 {
     }
 
     async fn read_fixed_body<RW>(
-        &mut self,
         rw: &mut BufReader<RW>,
         mut leftover: BytesMut,
         content_length: u64,
@@ -225,28 +212,25 @@ impl Http1 {
             return Ok(Vec::new());
         }
 
-        let cl_usize = content_length as usize;
+        let target_len = content_length as usize;
 
-        // If leftover buffer already contains the entire body (or more)
-        if leftover.len() >= cl_usize {
-            let body_bytes = leftover.split_to(cl_usize);
-            return Ok(body_bytes.to_vec());
+        if leftover.len() >= target_len {
+            return Ok(leftover.split_to(target_len).to_vec());
         }
 
-        // Pre-allocate required capacity once up front
-        let mut body = Vec::with_capacity(cl_usize);
-        let leftover_len = leftover.len();
-        body.extend_from_slice(&leftover);
+        let additional_needed = target_len - leftover.len();
+        leftover.reserve(additional_needed);
 
-        let remaining = cl_usize - leftover_len;
-        let mut limited = rw.take(remaining as u64);
-        limited.read_to_end(&mut body).await?;
+        while leftover.len() < target_len {
+            if rw.read_buf(&mut leftover).await? == 0 {
+                return Err(Error::new(ErrorKind::UnexpectedEof, "Truncated HTTP body").into());
+            }
+        }
 
-        Ok(body)
+        Ok(leftover.split_to(target_len).to_vec())
     }
 
     async fn read_chunked_body<RW>(
-        &mut self,
         rw: &mut BufReader<RW>,
         mut buf: BytesMut,
     ) -> Result<Vec<u8>>
@@ -254,13 +238,14 @@ impl Http1 {
         RW: AsyncRead + Unpin + Send + Sync,
     {
         let mut body = Vec::new();
+        let mut search_idx = 0;
 
         loop {
-            // Find CRLF line boundary for chunk size
             let line_end = loop {
-                if let Some(pos) = buf.windows(2).position(|w| w == b"\r\n") {
-                    break pos;
+                if let Some(pos) = buf[search_idx..].windows(2).position(|w| w == b"\r\n") {
+                    break search_idx + pos;
                 }
+                search_idx = buf.len().saturating_sub(1);
                 if rw.read_buf(&mut buf).await? == 0 {
                     return Err(
                         Error::new(ErrorKind::UnexpectedEof, "Truncated chunk size").into(),
@@ -269,7 +254,8 @@ impl Http1 {
             };
 
             let size_bytes = buf.split_to(line_end);
-            buf.advance(2); // Skip \r\n
+            buf.advance(2);
+            search_idx = 0;
 
             let size_str = std::str::from_utf8(&size_bytes)
                 .map_err(|_| Error::new(ErrorKind::InvalidData, "Invalid UTF-8 in chunk size"))?;
@@ -278,7 +264,6 @@ impl Http1 {
                 .map_err(|_| Error::new(ErrorKind::InvalidData, "Invalid hex chunk size"))?;
 
             if chunk_size == 0 {
-                // Read trailing CRLF for end chunk if needed
                 while buf.len() < 2 {
                     if rw.read_buf(&mut buf).await? == 0 {
                         break;
@@ -287,7 +272,6 @@ impl Http1 {
                 break;
             }
 
-            // Ensure full chunk payload + trailing CRLF (2 bytes) is buffered
             let total_needed = chunk_size + 2;
             while buf.len() < total_needed {
                 if rw.read_buf(&mut buf).await? == 0 {
@@ -298,85 +282,64 @@ impl Http1 {
             }
 
             body.extend_from_slice(&buf[..chunk_size]);
-            buf.advance(total_needed); // Advance past chunk data + CRLF
+            buf.advance(total_needed);
         }
 
         Ok(body)
     }
 
-    fn serialize(res: &Response) -> Vec<u8> {
-        let content_length = res.content.len();
-        let mut serialized = Vec::with_capacity(128 + (res.headers.len() * 32) + content_length);
-        let status_text = http::StatusCode::from_u16(res.status_code)
+    fn format_headers(res: &Response, buf: &mut BytesMut) {
+        use std::fmt::Write;
+
+        let status_code = res.status_code;
+        let status_text = http::StatusCode::from_u16(status_code)
             .map(|s| s.canonical_reason().unwrap_or("OK"))
             .unwrap_or("OK");
-        let _ = write!(serialized, "HTTP/1.1 {} {}\r\n", res.status_code, status_text);
+
+        let _ = write!(buf, "HTTP/1.1 {} {}\r\n", status_code, status_text);
 
         for (k, v) in &res.headers {
-            if !k.eq_ignore_ascii_case("content-length") {
-                let _ = write!(serialized, "{}: {}\r\n", k, v);
-            }
+            let _ = write!(buf, "{}: {}\r\n", k, v);
         }
 
-        let _ = write!(serialized, "Content-Length: {}\r\n\r\n", content_length);
-
-        serialized.extend_from_slice(&res.content);
-
-        serialized
+        let _ = write!(buf, "\r\n");
     }
 
     async fn write_header<RW>(rw: &mut BufReader<RW>, res: &mut Response) -> Result<()>
     where
-        RW: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static
+        RW: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     {
-        let content_length = res.content.len();
-        let mut serialized = Vec::with_capacity(128 + (res.headers.len() * 32) + content_length);
-        let status_text = http::StatusCode::from_u16(res.status_code)
-            .map(|s| s.canonical_reason().unwrap_or("OK"))
-            .unwrap_or("OK");
-        let _ = write!(serialized, "HTTP/1.1 {} {}\r\n", res.status_code, status_text);
+        let mut buffer = BytesMut::with_capacity(256 + res.headers.len() * 32);
 
-        for (k, v) in &res.headers {
-            let _ = write!(serialized, "{}: {}\r\n", k, v);
-        }
-
-        let _ = write!(serialized, "\r\n");
-
+        Self::format_headers(res, &mut buffer);
 
         rw
-            .write_all(&serialized)
+            .write_all(&buffer)
             .await
-            // .map_err(Into::into)
             .unwrap();
 
-
-        let a = rw
+        rw
             .flush()
             .await
-            // .map_err(Into::into)
-            .unwrap()
-            ;
-
-
-        // println!("DATA SENT");
-
-        // a
-
-        Ok(())
+            .map_err(Into::into)
     }
 
+    // TODO: when request is large send as chunks.
     async fn write_response<RW>(rw: &mut BufReader<RW>, res: &mut Response) -> Result<()>
     where
-        RW: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static
+        RW: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     {
-        Self::write_header(rw, res)
-            .await
-            .unwrap();
+        let mut buffer = BytesMut::with_capacity(256 + res.headers.len() * 32 + res.content.len());
 
-        rw
-            .write_all(&res.content)
-            .await
-            .unwrap();
+        Self::format_headers(res, &mut buffer);
+
+        if res.content.len() <= 16384 {
+            buffer.extend_from_slice(&res.content);
+            rw.write_all(&buffer).await?;
+        } else {
+            rw.write_all(&buffer).await?;
+            rw.write_all(&res.content).await?;
+        }
 
         rw
             .flush()
