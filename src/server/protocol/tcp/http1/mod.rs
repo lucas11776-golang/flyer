@@ -1,22 +1,18 @@
 use std::io::{Error, ErrorKind, Write};
 use std::net::SocketAddr;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, AtomicPtr, Ordering};
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use anyhow::Result;
 use bytes::{Buf, Bytes, BytesMut};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader};
-use tokio::sync::Mutex;
-use tokio::sync::mpsc::UnboundedSender;
-use tokio::sync::mpsc::unbounded_channel;
 
 use crate::request::form::Form;
 use crate::request::Request;
-use crate::response::{self, LOCAL_RESPONSE, LoggerTWrapper, Response, Writer, WriterT};
+use crate::response::{LoggerTWrapper, Response, WriterT};
 use crate::server::protocol::TcpHandler;
 use crate::server::Server;
 use crate::server::protocol::tcp::http1::ws::Ws;
-use crate::utils::future::SendFuture;
 use crate::utils::http::Headers;
 use crate::utils::mem::Instance;
 use crate::utils::url::parse_query;
@@ -38,6 +34,7 @@ where
 {
     rw: Instance<BufReader<RW>>,
     res: Instance<Response>,
+    has_sent: Arc<AtomicBool>
 }
 
 
@@ -45,10 +42,11 @@ impl <RW>Http1Writer<RW>
 where
     RW: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static
 {
-    pub fn new(rw: Instance<BufReader<RW>>, res: Instance<Response>) -> Self {
+    pub fn new(rw: Instance<BufReader<RW>>, res: Instance<Response>, has_sent: Arc<AtomicBool>) -> Self {
         Self {
             rw: rw,
-            res: res
+            res: res,
+            has_sent: has_sent,
         }
     }
 }
@@ -62,9 +60,9 @@ where
         let res = self.res.as_mut();
 
 
-        res.has_sent = true;
+        if !self.has_sent.load(Ordering::Relaxed) {
+            self.has_sent.store(true, Ordering::Relaxed);
 
-        if !res.has_sent {
             Http1::write_header(rw, res)
                 .await
                 .unwrap();
@@ -98,10 +96,12 @@ impl TcpHandler for Http1 {
         }
 
         let mut res = Response::new();
+        let sent = Arc::new(AtomicBool::new(false));
 
         let writer = Http1Writer::new(
             Instance(&mut rw as *mut BufReader<RW>),
-            Instance(&mut res as *mut Response)
+            Instance(&mut res as *mut Response),
+            Arc::clone(&sent),
         );
 
         res.writer = Some(Arc::new(LoggerTWrapper::new(writer)));
@@ -112,9 +112,7 @@ impl TcpHandler for Http1 {
             .on_http(req, res)
             .await;
 
-        println!("HAS SENT ----> {:?}", res.has_sent);
-
-        if res.has_sent {
+        if sent.load(Ordering::Relaxed) {
             return Ok(());
         }
 
