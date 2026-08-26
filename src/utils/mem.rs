@@ -21,3 +21,5 @@ impl <T>Clone for Instance<T> {
         return Self(self.0.clone());
     }
 }
+
+// impl <T>Copy for Instance<T> { }

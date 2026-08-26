@@ -6,12 +6,7 @@ use futures::future::BoxFuture;
 use serde::Serialize;
 
 use crate::{
-    cookies::{Cookies, cookie::Cookie},
-    request::Request,
-    routing::next::Next,
-    session::Session,
-    utils::{Values, http::Headers},
-    view::{ViewBag, ViewData},
+    cookies::{Cookies, cookie::Cookie}, request::Request, routing::next::Next, session::Session, utils::{Values, future::SendFuture, http::Headers, mem::Instance}, view::{ViewBag, ViewData},
 };
 
 pub type StatusCode = u16;
@@ -88,16 +83,64 @@ pub struct Response {
     pub(crate) content: Bytes,
     pub(crate) cookies: Cookies,
     pub(crate) session: Session,
-    pub(crate) view: Option<ViewBag>,
-    pub(crate) writer: Arc<dyn Writer>,
-    pub(crate) sent: bool,
-    is_next: bool,
+    pub view: Option<ViewBag>,
+    // TODO: temp fix
+    pub(crate) writer: Option<Arc<dyn WriterTErasure>>,
+    pub(crate) is_next: bool,
+    pub(crate) has_sent: bool,
 }
 
 
+#[allow(async_fn_in_trait)]
 pub trait Writer: Send + Sync {
-    fn write(&self, data: Bytes) -> Result<()>;
+    async fn write(&self, data: Bytes) -> Result<()> ;
 }
+
+
+#[allow(async_fn_in_trait)]
+pub trait WriterT: Send + Sync {
+    async fn write(&self, data: Bytes) -> Result<()>;
+}
+
+pub(crate) trait WriterTErasure: Send + Sync {
+    fn write(&self, data: Bytes) -> BoxFuture<'static, Result<()>>;
+}
+
+pub struct LoggerTWrapper<T: WriterT + 'static> {
+    pub instance: Arc<T>,
+    pub has_sent: bool,
+}
+
+impl <T: WriterT + 'static>LoggerTWrapper<T> {
+    pub fn new(instance: T) -> Self {
+        return Self {
+            instance: Arc::new(instance),
+            has_sent: false,
+        };
+    }
+}
+
+impl<T: WriterT + 'static> WriterTErasure for LoggerTWrapper<T> {
+    fn write(&self, data: Bytes) -> BoxFuture<'static, Result<()>> {
+        let instance = Arc::clone(&self.instance);
+        // let res_instance = LOCAL_RESPONSE.get();
+        // let res = res_instance.as_mut();
+
+        // if !res.has_sent {
+        //     res.has_sent = true
+        // }
+
+        return Box::pin(async move {
+            SendFuture(instance.write(data)).await
+        });
+    }
+}
+
+
+tokio::task_local! {
+    pub(crate) static LOCAL_RESPONSE: Instance<Response>;
+}
+
 
 impl Into<serde_json::Value> for Response {
     fn into(self) -> serde_json::Value {
@@ -113,7 +156,8 @@ impl Into<serde_json::Value> for Response {
 
 impl Response {
     #[inline]
-    pub(crate) fn new(writer: impl Writer + 'static) -> Self {
+    // pub(crate) fn new(writer: impl WriterTErasure + 'static) -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             next: None,
             status_code: HTTP_OK,
@@ -124,8 +168,10 @@ impl Response {
             session: Default::default(),
             view: None,
             is_next: false,
-            writer: Arc::new(writer),
-            sent: false,
+            // writer: Arc::new(writer),
+            writer: None,
+            has_sent: false,
+
         }
     }
 
@@ -278,10 +324,13 @@ impl Response {
     ///
     /// 
     /// 
-    pub fn write(&self, data: Bytes) -> Result<()> {
+    pub async fn write(&self, data: Bytes) -> Result<()> {
         self
             .writer
+            .as_ref()
+            .unwrap()
             .write(data)
+            .await
     }
 
     pub fn with_flash(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {

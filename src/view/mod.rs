@@ -117,9 +117,9 @@ impl View {
 }
 
 #[derive(Clone)]
-pub(crate) struct ViewBag {
-    pub(crate) view: String,
-    pub(crate) data: Option<ViewData>,
+pub struct ViewBag {
+    pub view: String,
+    pub data: Option<ViewData>,
 }
 
 impl Serialize for ViewBag {

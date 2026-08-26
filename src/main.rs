@@ -88,9 +88,6 @@ pub fn main() {
     Rules::add("testing", rule_exists);
 
     server.router().get("/", async |req, res| {
-        // // let a: Option<String> = None;
-
-        // // a.unwrap();
 
         // let mut validator = Validator::new(req.form(), {
         //     let mut rules = Rules::new();
@@ -102,9 +99,13 @@ pub fn main() {
 
         // println!("\r\n\r\nVALIDATION -> {} : {:?}", valid, validator.errors());
 
-        // return res
+        // let res = res
         //     .view("index.html", None)
         //     .set_session("user_id", "10");
+
+
+        // res
+
 
 
 
@@ -112,9 +113,39 @@ pub fn main() {
         let html = String::from("<h1>Hello World</h1>");
 
 
-        let res = res.set_header("Content-Length", html.len().to_string());
+        let res = res
+            // .set_header("Content-Length", html.len().to_string())
+            .set_header("Transfer-Encoding", "chunked")
+            .set_header("Connection", "keep-alive")
+            .set_header("Content-Type", "text/plain");
 
-        res.write(html.into()).unwrap();
+
+        // res.write(html.into()).await.unwrap();
+
+        println!("Testing CONTROLLER CHUNK");
+
+        for i in 1..=5 {
+            let data = format!("Data payload chunk #{}\n", i);
+            
+            // Format: <HEX_SIZE>\r\n<DATA>\r\n
+            let chunk_header = format!("{:X}\r\n", data.len());
+
+            res.write(chunk_header.into()).await.unwrap();
+            res.write(data.into()).await.unwrap();
+            res.write("\r\n".into()).await.unwrap();
+
+            // if socket.write_all(chunk_header.as_bytes()).await.is_err() 
+            //     || socket.write_all(data.as_bytes()).await.is_err() 
+            //     || socket.write_all(b"\r\n").await.is_err() 
+        //     {
+        //         return;
+        //     }
+
+        //     // Flush immediately so TCP transmits without buffering delay
+        //     let _ = socket.flush().await;
+
+        //     sleep(Duration::from_millis(500)).await;
+        }
 
 
         res

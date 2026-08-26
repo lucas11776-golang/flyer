@@ -61,10 +61,9 @@ where
         let rw = self.rw.as_mut();
         let res = self.res.as_mut();
 
-
-        res.has_sent = true;
-
         if !res.has_sent {
+            res.has_sent = true;
+
             Http1::write_header(rw, res)
                 .await
                 .unwrap();
@@ -106,13 +105,13 @@ impl TcpHandler for Http1 {
 
         res.writer = Some(Arc::new(LoggerTWrapper::new(writer)));
 
-        let (_req, res) = self
+        let (_req, mut res) = self
             .server
             .as_mut()
             .on_http(req, res)
             .await;
 
-        println!("HAS SENT ----> {:?}", res.has_sent);
+        println!("HAS SENT -> {}", res.has_sent);
 
         if res.has_sent {
             return Ok(());
@@ -122,6 +121,126 @@ impl TcpHandler for Http1 {
         let mut res = res.set_header("Content-Length", content_length.to_string());
 
         Self::write_response(&mut rw, &mut res).await
+
+
+
+
+
+
+
+        // // TODO: find out why LOCAL_RESPONSE != res (maybe cloning).
+        // let mut res = Response::new(
+        //     LoggerTWrapper::new(
+        //             Http1Writer::new(Instance(&mut rw as *mut BufReader<RW>))
+        //         )
+        // );
+
+        // let (_req, res) = LOCAL_RESPONSE
+        //     .scope(Instance(&mut res as *mut Response), async {
+        //         let (req, mut res) = self
+        //             .server
+        //             .as_mut()
+        //             .on_http(req, res)
+        //             .await;
+
+        //         res.has_sent = LOCAL_RESPONSE.get().as_ref().has_sent;
+
+
+
+
+        //         println!("TESTING -... {:?}", LOCAL_RESPONSE.get().as_ref().view.is_some());
+
+        //         (req, res)    
+        //     })
+        //     .await
+        //     ;
+
+
+        // println!("RESPONSE HAS SENT {} {:?}", res.has_sent, "");
+
+
+        // if res.has_sent {
+        //     return Ok(())
+        // }
+
+        // let content_length = res.content.len();
+        // let mut res = res.set_header("Content-Length", content_length.to_string());
+
+        // Self::write_response(&mut rw, &mut res).await
+
+
+
+
+
+        // todo!()
+
+
+
+
+        // let (tx, mut rx) = unbounded_channel::<Bytes>();
+
+        // let mut writer = ResponseWriter::new(Http1Writer::new(tx));
+        // let writer_instance = Instance(&mut writer as *mut ResponseWriter);
+
+        // let mut res = Response::new(writer_instance);
+        // let rw_instance = Instance(&mut rw as *mut BufReader<RW>);
+        // let res_instance = Instance(&mut res as *mut Response);
+
+        // let sent = Arc::new(AtomicBool::new(false));
+        // let sent_task = Arc::clone(&sent);
+
+        // tokio::spawn(async move {
+        //     let rw = rw_instance.as_mut();
+        //     let res = res_instance.as_mut();
+
+        //     while let Some(msg) = rx.recv().await {
+
+        //         // println!("Testing ------ 1");
+
+        //         // if !sent_task.load(Ordering::Relaxed) {
+        //         //     sent_task.store(true, Ordering::Relaxed);
+
+
+
+        //         //     let a= Self::write_header(rw, res)
+        //         //         .await
+        //         //         ;
+
+        //         //     if let Err(err) = a {
+        //         //         println!("ERROR {:?}", err);
+        //         //     }
+
+
+        //         //     println!("Testing ------ Wait");
+        //         // }
+
+        //         println!("Testing ------ 2");
+
+        //         rw
+        //             .write_all(&msg)
+        //             .await
+        //             .unwrap();
+        //     }
+        // });
+
+
+        // let (_, res) = self
+        //     .server
+        //     .as_mut()
+        //     .on_http(req, res)
+        //     .await;
+
+        // println!("!!!! DONE EXECUTING !!!!");
+
+
+        // if sent.load(Ordering::Relaxed) {
+        //     return Ok(())
+        // }
+
+        // let content_length = res.content.len();
+        // let mut res = res.set_header("Content-Length", content_length.to_string());
+
+        // Self::write_response(&mut rw, &mut res).await
     }
 }
 
@@ -352,6 +471,9 @@ impl Http1 {
             .unwrap();
 
 
+        println!("TESTING write_header");
+
+
         let a = rw
             .flush()
             .await
@@ -372,11 +494,6 @@ impl Http1 {
         RW: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static
     {
         Self::write_header(rw, res)
-            .await
-            .unwrap();
-
-        rw
-            .write_all(&res.content)
             .await
             .unwrap();
 
