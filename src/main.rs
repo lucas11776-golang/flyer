@@ -88,23 +88,36 @@ pub fn main() {
     Rules::add("testing", rule_exists);
 
     server.router().get("/", async |req, res| {
-        // let a: Option<String> = None;
+        // // let a: Option<String> = None;
 
-        // a.unwrap();
+        // // a.unwrap();
 
-        let mut validator = Validator::new(req.form(), {
-            let mut rules = Rules::new();
-            rules.rule("email", vec!["testing"]);
-            rules
-        });
+        // let mut validator = Validator::new(req.form(), {
+        //     let mut rules = Rules::new();
+        //     rules.rule("email", vec!["testing"]);
+        //     rules
+        // });
 
-        let valid = validator.validate().await;
+        // let valid = validator.validate().await;
 
-        println!("\r\n\r\nVALIDATION -> {} : {:?}", valid, validator.errors());
+        // println!("\r\n\r\nVALIDATION -> {} : {:?}", valid, validator.errors());
 
-        return res
-            .view("index.html", None)
-            .set_session("user_id", "10");
+        // return res
+        //     .view("index.html", None)
+        //     .set_session("user_id", "10");
+
+
+
+
+        let html = String::from("<h1>Hello World</h1>");
+
+
+        let res = res.set_header("Content-Length", html.len().to_string());
+
+        res.write(html.into()).unwrap();
+
+
+        res
     });
 
     server.router().post("upload", upload);

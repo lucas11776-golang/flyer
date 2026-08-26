@@ -1,13 +1,18 @@
 use std::io::{Error, ErrorKind, Write};
 use std::net::SocketAddr;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use anyhow::Result;
-use bytes::{Buf, BytesMut};
+use bytes::{Buf, Bytes, BytesMut};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader};
+use tokio::sync::Mutex;
+use tokio::sync::mpsc::UnboundedSender;
+use tokio::sync::mpsc::unbounded_channel;
 
 use crate::request::form::Form;
 use crate::request::Request;
-use crate::response::Response;
+use crate::response::{self, Response};
 use crate::server::protocol::TcpHandler;
 use crate::server::Server;
 use crate::server::protocol::tcp::http1::ws::Ws;
@@ -23,6 +28,28 @@ const MAX_HEADER_LENGTH: usize = 8192; // 8KB standard cap
 pub struct Http1 {
     server: Instance<Server>,
     addr: SocketAddr,
+}
+
+
+pub struct Http1Writer {
+    sender: UnboundedSender<Bytes>,
+}
+
+impl Http1Writer {
+    pub fn new(sender: UnboundedSender<Bytes>) -> Self {
+        Self {
+            sender: sender
+        }
+    }
+}
+
+impl response::Writer for Http1Writer {
+    fn write(&self, data: Bytes)  -> Result<()> {
+        self
+            .sender
+            .send(data)
+            .map_err(Into::into)
+    }
 }
 
 impl TcpHandler for Http1 {
@@ -43,11 +70,44 @@ impl TcpHandler for Http1 {
             return Ws::new(self.server.clone(), self.addr).handle(rw, req).await;
         }
 
-        let (_, res) = self.server.as_mut().on_http(req, Response::new()).await;
-        let serialized_res = Self::serialize(&res);
+        let (tx, mut rx) = unbounded_channel::<Bytes>();
+        let sent = Arc::new(AtomicBool::new(false));
+        let sent_task = Arc::clone(&sent);
 
-        rw.write_all(&serialized_res).await?;
-        rw.flush().await?;
+        tokio::spawn(async move {
+            while let Some(msg) = rx.recv().await {
+                sent_task.store(true, Ordering::Relaxed);
+
+                unsafe {
+                    println!("Byte Message From: {}", String::from_utf8_unchecked(msg.to_vec()))
+                }
+            }
+        });
+
+        let (_, mut res) = self
+            .server
+            .as_mut()
+            .on_http(req, Response::new(Http1Writer::new(tx))).await;
+
+        if !sent.load(Ordering::Relaxed) {
+            let content_length = res.content.len();
+
+            res = res.set_header("Content-Length", content_length.to_string());
+
+            let mut serialized_res = Self::get_headers_content(&res);
+
+            serialized_res.extend_from_slice(&res.content);
+
+            rw
+                .write_all(&serialized_res)
+                .await
+                .unwrap();
+
+            rw
+                .flush()
+                .await
+                .unwrap();
+        }
 
         Ok(())
     }
@@ -253,5 +313,22 @@ impl Http1 {
         serialized.extend_from_slice(&res.content);
 
         serialized
+    }
+
+    fn get_headers_content(res: &Response) -> Vec<u8> {
+        let content_length = res.content.len();
+        let mut serialized = Vec::with_capacity(128 + (res.headers.len() * 32) + content_length);
+        let status_text = http::StatusCode::from_u16(res.status_code)
+            .map(|s| s.canonical_reason().unwrap_or("OK"))
+            .unwrap_or("OK");
+        let _ = write!(serialized, "HTTP/1.1 {} {}\r\n", res.status_code, status_text);
+
+        for (k, v) in &res.headers {
+            let _ = write!(serialized, "{}: {}\r\n", k, v);
+        }
+
+        let _ = write!(serialized, "\r\n");
+
+        return serialized
     }
 }

@@ -1,4 +1,8 @@
+use std::sync::Arc;
+
+use anyhow::Result;
 use bytes::Bytes;
+use futures::future::BoxFuture;
 use serde::Serialize;
 
 use crate::{
@@ -85,7 +89,14 @@ pub struct Response {
     pub(crate) cookies: Cookies,
     pub(crate) session: Session,
     pub(crate) view: Option<ViewBag>,
+    pub(crate) writer: Arc<dyn Writer>,
+    pub(crate) sent: bool,
     is_next: bool,
+}
+
+
+pub trait Writer: Send + Sync {
+    fn write(&self, data: Bytes) -> Result<()>;
 }
 
 impl Into<serde_json::Value> for Response {
@@ -100,8 +111,9 @@ impl Into<serde_json::Value> for Response {
     }
 }
 
-impl Default for Response {
-    fn default() -> Self {
+impl Response {
+    #[inline]
+    pub(crate) fn new(writer: impl Writer + 'static) -> Self {
         Self {
             next: None,
             status_code: HTTP_OK,
@@ -112,14 +124,9 @@ impl Default for Response {
             session: Default::default(),
             view: None,
             is_next: false,
+            writer: Arc::new(writer),
+            sent: false,
         }
-    }
-}
-
-impl Response {
-    #[inline]
-    pub(crate) fn new() -> Self {
-        Self::default()
     }
 
     #[inline]
@@ -266,6 +273,15 @@ impl Response {
             self.session.errors.insert(name, error);
         }
         self
+    }
+
+    ///
+    /// 
+    /// 
+    pub fn write(&self, data: Bytes) -> Result<()> {
+        self
+            .writer
+            .write(data)
     }
 
     pub fn with_flash(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {

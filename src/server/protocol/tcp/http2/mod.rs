@@ -67,9 +67,13 @@ impl Http2 {
         request: http::Request<RecvStream>,
         response: SendResponse<Bytes>,
     ) -> Result<()> {
-        let req = Self::deserialize(server.clone(), addr, request).await?;
-        let (_, res) = server.as_mut().on_http(req, Response::new()).await;
-        Self::write(response, res).await
+        // TODO: finish
+
+        todo!()
+
+        // let req = Self::deserialize(server.clone(), addr, request).await?;
+        // let (_, res) = server.as_mut().on_http(req, Response::new()).await;
+        // Self::write(response, res).await
     }
 
     async fn deserialize(

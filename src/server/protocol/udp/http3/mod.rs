@@ -46,16 +46,20 @@ impl Http3 {
         addr: SocketAddr,
         resolver: h3::server::RequestResolver<h3_quinn::Connection, Bytes>,
     ) -> Result<()> {
-        let (request, mut stream) = resolver
-            .resolve_request()
-            .await
-            .context("Failed to resolve HTTP/3 request")?;
+        // TODO: finish
 
-        let req = Self::deserialize(server.clone(), addr, &request, &mut stream).await?;
+        todo!()
 
-        let (_, res) = server.as_mut().on_http(req, Response::new()).await;
+        // let (request, mut stream) = resolver
+        //     .resolve_request()
+        //     .await
+        //     .context("Failed to resolve HTTP/3 request")?;
 
-        Self::write(&mut stream, res).await
+        // let req = Self::deserialize(server.clone(), addr, &request, &mut stream).await?;
+
+        // let (_, res) = server.as_mut().on_http(req, Response::new()).await;
+
+        // Self::write(&mut stream, res).await
     }
 
     async fn deserialize(
