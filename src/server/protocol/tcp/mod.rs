@@ -45,6 +45,7 @@ impl Tcp {
             None => Self::handle_connection(server, addr, BufReader::new(stream)).await,
         };
 
+        // TODO: handle error
         if let Err(_) = result {
             // TODO: log error (e.g., tracing::error!)
         }

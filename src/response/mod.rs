@@ -1,4 +1,8 @@
+use std::sync::Arc;
+
+use anyhow::Result;
 use bytes::Bytes;
+use futures::future::BoxFuture;
 use serde::Serialize;
 
 use crate::{
@@ -6,7 +10,7 @@ use crate::{
     request::Request,
     routing::next::Next,
     session::Session,
-    utils::{Values, http::Headers},
+    utils::{Values, future::SendFuture, http::Headers},
     view::{ViewBag, ViewData},
 };
 
@@ -84,8 +88,41 @@ pub struct Response {
     pub(crate) content: Bytes,
     pub(crate) cookies: Cookies,
     pub(crate) session: Session,
-    pub(crate) view: Option<ViewBag>,
-    is_next: bool,
+    pub view: Option<ViewBag>,
+    // TODO: temp fix
+    pub(crate) writer: Option<Arc<dyn WriterErasure>>,
+    pub(crate) is_next: bool,
+}
+
+#[allow(async_fn_in_trait)]
+pub(crate) trait Writer: Send + Sync {
+    async fn write(&self, data: Bytes) -> Result<()>;
+}
+
+pub(crate) trait WriterErasure: Send + Sync {
+    fn write(&self, data: Bytes) -> BoxFuture<'static, Result<()>>;
+}
+
+pub(crate) struct WriterWrapper<T: Writer + 'static> {
+    pub instance: Arc<T>,
+}
+
+impl <T: Writer + 'static>WriterWrapper<T> {
+    pub fn new(instance: T) -> Self {
+        Self {
+            instance: Arc::new(instance),
+        }
+    }
+}
+
+impl<T: Writer + 'static> WriterErasure for WriterWrapper<T> {
+    fn write(&self, data: Bytes) -> BoxFuture<'static, Result<()>> {
+        let instance = Arc::clone(&self.instance);
+
+        return Box::pin(async move {
+            SendFuture(instance.write(data)).await
+        });
+    }
 }
 
 impl Into<serde_json::Value> for Response {
@@ -100,8 +137,9 @@ impl Into<serde_json::Value> for Response {
     }
 }
 
-impl Default for Response {
-    fn default() -> Self {
+impl Response {
+    #[inline]
+    pub(crate) fn new() -> Self {
         Self {
             next: None,
             status_code: HTTP_OK,
@@ -112,14 +150,9 @@ impl Default for Response {
             session: Default::default(),
             view: None,
             is_next: false,
-        }
-    }
-}
+            writer: None,
 
-impl Response {
-    #[inline]
-    pub(crate) fn new() -> Self {
-        Self::default()
+        }
     }
 
     #[inline]
@@ -266,6 +299,15 @@ impl Response {
             self.session.errors.insert(name, error);
         }
         self
+    }
+
+    pub async fn write(&self, data: Bytes) -> Result<()> {
+        self
+            .writer
+            .as_ref()
+            .unwrap()
+            .write(data)
+            .await
     }
 
     pub fn with_flash(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {

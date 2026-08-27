@@ -1,18 +1,81 @@
 use std::net::SocketAddr;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use bytes::{Buf, Bytes, BytesMut};
 use h3::server::RequestStream;
 use h3_quinn::BidiStream;
+use tokio::sync::Mutex as TokioMutex;
 
-use crate::{
-    cookies::Cookies,
-    request::{form::Form, Request},
-    response::Response,
-    server::{protocol::UdpHandler, Server},
-    session::Session,
-    utils::{http::Headers, mem::Instance, url::parse_query, Values},
-};
+use crate::cookies::Cookies;
+use crate::request::form::Form;
+use crate::request::Request;
+use crate::response::{Response, Writer, WriterWrapper};
+use crate::server::protocol::UdpHandler;
+use crate::server::Server;
+use crate::session::Session;
+use crate::utils::http::Headers;
+use crate::utils::mem::Instance;
+use crate::utils::url::parse_query;
+use crate::utils::Values;
+
+pub type H3Stream = RequestStream<BidiStream<Bytes>, Bytes>;
+
+pub struct Http3Writer {
+    stream: Arc<TokioMutex<H3Stream>>,
+    res: Instance<Response>,
+    has_sent: Arc<AtomicBool>,
+}
+
+impl Http3Writer {
+    pub(crate) fn new(
+        stream: Arc<TokioMutex<H3Stream>>,
+        res: Instance<Response>,
+        has_sent: Arc<AtomicBool>,
+    ) -> Self {
+        Self {
+            stream: stream,
+            res: res,
+            has_sent: has_sent,
+        }
+    }
+}
+
+impl Writer for Http3Writer {
+    async fn write(&self, data: Bytes) -> Result<()> {
+        let mut stream = self.stream.lock().await;
+
+        if !self.has_sent.swap(true, Ordering::Relaxed) {
+            let res =  self.res.as_ref();
+
+            let mut builder = http::Response::builder().status(res.status_code);
+            for (k, v) in &res.headers {
+                if !k.eq_ignore_ascii_case("content-length") {
+                    builder = builder.header(k, v);
+                }
+            }
+
+            let response_head = builder
+                .body(())
+                .context("Failed to build HTTP/3 response head")?;
+
+            stream
+                .send_response(response_head)
+                .await
+                .context("Failed to send HTTP/3 response headers")?;
+        }
+
+        if !data.is_empty() {
+            stream
+                .send_data(data)
+                .await
+                .context("Failed to stream HTTP/3 chunk")?;
+        }
+
+        Ok(())
+    }
+}
 
 pub struct Http3 {
     server: Instance<Server>,
@@ -24,14 +87,17 @@ impl UdpHandler for Http3 {
         Self { server, addr }
     }
 
-    async fn handle(&mut self, mut server: h3::server::Connection<h3_quinn::Connection, Bytes>) -> Result<()> {
+    async fn handle(
+        &mut self,
+        mut server: h3::server::Connection<h3_quinn::Connection, Bytes>,
+    ) -> Result<()> {
         while let Ok(Some(resolver)) = server.accept().await {
-            let server = self.server.clone();
+            let server = self.server;
             let addr = self.addr;
 
             tokio::spawn(async move {
                 if let Err(err) = Self::process_request(server, addr, resolver).await {
-                    eprintln!("Error handling HTTP/3 request from {addr}: {err}");
+                    eprintln!("Error handling HTTP/3 request from {addr}: {err:#}");
                 }
             });
         }
@@ -51,18 +117,41 @@ impl Http3 {
             .await
             .context("Failed to resolve HTTP/3 request")?;
 
-        let req = Self::deserialize(server.clone(), addr, &request, &mut stream).await?;
+        let req = Self::deserialize(server, addr, &request, &mut stream).await?;
 
-        let (_, res) = server.as_mut().on_http(req, Response::new()).await;
+        let mut res = Response::new();
+        let sent = Arc::new(AtomicBool::new(false));
+        let shared_stream = Arc::new(TokioMutex::new(stream));
 
-        Self::write(&mut stream, res).await
+        let writer = Http3Writer::new(
+            shared_stream.clone(),
+            Instance::from_mut(&mut res),
+            Arc::clone(&sent),
+        );
+
+        res.writer = Some(Arc::new(WriterWrapper::new(writer)));
+
+        let server_ref = server.as_mut();
+        let (_req, res) = server_ref.on_http(req, res).await;
+
+        let mut stream_lock = shared_stream.lock().await;
+
+        if sent.load(Ordering::Relaxed) {
+            stream_lock
+                .finish()
+                .await
+                .context("Failed to finish HTTP/3 stream")?;
+            return Ok(());
+        }
+
+        Self::write(&mut *stream_lock, res).await
     }
 
     async fn deserialize(
         server: Instance<Server>,
         addr: SocketAddr,
         request: &http::Request<()>,
-        stream: &mut RequestStream<BidiStream<Bytes>, Bytes>,
+        stream: &mut H3Stream,
     ) -> Result<Request> {
         let mut headers = Headers::new();
 
@@ -86,7 +175,6 @@ impl Http3 {
             .to_string();
 
         let body = Self::read_body(stream).await.unwrap_or_default();
-
         let path = request.uri().path().to_string();
         let queries = parse_query(request.uri().query().unwrap_or(""));
 
@@ -107,7 +195,7 @@ impl Http3 {
         })
     }
 
-    async fn read_body(stream: &mut RequestStream<BidiStream<Bytes>, Bytes>) -> Result<Bytes> {
+    async fn read_body(stream: &mut H3Stream) -> Result<Bytes> {
         let mut buf = BytesMut::new();
 
         while let Some(mut chunk) = stream.recv_data().await? {
@@ -121,7 +209,7 @@ impl Http3 {
         Ok(buf.freeze())
     }
 
-    pub async fn write(stream: &mut RequestStream<BidiStream<Bytes>, Bytes>, res: Response) -> Result<()> {
+    pub async fn write(stream: &mut H3Stream, res: Response) -> Result<()> {
         let mut builder = http::Response::builder().status(res.status_code);
 
         for (k, v) in &res.headers {

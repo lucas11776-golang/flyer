@@ -2,37 +2,36 @@ use std::collections::HashMap;
 
 use tera::{Tera, Value, to_value};
 
-pub(crate) fn register<'r>(engine: &'r mut Tera) {
-    engine.register_function("env", env());
-    engine.register_function("url", url());
+use crate::{utils, view::functions::HelperFunctions};
+
+
+pub(crate) struct UtilsHelperFunctions;
+
+impl HelperFunctions for UtilsHelperFunctions {
+    fn register(engine: &mut Tera) {
+        engine.register_function("env", Self::env());
+        engine.register_function("url", Self::url());
+    }
 }
 
-fn env() -> impl Fn(&HashMap<String, Value>) -> tera::Result<tera::Value>  {
-    return move |args: &HashMap<String, Value>| -> tera::Result<tera::Value> {
-        let key = args
-            .get("name")
-            .unwrap()
-            .as_str()
-            .unwrap();
+impl UtilsHelperFunctions {
+    fn env() -> impl Fn(&HashMap<String, Value>) -> tera::Result<tera::Value>  {
+        return move |args: &HashMap<String, Value>| -> tera::Result<tera::Value> {
+            let key = Self::get_arg(args, "name")
+                .unwrap();
 
-        return Ok(to_value(key).unwrap());
-    };
+            to_value(utils::env::env(key)).map_err(|err| err.into())
+        };
+    }
+
+    fn url() -> impl Fn(&HashMap<String, Value>) -> tera::Result<tera::Value>  {
+        return move |args: &HashMap<String, Value>| -> tera::Result<tera::Value> {
+            let path = Self::get_arg(args, "path")
+                .map(|v| String::from(v).trim_matches('/').into())
+                .unwrap_or(String::new());
+
+            to_value(crate::utils::url::url(&path)).map_err(|err| err.into())
+        };
+    }
 }
 
-// TODO: refactor.
-fn url() -> impl Fn(&HashMap<String, Value>) -> tera::Result<tera::Value>  {
-    return move |args: &HashMap<String, Value>| -> tera::Result<tera::Value> {
-        let mut path = String::new();
-
-        if let Some(p) = args.get("path") {
-            path = p
-                .as_str()
-                .unwrap()
-                .trim_start_matches("/")
-                .trim_end_matches("/")
-                .to_owned();
-        }
-
-        return Ok(to_value(crate::utils::url::url(&path)).unwrap());
-    };
-}

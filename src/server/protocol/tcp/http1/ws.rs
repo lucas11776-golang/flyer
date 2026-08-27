@@ -70,13 +70,20 @@ impl Ws {
         }
     }
 
+    // TODO: need to refactor but moving away from `unbounded_channel`
     pub async fn handle<RW>(&mut self, mut rw: BufReader<RW>, mut req: Request) -> Result<()>
     where
         RW: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     {
-        Self::handshake(&mut rw, &mut req).await?;
+        let res = Self::handshake(&mut rw, &mut req)
+            .await
+            .unwrap();
         
-        let result = self.server.as_mut().on_websocket(req, Response::new()).await;
+        let result = self
+            .server
+            .as_mut()
+            .on_websocket(req, res)
+            .await;
 
         let Some(websocket) = result else {
             return Ok(());
@@ -133,22 +140,23 @@ impl Ws {
         }
     }
 
-    async fn handshake<RW>(rw: &mut BufReader<RW>, req: &mut Request) -> Result<()>
+    async fn handshake<RW>(rw: &mut BufReader<RW>, req: &mut Request) -> Result<Response>
     where
-        RW: AsyncRead + AsyncWrite + Unpin + Send + Sync,
+        RW: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     {
         let accept_key = Self::get_sec_web_socket_accept(&req.header("sec-websocket-key"));
 
-        let res = Response::new()
+        let mut res = Response::new()
             .status_code(101)
             .set_header("Upgrade", "websocket")
             .set_header("Connection", "Upgrade")
             .set_header("Sec-WebSocket-Accept", &accept_key);
 
-        rw.write_all(Http1::serialize(&res).as_slice()).await?;
-        rw.flush().await?;
+        Http1::write_response(rw, &mut res)
+            .await
+            .unwrap();
 
-        Ok(())
+        Ok(res)
     }
 
     fn get_sec_web_socket_accept(key: &str) -> String {
