@@ -1,10 +1,16 @@
+use std::sync::Arc;
+
 use anyhow::Result;
 use bytes::Bytes;
 use futures::future::BoxFuture;
 
 pub(crate) const SEC_WEB_SOCKET_ACCEPT_STATIC: &str = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 
-pub(crate) type OnEvent = Box<dyn Fn(Event, Writer) -> BoxFuture<'static, ()> + Send + Sync>;
+pub(crate) type OnEvent = Box<dyn Fn(Event, Socket) -> BoxFuture<'static, ()> + Send + Sync>;
+
+pub struct Websocket {
+    pub(crate) event: Option<OnEvent>,
+}
 
 #[derive(Debug)]
 pub struct Reason {
@@ -30,52 +36,63 @@ pub enum Event {
     Close(Option<Reason>),
 }
 
-pub trait WriterInterface: Send + Sync {
-    fn write(&self, data: Bytes) -> Result<()>;
-    fn write_binary(&mut self, data: Bytes) -> Result<()>;
-    fn ping(&mut self, data: Bytes) -> Result<()>;
-    fn pong(&mut self, data: Bytes) ->  Result<()>;
-    fn close(&mut self) -> Result<()>;
+pub trait Writer: Send + Sync {
+    fn write(&self, data: Bytes) -> BoxFuture<'static, Result<()>>;
+    fn write_binary(&self, data: Bytes) -> BoxFuture<'static, Result<()>>;
+    fn ping(&self, data: Bytes) -> BoxFuture<'static, Result<()>>;
+    fn pong(&self, data: Bytes) -> BoxFuture<'static, Result<()>>;
+    // TODO: need to implement message when closing.
+    fn close(&self) -> BoxFuture<'static, Result<()>>;
 }
 
-pub struct Writer {
-    pub instance: Box<dyn WriterInterface>,
+#[derive(Clone)]
+pub struct Socket {
+    inner: Arc<dyn Writer>
 }
 
-
-impl Writer {
-    pub fn new(instance: impl WriterInterface + 'static) -> Self {
-        return Self {
-            instance: Box::new(instance)
-        };
-    }
-}
-
-impl WriterInterface for Writer {
-    fn write(&self, data: Bytes) -> Result<()> {
-        self.instance.write(data)
-    }
-
-    fn write_binary(&mut self, data: Bytes) -> Result<()> {
-        self.instance.write_binary(data)
-    }
-
-    fn ping(&mut self, data: Bytes) -> Result<()> {
-        self.instance.ping(data)
-    }
-
-    fn pong(&mut self, data: Bytes) ->  Result<()> {
-        self.instance.pong(data)
-    }
-
-    fn close(&mut self) -> Result<()> {
-        self.instance.close()
+impl Socket {
+    pub fn new(writer: impl Writer + 'static) -> Self {
+        Self {
+            inner: Arc::new(writer),
+        }
     }
 }
 
+impl Socket {
+    pub async fn write(&self, data: Bytes) -> Result<()> {
+        self
+            .inner
+            .write(data)
+            .await
+    }
 
-pub struct Websocket {
-    pub(crate) event: Option<OnEvent>,
+    pub async fn write_binary(&self, data: Bytes) -> Result<()> {
+        self
+            .inner
+            .write_binary(data)
+            .await
+    }
+
+    pub async fn ping(&self, data: Bytes) -> Result<()> {
+        self
+            .inner
+            .ping(data)
+            .await
+    }
+
+    pub async fn pong(&self, data: Bytes) ->  Result<()> {
+        self
+            .inner
+            .pong(data)
+            .await
+    }
+
+    pub async fn close(&self) -> Result<()> {
+        self
+            .inner
+            .close()
+            .await
+    }
 }
 
 impl Websocket {
@@ -87,7 +104,7 @@ impl Websocket {
 
     pub fn on<C, Fut>(mut self, callback: C) -> Self
     where
-        C: Fn(Event, Writer) -> Fut + Send + Sync + 'static,
+        C: Fn(Event, Socket) -> Fut + Send + Sync + 'static,
         Fut: Future<Output = ()> + Send + 'static,
     {
         self.event = Some(Box::new(move |event, writer| Box::pin(callback(event, writer))));

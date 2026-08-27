@@ -12,13 +12,13 @@ use crate::request::Request;
 use crate::response::{WriterWrapper, Response, Writer};
 use crate::server::protocol::TcpHandler;
 use crate::server::Server;
-use crate::server::protocol::tcp::http1::ws::Ws;
+use crate::server::protocol::tcp::http1::websocket::Http1Websocket;
 use crate::utils::http::Headers;
 use crate::utils::mem::Instance;
 use crate::utils::url::parse_query;
 use crate::utils::Values;
 
-pub mod ws;
+pub mod websocket;
 
 const MAX_HEADER_LENGTH: usize = 8192; // 8KB standard cap
 
@@ -45,7 +45,11 @@ where
         res: Instance<Response>,
         has_sent: Arc<AtomicBool>,
     ) -> Self {
-        Self { rw, res, has_sent }
+        Self {
+            rw: rw,
+            res: res,
+            has_sent: has_sent,
+        }
     }
 }
 
@@ -83,7 +87,7 @@ impl TcpHandler for Http1 {
         };
 
         if req.header("upgrade").eq_ignore_ascii_case("websocket") {
-            return Ws::new(self.server, self.addr).handle(rw, req).await;
+            return Http1Websocket::new(self.server, self.addr).handle(rw, req).await;
         }
 
         let mut res = Response::new();

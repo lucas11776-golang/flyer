@@ -531,16 +531,19 @@ fn main() {
 Build high-performance, real-time bidirectional communication channels.
 
 ```rust
-use flyer::{server, websocket::{Websocket, WriterInterface}};
+use flyer::{server, websocket::Websocket};
 
 fn main() {
     let server = server("127.0.0.1", 9999);
 
     server.router().ws("/", async |_req, ws| -> Websocket {
-        ws.on(async |event, writer| {
+        ws.on(async |event, socket| {
             if let flyer::websocket::Event::Text(text_data) = event {
                 println!("Received message: {}", text_data);
-                let _ = writer.write("Hello from Flyer WebSocket Server!".into());
+                socket
+                    .write("Hello from Flyer WebSocket Server!".into())
+                    .await
+                    .unwrap();
             }
         })
     });

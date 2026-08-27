@@ -1,63 +1,61 @@
 use std::sync::Arc;
+use std::path::Path;
 
+use anyhow::Result;
 use rustls::{
     ServerConfig,
-    pki_types::{pem::PemObject,CertificateDer, PrivateKeyDer}
+    pki_types::{pem::PemObject, CertificateDer, PrivateKeyDer},
 };
 use tokio_rustls::TlsAcceptor;
 
 pub(crate) struct TlsConfig { 
     pub key: PrivateKeyDer<'static>,
-    pub cert: Vec<CertificateDer<'static>>
-}
-
-pub(crate) struct TlsPathConfig {
-    pub key_path: String,
-    pub cert_path: String
-}
-
-impl TlsPathConfig {
-    pub fn new(key_path: &str, cert_path: &str) -> TlsPathConfig {
-        return Self {
-            key_path: String::from(key_path),
-            cert_path: String::from(cert_path)
-        };
-    }
+    pub cert: Vec<CertificateDer<'static>>,
 }
 
 impl TlsConfig {
+    #[inline]
     pub fn new(key: PrivateKeyDer<'static>, cert: Vec<CertificateDer<'static>>) -> Self {
-        return Self {
+        Self {
             key: key,
-            cert: cert
-        };
+            cert: cert,
+        }
     }
 }
 
-pub(crate) fn get_tls_config(tls: &TlsPathConfig) -> std::io::Result<TlsConfig> {
-    rustls::crypto::ring::default_provider()
-        .install_default()
-        .unwrap();
-
-    let key = PrivateKeyDer::from_pem_file(tls.key_path.clone())
-        .unwrap();
-    let cert = CertificateDer::pem_file_iter(tls.cert_path.clone())
-        .unwrap()
-        .collect::<Result<Vec<_>, _>>()
-        .unwrap();
-    
-    return Ok(TlsConfig::new(key, cert))
+pub(crate) struct TlsPathConfig<'a> {
+    pub key_path: &'a Path,
+    pub cert_path: &'a Path,
 }
 
-pub(crate) fn server_config(config: TlsConfig) -> std::io::Result<ServerConfig> {
-    return Ok(
-        rustls::ServerConfig::builder()
+impl<'a> TlsPathConfig<'a> {
+    #[inline]
+    pub fn new(key_path: &'a (impl AsRef<Path> + ?Sized), cert_path: &'a (impl AsRef<Path> + ?Sized)) -> Self {
+        Self {
+            key_path: key_path.as_ref(),
+            cert_path: cert_path.as_ref(),
+        }
+    }
+}
+
+pub(crate) fn get_tls_config(tls: &TlsPathConfig) -> Result<TlsConfig> {
+    let _ = rustls::crypto::ring::default_provider().install_default();
+
+    let key = PrivateKeyDer::from_pem_file(tls.key_path)?;
+    let cert = CertificateDer::pem_file_iter(tls.cert_path)?
+        .collect::<Result<Vec<_>, _>>()?;
+    
+    Ok(TlsConfig::new(key, cert))
+}
+
+pub(crate) fn server_config(config: TlsConfig) -> Result<ServerConfig> {
+    rustls::ServerConfig::builder()
         .with_no_client_auth()
         .with_single_cert(config.cert, config.key)
-        .unwrap()
-    );
+        .map_err(Into::into)
 }
 
-pub(crate) fn get_tls_acceptor(config: ServerConfig) -> Option<TlsAcceptor> {
-    return Some(TlsAcceptor::from(Arc::new(config)));
+#[inline]
+pub(crate) fn get_tls_acceptor(config: ServerConfig) -> TlsAcceptor {
+    TlsAcceptor::from(Arc::new(config))
 }
