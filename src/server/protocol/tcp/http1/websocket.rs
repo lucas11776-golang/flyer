@@ -41,13 +41,19 @@ where
 {
     #[inline]
     pub fn new(instance: Instance<SplitSink<WebSocketStream<BufReader<RW>>, Message>>) -> Self {
-        Self { inner: instance }
+        Self {
+            inner: instance,
+        }
     }
 
-    fn send_msg(&self, msg: Message) -> BoxFuture<'static, Result<()>> {
-        let mut inner = self.inner.clone();
+    fn send(&self, msg: Message) -> BoxFuture<'static, Result<()>> {
+        let inner = self.inner.clone();
         Box::pin(async move {
-            inner.as_mut().send(msg).await.map_err(Into::into)
+            inner
+                .as_mut()
+                .send(msg)
+                .await
+                .map_err(Into::into)
         })
     }
 }
@@ -58,32 +64,35 @@ where
 {
     fn write(&self, data: Bytes) -> BoxFuture<'static, Result<()>> {
         match Utf8Bytes::try_from(data) {
-            Ok(utf8) => self.send_msg(Message::Text(utf8)),
+            Ok(utf8) => self.send(Message::Text(utf8)),
             Err(err) => Box::pin(async move { Err(err.into()) }),
         }
     }
 
     fn write_binary(&self, data: Bytes) -> BoxFuture<'static, Result<()>> {
-        self.send_msg(Message::Binary(data))
+        self.send(Message::Binary(data))
     }
 
     fn ping(&self, data: Bytes) -> BoxFuture<'static, Result<()>> {
-        self.send_msg(Message::Ping(data))
+        self.send(Message::Ping(data))
     }
 
     fn pong(&self, data: Bytes) -> BoxFuture<'static, Result<()>> {
-        self.send_msg(Message::Pong(data))
+        self.send(Message::Pong(data))
     }
 
     fn close(&self) -> BoxFuture<'static, Result<()>> {
-        self.send_msg(Message::Close(None))
+        self.send(Message::Close(None))
     }
 }
 
 impl Http1Websocket {
     #[inline]
     pub fn new(server: Instance<Server>, addr: SocketAddr) -> Self {
-        Self { server, _addr: addr }
+        Self {
+            server: server,
+            _addr: addr,
+        }
     }
 
     pub async fn handle<RW>(&mut self, mut rw: BufReader<RW>, mut req: Request) -> Result<()>

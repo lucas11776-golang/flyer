@@ -1,4 +1,4 @@
-use flyer::{server, websocket::{Websocket}};
+use flyer::{server, websocket::Websocket};
 
 fn main() {
     let server = server("127.0.0.1", 9999);
