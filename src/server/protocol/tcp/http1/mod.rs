@@ -12,7 +12,7 @@ use crate::request::Request;
 use crate::response::{WriterWrapper, Response, Writer};
 use crate::server::protocol::TcpHandler;
 use crate::server::Server;
-use crate::server::protocol::tcp::http1::ws::Ws;
+use crate::server::protocol::tcp::http1::ws::Http1Websocket;
 use crate::utils::http::Headers;
 use crate::utils::mem::Instance;
 use crate::utils::url::parse_query;
@@ -83,7 +83,7 @@ impl TcpHandler for Http1 {
         };
 
         if req.header("upgrade").eq_ignore_ascii_case("websocket") {
-            return Ws::new(self.server, self.addr).handle(rw, req).await;
+            return Http1Websocket::new(self.server, self.addr).handle(rw, req).await;
         }
 
         let mut res = Response::new();

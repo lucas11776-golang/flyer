@@ -1,25 +1,21 @@
 use std::net::SocketAddr;
 
 use anyhow::Result;
-use base64::{Engine, engine::general_purpose};
+use base64::{engine::general_purpose, Engine};
 use bytes::Bytes;
-use futures::{
-    SinkExt, StreamExt,
-    prelude::{future::BoxFuture, stream::SplitSink},
-    stream::SplitStream,
-};
+use futures::{prelude::stream::SplitSink, stream::SplitStream, SinkExt, StreamExt};
 use openssl::sha::Sha1;
 use tokio::io::{AsyncRead, AsyncWrite, BufReader};
-use tokio::sync::mpsc::{UnboundedSender, unbounded_channel};
+use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
 use tokio_tungstenite::{
+    tungstenite::{protocol::Role::Server as RoleServer, Message, Utf8Bytes},
     WebSocketStream,
-    tungstenite::{Message, Utf8Bytes, protocol::Role::Server as RoleServer},
 };
 
 use crate::request::Request;
 use crate::response::Response;
-use crate::server::Server;
 use crate::server::protocol::tcp::http1::Http1;
+use crate::server::Server;
 use crate::utils::mem::Instance;
 use crate::websocket::{Event, Reason, SEC_WEB_SOCKET_ACCEPT_STATIC, Websocket, Writer};
 
@@ -29,14 +25,14 @@ pub struct Http1Websocket {
 }
 
 #[derive(Clone)]
-pub struct Http1WebsocketWriter<RW>
+pub struct TcpWriter<RW>
 where
     RW: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
 {
     inner: Instance<SplitSink<WebSocketStream<BufReader<RW>>, Message>>,
 }
 
-impl<RW> Http1WebsocketWriter<RW>
+impl <RW>TcpWriter<RW>
 where
     RW: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
 {
@@ -45,36 +41,61 @@ where
     }
 }
 
-impl<RW> crate::websocket::WsInterface for Http1WebsocketWriter<RW>
+impl <RW>crate::websocket::WsInterface for TcpWriter<RW>
 where
     RW: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
 {
-    fn write(&self, data: Bytes) -> BoxFuture<'static, Result<()>> {
+    fn write(&self, data: Bytes) -> futures::prelude::future::BoxFuture<'static, Result<()>> {
         todo!()
     }
+    
+    fn write_binary(&self, data: Bytes) -> futures::prelude::future::BoxFuture<'static, Result<()>> {
+        todo!()
+    }
+    
+    fn ping(&self, data: Bytes) -> futures::prelude::future::BoxFuture<'static, Result<()>> {
+        todo!()
+    }
+    
+    fn pong(&self, data: Bytes) -> futures::prelude::future::BoxFuture<'static, Result<()>> {
+        todo!()
+    }
+    
+    fn close(&self) -> futures::prelude::future::BoxFuture<'static, Result<()>> {
+        todo!()
+    }
+    // fn write(&self, data: Bytes) -> Result<()> {
+    //     let text = Utf8Bytes::try_from(data)?;
+    //     self.sender.send(Message::Text(text))?;
+    //     Ok(())
+    // }
 
-    fn write_binary(&self, data: Bytes) -> BoxFuture<'static, Result<()>> {
-        todo!()
-    }
+    // fn write_binary(&self, data: Bytes) -> Result<()> {
+    //     self.sender.send(Message::Binary(data))?;
+    //     Ok(())
+    // }
 
-    fn ping(&self, data: Bytes) -> BoxFuture<'static, Result<()>> {
-        todo!()
-    }
+    // fn ping(&self, data: Bytes) -> Result<()> {
+    //     self.sender.send(Message::Ping(data))?;
+    //     Ok(())
+    // }
 
-    fn pong(&self, data: Bytes) -> BoxFuture<'static, Result<()>> {
-        todo!()
-    }
+    // fn pong(&self, data: Bytes) -> Result<()> {
+    //     self.sender.send(Message::Pong(data))?;
+    //     Ok(())
+    // }
 
-    fn close(&self) -> BoxFuture<'static, Result<()>> {
-        todo!()
-    }
+    // fn close(&self) -> Result<()> {
+    //     self.sender.send(Message::Close(None))?;
+    //     Ok(())
+    // }
 }
 
 impl Http1Websocket {
     pub fn new(server: Instance<Server>, addr: SocketAddr) -> Self {
         Self {
             server: server,
-            _addr: addr,
+            _addr: addr
         }
     }
 
@@ -83,40 +104,44 @@ impl Http1Websocket {
     where
         RW: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     {
-        let res = Self::handshake(&mut rw, &mut req).await.unwrap();
-
-        let result = self.server.as_mut().on_websocket(req, res).await;
+        let res = Self::handshake(&mut rw, &mut req)
+            .await
+            .unwrap();
+        
+        let result = self
+            .server
+            .as_mut()
+            .on_websocket(req, res)
+            .await;
 
         let Some(websocket) = result else {
             return Ok(());
         };
 
-        todo!()
+        let ws_stream = WebSocketStream::from_raw_socket(rw, RoleServer, None).await;
+        let (mut sink, stream) = ws_stream.split();
 
-        // let ws_stream = WebSocketStream::from_raw_socket(rw, RoleServer, None).await;
-        // let (mut sink, stream) = ws_stream.split();
+        // let sink: futures::prelude::stream::SplitSink<WebSocketStream<BufReader<RW>>, Message> = sink;
 
-        // // let sink: futures::prelude::stream::SplitSink<WebSocketStream<BufReader<RW>>, Message> = sink;
+        let (tx, mut rx) = unbounded_channel::<Message>();
 
-        // let (tx, mut rx) = unbounded_channel::<Message>();
+        let writer_task = async move {
+            while let Some(msg) = rx.recv().await {
+                let is_close = matches!(msg, Message::Close(_));
+                if sink.send(msg).await.is_err() || is_close {
+                    break;
+                }
+            }
+            let _ = sink.close().await;
+        };
 
-        // let writer_task = async move {
-        //     while let Some(msg) = rx.recv().await {
-        //         let is_close = matches!(msg, Message::Close(_));
-        //         if sink.send(msg).await.is_err() || is_close {
-        //             break;
-        //         }
-        //     }
-        //     let _ = sink.close().await;
-        // };
+        let reader_task = Self::read_loop(stream, tx, websocket);
 
-        // let reader_task = Self::read_loop(stream, tx, websocket);
+        tokio::join!(writer_task, reader_task);
 
-        // tokio::join!(writer_task, reader_task);
+        println!("WEBSOCKET CONNECTION KILLED");
 
-        // println!("WEBSOCKET CONNECTION KILLED");
-
-        // Ok(())
+        Ok(())
     }
 
     async fn read_loop<RW>(
@@ -126,7 +151,13 @@ impl Http1Websocket {
     ) where
         RW: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     {
+
+
+
+
         todo!()
+
+
 
         // let writer = TcpWriter::new(tx);
 
@@ -143,6 +174,7 @@ impl Http1Websocket {
         //         Message::Close(frame) => Event::Close(frame.map(|f| Reason::new(f.code.into(), f.reason.into()))),
         //         Message::Frame(_) => continue,
         //     };
+
 
         //     todo!()
         //     // callback(event, Writer::new(writer.clone())).await;
@@ -161,7 +193,9 @@ impl Http1Websocket {
             .set_header("Connection", "Upgrade")
             .set_header("Sec-WebSocket-Accept", &accept_key);
 
-        Http1::write_response(rw, &mut res).await.unwrap();
+        Http1::write_response(rw, &mut res)
+            .await
+            .unwrap();
 
         Ok(res)
     }

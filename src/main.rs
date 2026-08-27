@@ -10,7 +10,7 @@ use flyer::{
     session::local::LocalSession,
     storage::{DEFAULT_STORAGE, local::LocalStorage},
     validation::{Rules, Validator},
-    websocket::{Websocket, WriterInterface},
+    websocket::Websocket,
 };
 
 pub async fn http(_req: Request, res: Response) -> Response {
@@ -142,11 +142,16 @@ pub fn main() {
     server.router().ws("/", async |_req, ws| -> Websocket {
         ws.on(async |event, writer| match event {
             flyer::websocket::Event::Ready() => todo!(),
-            flyer::websocket::Event::Text(_items) => writer.write("HELLO TO YOU".into()).unwrap(),
+            flyer::websocket::Event::Text(_items) => {
+                writer
+                    .write("HELLO TO YOU".into())
+                    .await
+                    .unwrap()
+            },
             flyer::websocket::Event::Binary(_items) => todo!(),
             flyer::websocket::Event::Ping(_items) => todo!(),
             flyer::websocket::Event::Pong(_items) => todo!(),
-            flyer::websocket::Event::Close(_reason) => todo!(),
+            flyer::websocket::Event::Close(_reason) => {},
         })
     });
 
