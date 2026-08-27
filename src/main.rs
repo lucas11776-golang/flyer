@@ -176,7 +176,7 @@ pub fn main() {
 
     });
 
-    server.logger(DebuggerLogger::new());
+    // server.logger(DebuggerLogger::new());
 
     // server.logger(Sentry::new(
     //     "https://1ebec3a6d4b06d781b1040f3fce14f4f@o4511693601177600.ingest.us.sentry.io/4511693603930112",

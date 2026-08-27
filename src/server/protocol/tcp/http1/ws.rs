@@ -70,44 +70,45 @@ impl Ws {
         }
     }
 
+    // TODO: need to refactor but moving away from `unbounded_channel`
     pub async fn handle<RW>(&mut self, mut rw: BufReader<RW>, mut req: Request) -> Result<()>
     where
         RW: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     {
-
-
-        // TODO: finish
-
-        todo!()
-
-        // Self::handshake(&mut rw, &mut req).await?;
+        let res = Self::handshake(&mut rw, &mut req)
+            .await
+            .unwrap();
         
-        // let result = self.server.as_mut().on_websocket(req, Response::new()).await;
+        let result = self
+            .server
+            .as_mut()
+            .on_websocket(req, res)
+            .await;
 
-        // let Some(websocket) = result else {
-        //     return Ok(());
-        // };
+        let Some(websocket) = result else {
+            return Ok(());
+        };
 
-        // let ws_stream = WebSocketStream::from_raw_socket(rw, RoleServer, None).await;
-        // let (mut sink, stream) = ws_stream.split();
+        let ws_stream = WebSocketStream::from_raw_socket(rw, RoleServer, None).await;
+        let (mut sink, stream) = ws_stream.split();
 
-        // let (tx, mut rx) = unbounded_channel::<Message>();
+        let (tx, mut rx) = unbounded_channel::<Message>();
 
-        // let writer_task = async move {
-        //     while let Some(msg) = rx.recv().await {
-        //         let is_close = matches!(msg, Message::Close(_));
-        //         if sink.send(msg).await.is_err() || is_close {
-        //             break;
-        //         }
-        //     }
-        //     let _ = sink.close().await;
-        // };
+        let writer_task = async move {
+            while let Some(msg) = rx.recv().await {
+                let is_close = matches!(msg, Message::Close(_));
+                if sink.send(msg).await.is_err() || is_close {
+                    break;
+                }
+            }
+            let _ = sink.close().await;
+        };
 
-        // let reader_task = Self::read_loop(stream, tx, websocket);
+        let reader_task = Self::read_loop(stream, tx, websocket);
 
-        // tokio::join!(writer_task, reader_task);
+        tokio::join!(writer_task, reader_task);
 
-        // Ok(())
+        Ok(())
     }
 
     async fn read_loop<RW>(
@@ -139,28 +140,23 @@ impl Ws {
         }
     }
 
-    async fn handshake<RW>(rw: &mut BufReader<RW>, req: &mut Request) -> Result<()>
+    async fn handshake<RW>(rw: &mut BufReader<RW>, req: &mut Request) -> Result<Response>
     where
-        RW: AsyncRead + AsyncWrite + Unpin + Send + Sync,
+        RW: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     {
+        let accept_key = Self::get_sec_web_socket_accept(&req.header("sec-websocket-key"));
 
+        let mut res = Response::new()
+            .status_code(101)
+            .set_header("Upgrade", "websocket")
+            .set_header("Connection", "Upgrade")
+            .set_header("Sec-WebSocket-Accept", &accept_key);
 
-        // TODO: finish
+        Http1::write_response(rw, &mut res)
+            .await
+            .unwrap();
 
-        todo!()
-
-        // let accept_key = Self::get_sec_web_socket_accept(&req.header("sec-websocket-key"));
-
-        // let res = Response::new()
-        //     .status_code(101)
-        //     .set_header("Upgrade", "websocket")
-        //     .set_header("Connection", "Upgrade")
-        //     .set_header("Sec-WebSocket-Accept", &accept_key);
-
-        // rw.write_all(Http1::serialize(&res).as_slice()).await?;
-        // rw.flush().await?;
-
-        // Ok(())
+        Ok(res)
     }
 
     fn get_sec_web_socket_accept(key: &str) -> String {

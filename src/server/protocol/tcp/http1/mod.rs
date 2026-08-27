@@ -1,4 +1,4 @@
-use std::io::{Error, ErrorKind, Write};
+use std::io::{Error, ErrorKind};
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
