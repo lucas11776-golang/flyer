@@ -4,7 +4,7 @@ use base64::{engine::general_purpose, Engine};
 use bytes::Bytes;
 use futures::{stream::SplitStream, SinkExt, StreamExt};
 use openssl::sha::Sha1;
-use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt, BufReader};
+use tokio::io::{AsyncRead, AsyncWrite, BufReader};
 use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
 use tokio_tungstenite::{
     tungstenite::{protocol::Role::Server as RoleServer, Message, Utf8Bytes},
@@ -92,6 +92,8 @@ impl Ws {
         let ws_stream = WebSocketStream::from_raw_socket(rw, RoleServer, None).await;
         let (mut sink, stream) = ws_stream.split();
 
+        // let sink: futures::prelude::stream::SplitSink<WebSocketStream<BufReader<RW>>, Message> = sink;
+
         let (tx, mut rx) = unbounded_channel::<Message>();
 
         let writer_task = async move {
@@ -130,9 +132,7 @@ impl Ws {
                 Message::Binary(bytes) => Event::Binary(bytes),
                 Message::Ping(bytes) => Event::Ping(bytes),
                 Message::Pong(bytes) => Event::Pong(bytes),
-                Message::Close(frame) => {
-                    Event::Close(frame.map(|f| Reason::new(f.code.into(), f.reason.into())))
-                },
+                Message::Close(frame) => Event::Close(frame.map(|f| Reason::new(f.code.into(), f.reason.into()))),
                 Message::Frame(_) => continue,
             };
 

@@ -27,7 +27,7 @@ impl ServerHandler for Tcp {
             .as_mut()
             .server_config
             .clone()
-            .map(|cfg| get_tls_acceptor(cfg).expect("Failed to initialize TLS"));
+            .map(|cfg| get_tls_acceptor(cfg));
 
         while let Ok((stream, addr)) = listener.accept().await {
             tokio::spawn(Self::process_stream(server.clone(), tls.clone(), stream, addr));

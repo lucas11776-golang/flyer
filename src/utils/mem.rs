@@ -16,6 +16,7 @@ impl<T: ?Sized> Clone for Instance<T> {
 unsafe impl<T: ?Sized + Send> Send for Instance<T> {}
 unsafe impl<T: ?Sized + Sync> Sync for Instance<T> {}
 
+#[allow(unused)]
 impl<T: ?Sized> Instance<T> {
     #[inline]
     pub fn new(ptr: *mut T) -> Option<Self> {
@@ -24,9 +25,7 @@ impl<T: ?Sized> Instance<T> {
 
     #[inline]
     pub fn new_unchecked(ptr: *mut T) -> Self {
-        unsafe {
-            Self(NonNull::new_unchecked(ptr))
-        }
+        unsafe { Self(NonNull::new_unchecked(ptr)) }
     }
 
     #[inline]
@@ -46,15 +45,11 @@ impl<T: ?Sized> Instance<T> {
 
     #[inline]
     pub fn as_ref<'a>(&self) -> &'a T {
-        unsafe {
-            self.0.as_ref()
-        }
+        unsafe { self.0.as_ref() }
     }
 
     #[inline]
     pub fn as_mut<'a>(&self) -> &'a mut T {
-        unsafe {
-            &mut *self.0.as_ptr()
-        }
+        unsafe { &mut *self.0.as_ptr() }
     }
 }

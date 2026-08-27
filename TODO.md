@@ -1,0 +1,1 @@
+- Need to fix logger because it only logs on routes logger must be GLOBAL.
