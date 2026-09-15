@@ -91,12 +91,24 @@ impl Request {
             .unwrap_or(false)
     }
 
+    pub fn parameters(&self) -> Values {
+        self
+            .parameters
+            .clone()
+    }
+
     pub fn parameter(&self, key: impl Into<String>) -> String {
         self
             .parameters
             .get(&key.into())
             .unwrap_or(&String::new())
             .into()
+    }
+
+    pub fn queries(&self) -> Values {
+        self
+            .queries
+            .clone()
     }
 
     pub fn query(&self, key: impl Into<String>) -> String {
