@@ -35,15 +35,6 @@ impl Reason {
     }
 }
 
-pub enum Event {
-    Ready(),
-    Text(Bytes),
-    Binary(Bytes),
-    Ping(Bytes),
-    Pong(Bytes),
-    Close(Option<Reason>),
-}
-
 pub trait Writer: Send + Sync {
     fn write(&self, data: Bytes) -> BoxFuture<'static, Result<()>>;
     fn write_binary(&self, data: Bytes) -> BoxFuture<'static, Result<()>>;
