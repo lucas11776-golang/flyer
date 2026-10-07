@@ -1,15 +1,23 @@
-use std::sync::Arc;
+use std::{any::Any, sync::Arc};
 
 use anyhow::Result;
 use bytes::Bytes;
 use futures::future::BoxFuture;
 
+use crate::utils::mem::Instance;
+
 pub(crate) const SEC_WEB_SOCKET_ACCEPT_STATIC: &str = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 
-pub(crate) type OnEvent = Box<dyn Fn(Event, Socket) -> BoxFuture<'static, ()> + Send + Sync>;
+impl WebsocketEventCallback {
+    pub fn new() -> Self {
+        Default::default()
+    }
+}
 
 pub struct Websocket {
-    pub(crate) event: Option<OnEvent>,
+    pub(crate) events: Instance<WebsocketEventCallback>,
+    pub(crate) guards: Vec<Box<dyn Any + Send + Sync>>,
+    pub(crate) socket: Socket,
 }
 
 #[derive(Debug)]
@@ -25,15 +33,6 @@ impl Reason {
             message: message,
         }
     }
-}
-
-pub enum Event {
-    Ready(),
-    Text(Bytes),
-    Binary(Bytes),
-    Ping(Bytes),
-    Pong(Bytes),
-    Close(Option<Reason>),
 }
 
 pub trait Writer: Send + Sync {
@@ -95,20 +94,102 @@ impl Socket {
     }
 }
 
+#[derive(Default)]
+pub(crate) struct WebsocketEventCallback {
+    pub ready: Option<Box<dyn Fn(Socket) -> BoxFuture<'static, ()> + Send + Sync>>,
+    pub text: Option<Box<dyn Fn(Bytes, Socket) -> BoxFuture<'static, ()> + Send + Sync>>,
+    pub binary: Option<Box<dyn Fn(Bytes, Socket) -> BoxFuture<'static, ()> + Send + Sync>>,
+    pub ping: Option<Box<dyn Fn(Bytes, Socket) -> BoxFuture<'static, ()> + Send + Sync>>,
+    pub pong: Option<Box<dyn Fn(Bytes, Socket) -> BoxFuture<'static, ()> + Send + Sync>>,
+    pub close: Option<Box<dyn Fn(Option<Reason>) -> BoxFuture<'static, ()> + Send + Sync>>,
+    
+}
+
 impl Websocket {
-    pub fn new() -> Self {
+    pub(crate) fn new(socket: Socket, event: Instance<WebsocketEventCallback>) -> Self {
         Self {
-            event: None
+            events: event,
+            guards: Default::default(),
+            socket: socket,
         } 
     }
 
-    pub fn on<C, Fut>(mut self, callback: C) -> Self
+    pub fn socket(&self) -> Socket {
+        self
+            .socket
+            .clone()
+    }
+
+    pub fn keep_alive<T: Send + Sync + 'static>(mut self, resource: T) -> Self {
+        self
+            .guards
+            .push(Box::new(resource));
+        self
+    }
+    
+    pub fn ready<C, Fut>(self, callback: C) -> Self
     where
-        C: Fn(Event, Socket) -> Fut + Send + Sync + 'static,
+        C: Fn(Socket) -> Fut + Send + Sync + 'static,
         Fut: Future<Output = ()> + Send + 'static,
     {
-        self.event = Some(Box::new(move |event, writer| Box::pin(callback(event, writer))));
+        self.events.as_mut().ready = Some(Box::new(move |socket| {
+            Box::pin(callback(socket))
+        }));
+        self
+    }
 
-        return self;
+    pub fn text<C, Fut>(self, callback: C) -> Self 
+    where
+        C: Fn(Bytes, Socket) -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = ()> + Send + 'static,
+    {
+        self.events.as_mut().text = Some(Box::new(move |event, socket| {
+            Box::pin(callback(event, socket))
+        }));
+        self
+    }
+
+    pub fn binary<C, Fut>(self, callback: C) -> Self 
+    where
+        C: Fn(Bytes, Socket) -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = ()> + Send + 'static,
+    {
+        self.events.as_mut().binary = Some(Box::new(move |event, socket| {
+            Box::pin(callback(event, socket))
+        }));
+        self
+    }
+
+    pub fn ping<C, Fut>(self, callback: C) -> Self 
+    where
+        C: Fn(Bytes, Socket) -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = ()> + Send + 'static,
+    {
+        self.events.as_mut().ping = Some(Box::new(move |event, socket| {
+            Box::pin(callback(event, socket))
+        }));
+        self
+    }
+
+    pub fn pong<C, Fut>(self, callback: C) -> Self 
+    where
+        C: Fn(Bytes, Socket) -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = ()> + Send + 'static,
+    {
+        self.events.as_mut().pong = Some(Box::new(move |event, socket| {
+            Box::pin(callback(event, socket))
+        }));
+        self
+    }
+
+    pub fn close<C, Fut>(self, callback: C) -> Self 
+    where
+        C: Fn(Option<Reason>) -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = ()> + Send + 'static,
+    {
+        self.events.as_mut().close = Some(Box::new(move |reason| {
+            Box::pin(callback(reason))
+        }));
+        self
     }
 }
