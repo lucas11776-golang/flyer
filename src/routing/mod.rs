@@ -23,6 +23,6 @@ pub type MiddlewareHandler = Box<dyn Fn(Request, Response, Next) -> BoxFuture<'s
 
 pub type Middlewares = HashMap<String, Box<MiddlewareHandler>>;
 
-pub type WebsocketHandler = Box<dyn Fn(Request, Websocket) -> BoxFuture<'static, ()> + Send + Sync>;
+pub type WebsocketHandler = Box<dyn Fn(Request, Websocket) -> BoxFuture<'static, Websocket> + Send + Sync>;
 
 pub type Group = for<'a> fn(&mut Router);

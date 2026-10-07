@@ -1,4 +1,4 @@
-use std::net::SocketAddr;
+use std::{net::SocketAddr, sync::Arc};
 
 use anyhow::Result;
 use base64::{engine::general_purpose, Engine};
@@ -13,13 +13,10 @@ use tokio_tungstenite::{
     tungstenite::{protocol::Role::Server as RoleServer, Message, Utf8Bytes},
     WebSocketStream,
 };
+use tungstenite::protocol::frame;
 
 use crate::{
-    request::Request,
-    response::Response,
-    server::{protocol::tcp::http1::Http1, Server},
-    utils::mem::Instance,
-    websocket::{self, Event, Reason, Writer, SEC_WEB_SOCKET_ACCEPT_STATIC},
+    Websocket, request::Request, response::Response, server::{Server, protocol::tcp::http1::Http1}, utils::mem::Instance, websocket::{self, Event, Reason, SEC_WEB_SOCKET_ACCEPT_STATIC, Socket, WebsocketEventCallback, Writer},
 };
 
 pub struct Http1Websocket {
@@ -113,40 +110,46 @@ impl Http1Websocket {
         let socket = websocket::Socket::new(writer);
 
 
+        let mut events = WebsocketEventCallback::new();
 
-        // let cb = match &websocket.event {
-        //     Some(cb) => Some(cb),
-        //     None => None,
-        // };
+        let websocket = Websocket::new(Instance((&mut events).into()));
 
-        // while let Some(Ok(msg)) = stream.next().await {
-        //     let event = match msg {
-        //         Message::Text(data) => Event::Text(data.into()),
-        //         Message::Binary(bytes) => Event::Binary(bytes),
-        //         Message::Ping(bytes) => Event::Ping(bytes),
-        //         Message::Pong(bytes) => Event::Pong(bytes),
-        //         Message::Close(frame) => Event::Close(frame.map(|f| Reason::new(f.code.into(), f.reason.into()))),
-        //         Message::Frame(_) => continue,
-        //     };
+        (route.handler)(req, websocket).await;
 
-        //     if let Some(callback) = cb {
-        //         callback(event, socket.clone()).await;
-        //     }
-        // }
+        if let Some(ref cb) = events.ready {
+            tokio::spawn(cb(socket.clone()));
+        }
 
-
-        // while let Some(Ok(msg)) = stream.next().await {
-        //     let event = match msg {
-        //         Message::Text(data) => Event::Text(data.into()),
-        //         Message::Binary(bytes) => Event::Binary(bytes),
-        //         Message::Ping(bytes) => Event::Ping(bytes),
-        //         Message::Pong(bytes) => Event::Pong(bytes),
-        //         Message::Close(frame) => Event::Close(frame.map(|f| Reason::new(f.code.into(), f.reason.into()))),
-        //         Message::Frame(_) => continue,
-        //     };
-
-        //     cb(event, socket.clone()).await;
-        // }
+        while let Some(Ok(msg)) = stream.next().await {
+            match msg {
+                Message::Text(data) => {
+                    if let Some(ref cb) = events.text {
+                        cb(data.into(), socket.clone()).await;
+                    }
+                },
+                Message::Binary(data) => {
+                    if let Some(ref cb) = events.binary {
+                        cb(data.into(), socket.clone()).await;
+                    }
+                },
+                Message::Ping(data) => {
+                    if let Some(ref cb) = events.ping {
+                        cb(data.into(), socket.clone()).await;
+                    }
+                },
+                Message::Pong(data) => {
+                    if let Some(ref cb) = events.pong {
+                        cb(data.into(), socket.clone()).await;
+                    }
+                },
+                Message::Close(frame) => {
+                    if let Some(ref cb) = events.close {
+                        cb(frame.map(|f| Reason::new(f.code.into(), f.reason.into()))).await;
+                    }
+                },
+                Message::Frame(_frame) => {},
+            }
+        }
 
         Ok(())
     }
