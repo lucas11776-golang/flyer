@@ -16,7 +16,8 @@ impl WebsocketEventCallback {
 
 pub struct Websocket {
     pub(crate) events: Instance<WebsocketEventCallback>,
-    guards: Vec<Box<dyn Any + Send + Sync>>,
+    pub(crate) guards: Vec<Box<dyn Any + Send + Sync>>,
+    pub(crate) socket: Socket,
 }
 
 #[derive(Debug)]
@@ -114,16 +115,18 @@ pub(crate) struct WebsocketEventCallback {
 }
 
 impl Websocket {
-    // pub fn new(event: Arc<WebsocketEventCallback>, writer: Arc<impl Writer + 'static>) -> Self {
-    pub(crate) fn new(event: Instance<WebsocketEventCallback>) -> Self {
+    pub(crate) fn new(socket: Socket, event: Instance<WebsocketEventCallback>) -> Self {
         Self {
             events: event,
             guards: Default::default(),
+            socket: socket,
         } 
     }
 
-    pub fn writer(&self) -> Arc<dyn Writer + 'static> {
-        todo!()
+    pub fn socket(&self) -> Socket {
+        self
+            .socket
+            .clone()
     }
 
     pub fn keep_alive<T: Send + Sync + 'static>(mut self, resource: T) -> Self {

@@ -112,9 +112,10 @@ impl Http1Websocket {
 
         let mut events = WebsocketEventCallback::new();
 
-        let websocket = Websocket::new(Instance((&mut events).into()));
-
-        (route.handler)(req, websocket).await;
+        let _websocket = (route.handler)(
+            req,
+            Websocket::new(socket.clone(), Instance((&mut events).into()))
+        ).await;
 
         if let Some(ref cb) = events.ready {
             tokio::spawn(cb(socket.clone()));

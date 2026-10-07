@@ -5,22 +5,25 @@ fn main() {
 
     server.router().group("", |router| {
         router.ws("/", async |_req, ws| -> Websocket {
-            ws.on(async |event, socket| {
-                match event {
-                    flyer::websocket::Event::Ready() => todo!(),
-                    flyer::websocket::Event::Text(bytes) => {
-                        println!("Received: {}", String::from_utf8_lossy(&bytes));
-                        socket
-                            .write("Hello from WebSocket!".into())
-                            .await
-                            .unwrap();
-                    },
-                    flyer::websocket::Event::Binary(_bytes) => todo!(),
-                    flyer::websocket::Event::Ping(_bytes) => todo!(),
-                    flyer::websocket::Event::Pong(_bytes) => todo!(),
-                    flyer::websocket::Event::Close(_reason) => todo!(),
-                }
-            })
+            ws
+                .ready(async |_socket| {
+                    todo!()
+                })
+                .text(async |_payload, _socket| {
+                    todo!()
+                })
+                .binary(async |_payload, _socket| {
+                    todo!()
+                })
+                .ping(async |_payload, _socket| {
+                    todo!()
+                })
+                .pong(async |_payload, _socket| {
+                    todo!()
+                })
+                .close(async |_reason| {
+                    todo!()
+                })
         });
     });
 
