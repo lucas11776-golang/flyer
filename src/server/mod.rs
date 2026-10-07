@@ -33,7 +33,6 @@ use crate::session::local::LocalSession;
 use crate::storage::{self, Storage};
 use crate::utils::mem::Instance;
 use crate::view::View;
-use crate::websocket::Websocket;
 
 pub(crate) mod protocol;
 

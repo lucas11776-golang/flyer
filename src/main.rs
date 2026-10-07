@@ -1,41 +1,45 @@
+
 use std::time::Duration;
 
-use flyer::{
-    request::Request, response::Response, server, server_tls, session::local::LocalSession,
-};
+use flyer::{server, websocket::Websocket};
+use tokio::time::sleep;
 
+fn main() {
+    let server = server("127.0.0.1", 9999);
 
-pub async fn stream_controller(_req: Request, res: Response) -> Response {
-    // Will only write headers once when write is called
-    let res = res
-        .set_header("Transfer-Encoding", "chunked")
-        .set_header("Connection", "keep-alive")
-        .set_header("Content-Type", "text/plain");
+    server.router().ws("/", async |_req, ws| -> Websocket {
+        let socket = ws.socket().clone();
 
-    for i in 1..=5 {
-        let data = format!("Data payload chunk #{}\n", i);
+        // Ping client every 5 seconds
+        let ping_handler = tokio::spawn(async move {
+            loop {
+                println!("Pinging Client Every 60 seconds");
 
-        // Format: <HEX_SIZE>\r\n<DATA>\r\n
-        let chunk_header = format!("{:X}\r\n", data.len());
+                sleep(Duration::from_secs(5)).await;
 
-        res.write(chunk_header.into()).await.unwrap();
-        res.write(data.into()).await.unwrap();
-        res.write("\r\n".into()).await.unwrap();
-    }
+                socket.ping(Default::default()).await.unwrap();
+            }
+        });
 
-    res
-}
-
-pub fn main() {
-    // let server: &mut flyer::server::Server = server_tls("127.0.0.1", 9999, "host.key", "host.cert")
-    let server: &mut flyer::server::Server = server("127.0.0.1", 9999)
-        .view("views")
-        .session(LocalSession::new(
-            Some("sessions"),
-            Duration::from_secs(60 * 60),
-        ));
-
-    server.router().get("/", stream_controller);
+        ws
+            // We want to value to stay alive even if we are out of scope you may add as many as you like.
+            .keep_alive(ping_handler)
+            .text(async |_payload, _socket| {
+                todo!()
+            })
+            .binary(async |_payload, _socket| {
+                todo!()
+            })
+            .ping(async |_payload, _socket| {
+                todo!()
+            })
+            .pong(async |_payload, _socket| {
+                todo!()
+            })
+            .close(async |_reason| {
+                todo!()
+            })
+    });
 
     server.listen();
 }

@@ -94,7 +94,7 @@ impl Http1Websocket {
     {
         let res = Self::handshake(&mut rw, &mut req).await?;
 
-        let Some((req, res, route)) = self.server.as_mut().on_websocket(req, res).await else {
+        let Some((req, _res, route)) = self.server.as_mut().on_websocket(req, res).await else {
             return Ok(());
         };
 

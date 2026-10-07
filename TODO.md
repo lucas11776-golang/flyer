@@ -1,3 +1,2 @@
-- Change websocket API does not fit EventEmitter.
 - Need to fix logger because it only logs on routes logger must be GLOBAL.
 - Need to implement HTTP/2.0 and HTTP/3.0 websocket protocol.
