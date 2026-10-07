@@ -8,8 +8,32 @@ pub(crate) const SEC_WEB_SOCKET_ACCEPT_STATIC: &str = "258EAFA5-E914-47DA-95CA-C
 
 pub(crate) type OnEvent = Box<dyn Fn(Event, Socket) -> BoxFuture<'static, ()> + Send + Sync>;
 
+#[derive(Default)]
+pub(crate) struct WebsocketEventCallback {
+    pub ready: Option<Box<dyn Fn() -> BoxFuture<'static, ()>>>,
+    pub text: Option<Box<dyn Fn() -> BoxFuture<'static, ()>>>,
+    pub binary: Option<Box<dyn Fn() -> BoxFuture<'static, ()>>>,
+    pub ping: Option<Box<dyn Fn() -> BoxFuture<'static, ()>>>,
+    pub pong: Option<Box<dyn Fn() -> BoxFuture<'static, ()>>>,
+    pub close: Option<Box<dyn Fn() -> BoxFuture<'static, ()>>>,
+    
+}
+
+impl WebsocketEventCallback {
+    pub fn new() -> Self {
+        Default::default()
+    }
+}
+
 pub struct Websocket {
-    pub(crate) event: Option<OnEvent>,
+    // pub(crate) event: Option<OnEvent>,
+
+    pub(crate) events: Arc<WebsocketEventCallback>,
+
+    inner: Option<Arc<dyn Writer>>
+
+
+
 }
 
 #[derive(Debug)]
@@ -96,19 +120,75 @@ impl Socket {
 }
 
 impl Websocket {
-    pub fn new() -> Self {
+    pub fn new(event: Arc<WebsocketEventCallback>, writer: Option<Arc<dyn Writer + 'static>>) -> Self {
         Self {
-            event: None
+            // event: None,
+            inner: writer,
+            events: Default::default(),
         } 
     }
 
+    // #[deprecated]
     pub fn on<C, Fut>(mut self, callback: C) -> Self
     where
         C: Fn(Event, Socket) -> Fut + Send + Sync + 'static,
         Fut: Future<Output = ()> + Send + 'static,
     {
-        self.event = Some(Box::new(move |event, writer| Box::pin(callback(event, writer))));
+        // self.event = Some(Box::new(move |event, writer| Box::pin(callback(event, writer))));
 
         return self;
     }
+
+    pub fn writer(&self) -> Arc<dyn Writer + 'static> {
+        todo!()
+    }
+
+
+    // pub async fn write(&self, data: Bytes) -> Result<()> {
+    //     // self
+    //     //     .inner
+    //     //     .write(data)
+    //     //     .await
+
+    //     todo!()
+    // }
+
+    // pub async fn write_binary(&self, data: Bytes) -> Result<()> {
+    //     // self
+    //     //     .inner
+    //     //     .write_binary(data)
+    //     //     .await
+
+    //     todo!()
+    // }
+
+    // pub async fn ping(&self, data: Bytes) -> Result<()> {
+    //     // self
+    //     //     .inner
+    //     //     .ping(data)
+    //     //     .await
+
+
+    //     todo!()
+    // }
+
+    // pub async fn pong(&self, data: Bytes) ->  Result<()> {
+    //     // self
+    //     //     .inner
+    //     //     .pong(data)
+    //     //     .await
+
+
+    //     todo!()
+    // }
+
+    // pub async fn close(&self) -> Result<()> {
+    //     // self
+    //     //     .inner
+    //     //     .close()
+    //     //     .await
+
+
+    //     todo!()
+    // }
 }

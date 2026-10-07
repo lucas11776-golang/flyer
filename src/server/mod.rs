@@ -22,8 +22,10 @@ use crate::hooks::{Hook, HookErasure, HookWrapper};
 use crate::mail;
 use crate::request::Request;
 use crate::response::Response;
+use crate::routing::WebsocketHandler;
 use crate::routing::next::Next;
 use crate::routing::resolver::Resolver;
+use crate::routing::route::Route;
 use crate::routing::router::Router;
 use crate::routing::routes::Routes;
 use crate::server::protocol::{tcp::Tcp, udp::Udp, ServerHandler};
@@ -287,7 +289,7 @@ impl Server {
         }).await
     }
 
-    pub(crate) async fn on_websocket(&self, req: Request, res: Response) -> Option<Websocket> {
+    pub(crate) async fn on_websocket(&self, req: Request, res: Response) -> Option<(Request, Response, &Route<WebsocketHandler>)> {
         GLOBAL_PANIC_CONTEXT.scope(RefCell::new(Error::default()), async move {
             let result = AssertUnwindSafe(async {
                 let (req, res, route) = self
@@ -305,17 +307,20 @@ impl Server {
             .catch_unwind()
             .await;
 
-            match result {
-                Ok((req, _, route)) => {
-                    return Some((route.unwrap().handler)(req, Websocket::new()).await)
-                },
-                Err(_) => {
+        match result {
+            Ok((req, res, route)) => {
+                let Some(route) = route else {
+                    return None;
+                };
+                return Some((req, res, route))
+            },
+            Err(_) => {
                     let error = GLOBAL_PANIC_CONTEXT.with(|cell| cell.borrow().clone());
                     self.on_logger(error.clone(), req.clone(), res.clone()).await;
                     self.routes.handle_error(error, req, res).await;
                     return None
-                },
-            }
+            },
+        }
         }).await
     }
 

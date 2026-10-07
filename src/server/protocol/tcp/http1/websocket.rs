@@ -101,13 +101,8 @@ impl Http1Websocket {
     {
         let res = Self::handshake(&mut rw, &mut req).await?;
 
-        let Some(websocket) = self.server.as_mut().on_websocket(req, res).await else {
+        let Some((req, res, route)) = self.server.as_mut().on_websocket(req, res).await else {
             return Ok(());
-        };
-
-        let cb = match &websocket.event {
-            Some(cb) => cb,
-            None => return Ok(()),
         };
 
         let (mut sink, mut stream) = WebSocketStream::from_raw_socket(rw, RoleServer, None)
@@ -117,18 +112,41 @@ impl Http1Websocket {
         let writer = Http1WebsocketWriter::new(Instance::from_mut(&mut sink));
         let socket = websocket::Socket::new(writer);
 
-        while let Some(Ok(msg)) = stream.next().await {
-            let event = match msg {
-                Message::Text(data) => Event::Text(data.into()),
-                Message::Binary(bytes) => Event::Binary(bytes),
-                Message::Ping(bytes) => Event::Ping(bytes),
-                Message::Pong(bytes) => Event::Pong(bytes),
-                Message::Close(frame) => Event::Close(frame.map(|f| Reason::new(f.code.into(), f.reason.into()))),
-                Message::Frame(_) => continue,
-            };
 
-            cb(event, socket.clone()).await;
-        }
+
+        // let cb = match &websocket.event {
+        //     Some(cb) => Some(cb),
+        //     None => None,
+        // };
+
+        // while let Some(Ok(msg)) = stream.next().await {
+        //     let event = match msg {
+        //         Message::Text(data) => Event::Text(data.into()),
+        //         Message::Binary(bytes) => Event::Binary(bytes),
+        //         Message::Ping(bytes) => Event::Ping(bytes),
+        //         Message::Pong(bytes) => Event::Pong(bytes),
+        //         Message::Close(frame) => Event::Close(frame.map(|f| Reason::new(f.code.into(), f.reason.into()))),
+        //         Message::Frame(_) => continue,
+        //     };
+
+        //     if let Some(callback) = cb {
+        //         callback(event, socket.clone()).await;
+        //     }
+        // }
+
+
+        // while let Some(Ok(msg)) = stream.next().await {
+        //     let event = match msg {
+        //         Message::Text(data) => Event::Text(data.into()),
+        //         Message::Binary(bytes) => Event::Binary(bytes),
+        //         Message::Ping(bytes) => Event::Ping(bytes),
+        //         Message::Pong(bytes) => Event::Pong(bytes),
+        //         Message::Close(frame) => Event::Close(frame.map(|f| Reason::new(f.code.into(), f.reason.into()))),
+        //         Message::Frame(_) => continue,
+        //     };
+
+        //     cb(event, socket.clone()).await;
+        // }
 
         Ok(())
     }
