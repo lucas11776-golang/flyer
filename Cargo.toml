@@ -12,10 +12,10 @@ categories = ["web-programming", "web-programming::http-server", "web-programmin
 edition = "2024"
 
 [dependencies]
-anyhow = "1.0.102"
+anyhow = "1.0.104"
 async-std = "1.13.2"
 once_cell = "1.21.4"
-tokio = { version = "1.50.0", features = ["full"] }
+tokio = { version = "1.54.1", features = ["full"] }
 rustls = "0.23.37"
 reqwest = { version = "0.12.28", default-features = false, features = ["rustls-tls"] }
 tokio-rustls = "0.26.4"
@@ -43,25 +43,26 @@ cookie = { version = "0.18.1", features = ["percent-encode"] }
 tera = "1.20.1"
 aes-gcm = "0.10.3"
 multer = "3.1.0"
-tokio-util = "0.7.18"
-regex = "1.12.3"
-lazy_static = "1.5.0"
+tokio-util = "0.7.20"
+regex = "1.13.1"
+lazy_static = "1.5.1"
 mime_guess = "2.0.5"
 hickory-proto = "0.25.2"
 httparse = "1.10.1"
-http-body-util = "0.1.3"
-futures-util = "0.3.32"
+http-body-util = "0.1.5"
+futures-util = "0.3.34"
 chrono = "0.4.44"
-ulid = "1.2.1"
+ulid = "3.0.0"
 ipnetwork = "0.21.1"
 serde_urlencoded = "0.7.1"
-lettre = "0.11.22"
-sentry = { version = "0.48.4", features = ["reqwest", "native-tls", "backtrace"] }
-async-trait = "0.1.89"
-rand = "0.10.2"
-aws-config = "1.10.0"
-aws-sdk-s3 = "1.139.0"
-aws-credential-types = "1.3.0"
-moka = { version = "0.12.15", features = ["sync"] }
-arc-swap = "1.9.2"
-
+lettre = "0.11.23"
+sentry = { version = "0.49.3", features = ["reqwest", "native-tls", "backtrace"] }
+async-trait = "0.1.92"
+rand = "0.10.3"
+aws-config = "1.13.0"
+aws-sdk-s3 = "1.155.0"
+aws-credential-types = "1.3.1"
+moka = { version = "0.12.16", features = ["sync"] }
+arc-swap = "1.9.3"
+dioxus-ssr = "0.7.10"
+dioxus = { version = "0.7.10", features = ["desktop"] }
