@@ -11,3 +11,4 @@ host.key
 /storage
 /file
 /sessions
+.env
