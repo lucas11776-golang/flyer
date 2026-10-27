@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use bytes::Bytes;
+use dioxus::{core::ComponentFunction, prelude::*};
 use futures::future::BoxFuture;
 use serde::Serialize;
 
@@ -137,6 +138,9 @@ impl Into<serde_json::Value> for Response {
     }
 }
 
+#[derive(PartialEq, Props, Clone)]
+struct ComponentDefaultProps { }
+
 impl Response {
     #[inline]
     pub(crate) fn new() -> Self {
@@ -257,6 +261,29 @@ impl Response {
     pub fn view(mut self, view: &str, data: Option<ViewData>) -> Self {
         self.view = Some(ViewBag::new(view, data));
         self
+    }
+
+    #[inline]
+    pub fn component(self, component: fn () -> Element) -> Self {
+        let mut dom = VirtualDom::new(component);
+
+        dom.rebuild_in_place();
+
+        self.html(dioxus_ssr::render(&dom))
+    }
+
+    #[inline]
+    pub fn component_with_props<P: Clone + 'static, M: 'static>(
+        self,
+        component: impl ComponentFunction<P, M>,
+        props: P,
+    ) -> Self
+    {
+        let mut dom = VirtualDom::new_with_props(component, props);
+
+        dom.rebuild_in_place();
+
+        self.html(dioxus_ssr::render(&dom))
     }
 
     #[inline]
