@@ -64,4 +64,5 @@ aws-sdk-s3 = "1.139.0"
 aws-credential-types = "1.3.0"
 moka = { version = "0.12.15", features = ["sync"] }
 arc-swap = "1.9.2"
-
+dioxus-ssr = "0.7.10"
+dioxus = { version = "0.7.10", features = ["web"] }
