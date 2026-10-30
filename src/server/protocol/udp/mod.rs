@@ -6,11 +6,13 @@ use bytes::Bytes;
 use h3_quinn::quinn::crypto::rustls::QuicServerConfig;
 use quinn::{Endpoint, Incoming};
 use rustls::ServerConfig;
+use tokio::task::JoinSet;
 
 use crate::server::protocol::udp::http3::Http3;
 use crate::server::protocol::{ServerHandler, UdpHandler};
 use crate::server::Server;
 use crate::utils::mem::Instance;
+use crate::utils::shutdown::shutdown_signal;
 
 pub mod http3;
 
@@ -38,20 +40,41 @@ impl ServerHandler for Udp {
 
         let endpoint = match Self::get_endpoint(&addr_str, server_config) {
             Ok(ep) => ep,
-            Err(err) => {
-                eprintln!("Failed to bind QUIC/HTTP3 endpoint on {addr_str}: {err}");
+            Err(_) => {
+                /* TODO need to change panic does not catch all application errors */
                 return;
             }
         };
 
-        while let Some(incoming) = endpoint.accept().await {
-            let instance = instance.clone();
+        let mut tasks = JoinSet::new();
 
-            tokio::spawn(async move {
-                if let Err(err) = Self::on_incoming(instance, incoming).await {
-                    eprintln!("HTTP/3 connection error: {err}");
+        loop {
+            tokio::select! {
+                result = endpoint.accept() => {
+                    match result {
+                        Some(incoming) => {
+                            tasks.spawn(async move {
+                                if let Err(_) = Self::on_incoming(instance, incoming).await {
+                                    /* TODO need to change panic does not catch all application errors */
+                                }
+                            });
+                        },
+                        None => {  },
+                    }
                 }
-            });
+
+                _ = shutdown_signal() => {
+                    break;
+                }
+            }
+        }
+
+        drop(endpoint);
+
+        while let Some(result) = tasks.join_next().await {
+            if let Err(_) = result {
+                /* TODO need to change panic does not catch all application errors */
+            }
         }
     }
 }

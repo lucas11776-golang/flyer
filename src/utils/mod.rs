@@ -8,6 +8,7 @@ pub mod url;
 pub mod vec;
 pub mod env;
 pub mod server;
+pub mod shutdown;
 pub(crate) mod route;
 pub mod mem;
 

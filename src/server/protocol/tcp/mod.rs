@@ -5,11 +5,13 @@ use anyhow::Result;
 use tokio::{
     io::{AsyncBufReadExt, AsyncRead, AsyncWrite, BufReader},
     net::TcpListener,
+    task::JoinSet
 };
 use tokio_rustls::TlsAcceptor;
 
 use crate::server::protocol::TcpHandler;
 use crate::server::protocol::tcp::http2::{H2_PREFACE, Http2};
+use crate::utils::shutdown::shutdown_signal;
 use crate::{
     server::{
         Server,
@@ -36,13 +38,34 @@ impl ServerHandler for Tcp {
             .clone()
             .map(|cfg| get_tls_acceptor(cfg));
 
-        while let Ok((stream, addr)) = listener.accept().await {
-            tokio::spawn(Self::process_stream(
-                server.clone(),
-                tls.clone(),
-                stream,
-                addr,
-            ));
+        let mut tasks = JoinSet::new();
+
+        loop {
+            tokio::select! {
+                result = listener.accept() => {
+                    match result {
+                        Ok((stream, addr)) => {
+                            let tls = tls.clone();
+                            tasks.spawn(Self::process_stream(server.clone(), tls, stream, addr));
+                        },
+                        Err(_) => {
+                            /* TODO need to change panic does not catch all application errors */
+                        },
+                    }
+                }
+
+                _ = shutdown_signal() => {
+                    break;
+                }
+            }
+        }
+
+        drop(listener);
+
+        while let Some(result) = tasks.join_next().await {
+            if let Err(_) = result {
+                /* TODO need to change panic does not catch all application errors */
+            }
         }
     }
 }
