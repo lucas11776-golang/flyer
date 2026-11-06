@@ -1,6 +1,6 @@
 [package]
 name = "flyer"
-version = "3.3.1"
+version = "3.4.0"
 authors = ["Themba Lucas Ngubeni <thembangubeni04@email.com>"]
 license = "MIT"
 description = "HTTP framework for rust"
@@ -66,3 +66,4 @@ moka = { version = "0.12.15", features = ["sync"] }
 arc-swap = "1.9.2"
 dioxus-ssr = "0.7.10"
 dioxus = { version = "0.7.10", features = ["web"] }
+rust-embed = "8.13.0"

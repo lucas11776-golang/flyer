@@ -737,6 +737,33 @@ pub fn main() {
 
 ---
 
+
+---
+
+### 18. GracefulShutdown (`examples/18_graceful_shutdown.rs`)
+Prevents the web server from shutting down while it is still processing active requests.
+
+
+```rust
+use flyer::{server, utils::shutdown};
+
+pub fn main() {
+    let server = server("127.0.0.1", 9999)
+        .with_graceful_shutdown(shutdown::shutdown_signal);
+
+    server.router().get("/", async |_req, res| {
+        res.html("<h1>Hello World</h1>")
+    });
+
+    println!("\r\n\r\nRunning Server: {}\r\n\r\n", server.address());
+
+    server.listen();
+}
+```
+
+---
+
+
 ## 🎨 Tera View Template Built-in Functions
 
 Flyer exposes a rich set of helper functions ready to be used directly inside your Tera templates for sessions, validation feedback, and environment variables.

@@ -3,9 +3,33 @@ use std::time::Duration;
 
 use flyer::{server, websocket::Websocket};
 use tokio::time::sleep;
+use rust_embed::Embed;
+
+
+#[derive(Embed)]
+#[folder = "assets/"]
+pub struct Asset;
+
+
+pub fn assets(asset: impl rust_embed::RustEmbed) {
+
+}
+
 
 fn main() {
     let server = server("127.0.0.1", 9999);
+
+
+
+
+    // let a = Asset::get("index.html");
+
+
+
+
+    assets(Asset);
+
+
 
     server.router().ws("/", async |_req, ws| -> Websocket {
         let socket = ws.socket().clone();

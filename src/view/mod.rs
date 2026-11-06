@@ -24,6 +24,7 @@ pub(crate) mod functions;
 #[derive(Clone, Default)]
 pub struct View {
     engine: Option<Arc<Tera>>,
+    // assets: Box<dyn crate::RustEmbed>
 }
 
 impl Hook for View {
