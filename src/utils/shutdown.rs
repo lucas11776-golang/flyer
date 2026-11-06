@@ -1,6 +1,6 @@
 use tokio::signal;
 
-pub(crate) async fn shutdown_signal() {
+pub async fn shutdown_signal() {
     let ctrl_c = async {
         signal::ctrl_c()
             .await

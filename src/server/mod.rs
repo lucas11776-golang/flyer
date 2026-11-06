@@ -359,7 +359,7 @@ impl Server {
         }
     }
 
-    pub fn setup_global_panic_hook(&self) {
+    fn setup_global_panic_hook(&self) {
         GLOBAL_PANIC_IS_SET.get_or_init(|| {
             panic::set_hook(Box::new(|info| {
                 let _ = GLOBAL_PANIC_CONTEXT.try_with(|cell| {
