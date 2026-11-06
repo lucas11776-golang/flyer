@@ -46,7 +46,6 @@ pub(crate) type InitCallback = dyn Fn() -> BoxFuture<'static, ()> + Send + Sync;
 
 pub(crate) type GracefulShutdown = Box<dyn Fn() -> BoxFuture<'static, ()> + Send + Sync>;
 
-async fn graceful_shutdown_default() { }
 
 pub struct Server {
     pub(crate) host: String,
@@ -107,7 +106,6 @@ impl Server {
             init_callbacks: Vec::new(),
             before_hooks: Vec::new(),
             after_hooks: Vec::new(),
-            // graceful_shutdown: Box::new(|| Box::pin(graceful_shutdown_default()))
             graceful_shutdown: None
         }
     }
@@ -132,9 +130,9 @@ impl Server {
         self
     }
 
-    pub fn view_embed(&mut self, views: impl crate::RustEmbed) -> &mut Self {
-        self
-    }
+    // pub fn view_embed(&mut self, _views: impl crate::RustEmbed) -> &mut Self {
+    //     self
+    // }
 
     pub fn with_graceful_shutdown<C, Fut>(&mut self, callback: C) -> &mut Self
     where
@@ -143,7 +141,7 @@ impl Server {
     {
         self.graceful_shutdown = Some(Box::new(move || Box::pin(callback())));
 
-        todo!()
+        self
     }
 
     pub fn listen(&mut self) {

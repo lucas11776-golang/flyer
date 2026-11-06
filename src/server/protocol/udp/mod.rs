@@ -10,9 +10,8 @@ use tokio::task::JoinSet;
 
 use crate::server::protocol::udp::http3::Http3;
 use crate::server::protocol::{ServerHandler, UdpHandler};
-use crate::server::Server;
+use crate::server::{GracefulShutdown, Server};
 use crate::utils::mem::Instance;
-use crate::utils::shutdown::shutdown_signal;
 
 pub mod http3;
 
@@ -21,9 +20,41 @@ pub struct Udp;
 static ALPN_PROTOCOLS: LazyLock<Vec<Vec<u8>>> = LazyLock::new(|| {
     vec![
         b"h3".to_vec(),
-        b"h3-29".to_vec(),
-        b"h3-32".to_vec(),
         b"h3-34".to_vec(),
+        b"h3-33".to_vec(),
+        b"h3-32".to_vec(),
+        b"h3-31".to_vec(),
+        b"h3-30".to_vec(),
+        b"h3-29".to_vec(),
+        b"h3-28".to_vec(),
+        b"h3-27".to_vec(),
+        b"h3-26".to_vec(),
+        b"h3-25".to_vec(),
+        b"h3-24".to_vec(),
+        b"h3-23".to_vec(),
+        b"h3-22".to_vec(),
+        b"h3-21".to_vec(),
+        b"h3-20".to_vec(),
+        b"h3-19".to_vec(),
+        b"h3-18".to_vec(),
+        b"h3-17".to_vec(),
+        b"h3-16".to_vec(),
+        b"h3-15".to_vec(),
+        b"h3-14".to_vec(),
+        b"h3-13".to_vec(),
+        b"h3-12".to_vec(),
+        b"h3-11".to_vec(),
+        b"h3-10".to_vec(),
+        b"h3-09".to_vec(),
+        b"h3-08".to_vec(),
+        b"h3-07".to_vec(),
+        b"h3-06".to_vec(),
+        b"h3-05".to_vec(),
+        b"h3-04".to_vec(),
+        b"h3-03".to_vec(),
+        b"h3-02".to_vec(),
+        b"h3-01".to_vec(),
+        b"h3-00".to_vec(),
     ]
 });
 
@@ -38,7 +69,7 @@ impl ServerHandler for Udp {
             (server.address().to_string(), config)
         };
 
-        let endpoint = match Self::get_endpoint(&addr_str, server_config) {
+        let endpoint: Endpoint = match Self::get_endpoint(&addr_str, server_config) {
             Ok(ep) => ep,
             Err(_) => {
                 /* TODO need to change panic does not catch all application errors */
@@ -46,6 +77,29 @@ impl ServerHandler for Udp {
             }
         };
 
+        match &instance.as_ref().graceful_shutdown {
+            Some(callback) => Self::accept_with_graceful_shutdown(instance, endpoint, callback).await,
+            None => Self::accept(instance, endpoint).await,
+        }
+    }
+}
+
+impl Udp {
+    async fn accept(instance: Instance<Server>, endpoint: Endpoint) {
+        while let Some(incoming) = endpoint.accept().await {
+            tokio::spawn(async move {
+                if let Err(_) = Self::on_incoming(instance, incoming).await {
+                    /* TODO need to change panic does not catch all application errors */
+                }
+            });
+        }
+    }
+
+    async fn accept_with_graceful_shutdown(
+        instance: Instance<Server>,
+        endpoint: Endpoint,
+        graceful_shutdown: &GracefulShutdown,
+    ) {
         let mut tasks = JoinSet::new();
 
         loop {
@@ -63,7 +117,7 @@ impl ServerHandler for Udp {
                     }
                 }
 
-                _ = shutdown_signal() => {
+                _ = graceful_shutdown() => {
                     break;
                 }
             }
@@ -77,9 +131,8 @@ impl ServerHandler for Udp {
             }
         }
     }
-}
 
-impl Udp {
+
     fn get_endpoint(address: &str, mut server_config: ServerConfig) -> Result<Endpoint> {
         server_config.alpn_protocols = ALPN_PROTOCOLS.clone();
 

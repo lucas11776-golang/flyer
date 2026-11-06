@@ -12,7 +12,6 @@ use tokio_rustls::TlsAcceptor;
 use crate::server::GracefulShutdown;
 use crate::server::protocol::TcpHandler;
 use crate::server::protocol::tcp::http2::{H2_PREFACE, Http2};
-use crate::utils::shutdown::shutdown_signal;
 use crate::{
     server::{
         Server,
