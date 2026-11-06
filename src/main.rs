@@ -3,17 +3,17 @@ use std::time::Duration;
 
 use flyer::{server, websocket::Websocket};
 use tokio::time::sleep;
-use rust_embed::Embed;
+// use rust_embed::Embed;
 
 
-#[derive(Embed)]
-#[folder = "assets/"]
-pub struct Asset;
+// #[derive(Embed)]
+// #[folder = "assets/"]
+// pub struct Asset;
 
 
-pub fn assets(asset: impl rust_embed::RustEmbed) {
+// pub fn assets(asset: impl rust_embed::RustEmbed) {
 
-}
+// }
 
 
 fn main() {
@@ -25,9 +25,6 @@ fn main() {
     // let a = Asset::get("index.html");
 
 
-
-
-    assets(Asset);
 
 
 
