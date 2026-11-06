@@ -44,6 +44,10 @@ pub(crate) static GLOBAL_PANIC_IS_SET: OnceCell<()> = OnceCell::new();
 
 pub(crate) type InitCallback = dyn Fn() -> BoxFuture<'static, ()> + Send + Sync;
 
+pub(crate) type GracefulShutdown = Box<dyn Fn() -> BoxFuture<'static, ()> + Send + Sync>;
+
+async fn graceful_shutdown_default() { }
+
 pub struct Server {
     pub(crate) host: String,
     pub(crate) port: u32,
@@ -59,6 +63,7 @@ pub struct Server {
     pub(crate) init_callbacks: Vec<Arc<InitCallback>>,
     pub(crate) before_hooks: Vec<Arc<dyn HookErasure>>,
     pub(crate) after_hooks: Vec<Arc<dyn HookErasure>>,
+    pub(crate) graceful_shutdown: Option<GracefulShutdown>,
 }
 
 impl Debug for Server {
@@ -102,6 +107,8 @@ impl Server {
             init_callbacks: Vec::new(),
             before_hooks: Vec::new(),
             after_hooks: Vec::new(),
+            // graceful_shutdown: Box::new(|| Box::pin(graceful_shutdown_default()))
+            graceful_shutdown: None
         }
     }
 
@@ -123,6 +130,20 @@ impl Server {
     pub fn view(&mut self, directory: impl Into<String>) -> &mut Self {
         self.view = Arc::new(HookWrapper::new(View::new(Some(directory.into()))));
         self
+    }
+
+    pub fn view_embed(&mut self, views: impl crate::RustEmbed) -> &mut Self {
+        self
+    }
+
+    pub fn with_graceful_shutdown<C, Fut>(&mut self, callback: C) -> &mut Self
+    where
+        C: Fn() -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = ()> + Send + 'static,
+    {
+        self.graceful_shutdown = Some(Box::new(move || Box::pin(callback())));
+
+        todo!()
     }
 
     pub fn listen(&mut self) {

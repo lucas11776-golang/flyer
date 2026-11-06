@@ -28,6 +28,9 @@ pub use request::Request;
 pub use response::Response;
 pub use websocket::Websocket;
 
+pub use rust_embed::RustEmbed; /// TODO: need to rename
+pub use rust_embed::Embed;
+
 pub(crate) static mut GLOBAL_SERVER: OnceCell<Server> = OnceCell::new();
 
 #[allow(static_mut_refs)]

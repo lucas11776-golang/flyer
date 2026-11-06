@@ -9,6 +9,7 @@ use tokio::{
 };
 use tokio_rustls::TlsAcceptor;
 
+use crate::server::GracefulShutdown;
 use crate::server::protocol::TcpHandler;
 use crate::server::protocol::tcp::http2::{H2_PREFACE, Http2};
 use crate::utils::shutdown::shutdown_signal;
@@ -28,16 +29,40 @@ pub struct Tcp;
 
 impl ServerHandler for Tcp {
     async fn listen(server: Instance<Server>) {
-        let listener = TcpListener::bind(server.as_ref().address())
+        let listener: TcpListener = TcpListener::bind(server.as_ref().address())
             .await
             .expect("Failed to bind TCP listener");
 
-        let tls = server
+        let tls: Option<TlsAcceptor> = server
             .as_mut()
             .server_config
             .clone()
             .map(|cfg| get_tls_acceptor(cfg));
 
+        match &server.as_ref().graceful_shutdown {
+            Some(callback) => Tcp::accept_with_graceful_shutdown(server, listener, tls, callback).await,
+            None => Tcp::accept(server, listener, tls).await,
+        };
+    }
+}
+
+impl Tcp {
+    async fn accept(
+        server: Instance<Server>,
+        listener: TcpListener,
+        tls: Option<TlsAcceptor>,
+    ) {
+        while let Ok((stream, addr)) = listener.accept().await {
+            tokio::spawn(Self::process_stream(server, tls.clone(), stream, addr));
+        }
+    }
+
+    async fn accept_with_graceful_shutdown(
+        server: Instance<Server>,
+        listener: TcpListener,
+        tls: Option<TlsAcceptor>,
+        graceful_shutdown: &GracefulShutdown
+    ) {
         let mut tasks = JoinSet::new();
 
         loop {
@@ -54,7 +79,7 @@ impl ServerHandler for Tcp {
                     }
                 }
 
-                _ = shutdown_signal() => {
+                _ = graceful_shutdown() => {
                     break;
                 }
             }
@@ -68,9 +93,7 @@ impl ServerHandler for Tcp {
             }
         }
     }
-}
 
-impl Tcp {
     async fn process_stream(
         server: Instance<Server>,
         tls: Option<TlsAcceptor>,
