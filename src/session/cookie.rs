@@ -38,8 +38,6 @@ impl Hook for CookieSession {
     async fn before(&self, mut req: Request, mut res: Response, next: Next) -> Response {
         let hash = req.cookie(self.cookie_name.clone());
 
-
-
         if hash.is_empty() {
             return next.handle(req, res);
         }
@@ -47,7 +45,6 @@ impl Hook for CookieSession {
         let Ok(payload) = self.decrypt(&hash) else {
             return next.handle(req, res);
         };
-
 
         let Ok(session) =  serde_json::from_str::<Session>(&payload) else {
             return next.handle(req, res);
@@ -60,12 +57,13 @@ impl Hook for CookieSession {
     }
     
     async fn after(&self, req: Request, mut res: Response, next: Next) -> Response {
-        let data = serde_json::to_string(&res.session)
-            .unwrap();
+        let Ok(data) = serde_json::to_string(&res.session) else {
+            return next.handle(req, res);
+        };
 
-        let payload = self
-            .encrypt(&data)
-            .unwrap();
+        let Ok(payload) = self.encrypt(&data) else {
+            return next.handle(req, res);
+        };
 
         let cookie = res
             .set_cookie(self.cookie_name.clone(), payload)
