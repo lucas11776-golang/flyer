@@ -79,7 +79,7 @@ impl Request {
     #[inline]
     pub fn host(&self) -> String {
         self
-            .path
+            .host
             .clone()
     }
 
