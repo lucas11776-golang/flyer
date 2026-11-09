@@ -35,36 +35,38 @@ impl CookieSession {
 }
 
 impl Hook for CookieSession {
-    async fn before(&self, mut req: Request, res: Response, next: Next) -> Response {
+    async fn before(&self, mut req: Request, mut res: Response, next: Next) -> Response {
         let hash = req.cookie(self.cookie_name.clone());
+
+
 
         if hash.is_empty() {
             return next.handle(req, res);
         }
-
-        let result = self.decrypt(&hash);
-
-        if result.is_err() {
+        
+        let Ok(payload) = self.decrypt(&hash) else {
             return next.handle(req, res);
-        }
+        };
 
-        let result = serde_json::from_str::<Session>(&result.unwrap());
 
-        if result.is_err() {
+        let Ok(session) =  serde_json::from_str::<Session>(&payload) else {
             return next.handle(req, res);
-        }
+        };
 
-        req.session = result.unwrap();
-
+        req.session = session.clone();
+        res.session = session;
+        
         return next.handle(req, res);
     }
     
     async fn after(&self, req: Request, mut res: Response, next: Next) -> Response {
         let data = serde_json::to_string(&res.session)
             .unwrap();
+
         let payload = self
             .encrypt(&data)
             .unwrap();
+
         let cookie = res
             .set_cookie(self.cookie_name.clone(), payload)
             .set_expires(self.duration)
