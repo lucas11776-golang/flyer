@@ -50,8 +50,8 @@ impl Hook for CookieSession {
             return next.handle(req, res);
         };
 
-        req.session = session.clone();
-        res.session = session;
+        req.session = session; 
+        res.session.set_values(req.session.session());
         
         return next.handle(req, res);
     }
