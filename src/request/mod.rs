@@ -136,6 +136,17 @@ impl Request {
             .get(k)
     }
 
+    #[inline]
+    pub fn session_parse<T: std::str::FromStr>(&self, k: impl Into<String>) -> crate::Result<T> 
+    where
+        T::Err: Into<anyhow::Error>,
+    {
+        self
+            .session(k)
+            .parse::<T>()
+            .map_err(Into::into)
+    }
+
     pub fn values(&self) -> &Values {
         &self
             .form
@@ -149,6 +160,17 @@ impl Request {
             .get(&key.into())
             .unwrap_or(&String::new())
             .into()
+    }
+
+    #[inline]
+    pub fn value_parse<T: std::str::FromStr>(&self, k: impl Into<String>) -> crate::Result<T> 
+    where
+        T::Err: Into<anyhow::Error>,
+    {
+        self
+            .value(k)
+            .parse::<T>()
+            .map_err(Into::into)
     }
     
     #[inline]
