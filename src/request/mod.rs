@@ -65,7 +65,7 @@ impl Request {
     #[inline]
     pub fn method(&self) -> String {
         self
-            .path
+            .method
             .clone()
     }
 
